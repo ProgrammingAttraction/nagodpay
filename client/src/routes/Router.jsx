@@ -28,7 +28,6 @@ import Masterpayin from "../pages/merchant/masterpayin/Masterpayin";
 import Masterpayout from "../pages/merchant/masterpayout/Masterpayout";
 import Sendsms from "../pages/sms/Sendsms";
 import Merchantwithdraw from "../pages/merchant/mwithdraw/Merchantwithdraw";
-import NotFoundPage from "../pages/Notfoundpage";
 import Allmethod from "../pages/allmethod/Allmethod";
 
 const isAuthenticated = () => {
