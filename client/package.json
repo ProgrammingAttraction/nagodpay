@@ -12,6 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.10",
     "axios": "^1.10.0",
+    "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.19.1",
     "moment": "^2.30.1",

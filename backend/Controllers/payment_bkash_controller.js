@@ -66,6 +66,7 @@ const payment_bkash = async (req, res) => {
   console.log('bkash-payment-data', req.body.payerId);
       const apiKey = req.headers['x-api-key']?req.headers['x-api-key']:'';
     console.log(apiKey)
+    console.log(req.body)
   if (!data.orderId || !data.payerId || !data.amount || !data.currency || !data.redirectUrl || !data.callbackUrl) {
     return res.status(200).json({
       success: false,

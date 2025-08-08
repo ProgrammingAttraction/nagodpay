@@ -29,6 +29,7 @@ import Masterpayout from "../pages/merchant/masterpayout/Masterpayout";
 import Sendsms from "../pages/sms/Sendsms";
 import Merchantwithdraw from "../pages/merchant/mwithdraw/Merchantwithdraw";
 import Allmethod from "../pages/allmethod/Allmethod";
+import NotFoundPage  from "../pages/Notfoundpage";
 
 const isAuthenticated = () => {
   return localStorage.getItem('authToken') !== null;
