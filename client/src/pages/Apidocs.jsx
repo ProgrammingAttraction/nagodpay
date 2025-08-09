@@ -808,7 +808,7 @@ const Apidocs = () => {
   <h3 className="text-xl font-semibold mt-6 mb-2">Flow Diagram</h3>
   <div className="bg-gray-100 p-4 rounded">
     <pre className="text-sm">
-{`1. Fetch transaction status (GET https://api.pi2payz.com/api/user/transaction-status/:transactionId)
+{`1. Fetch transaction status (GET https://api.nagodpay.com/api/user/transaction-status/:transactionId)
    ↓
 2. If successful → Fetch user details (GET /auth/user/:userId)
    ↓
