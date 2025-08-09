@@ -74,7 +74,7 @@ const Apidocs = () => {
   "message": "Payment link created.",
   "orderId": "AkWjV-EU",
   "paymentId": "eF9mJc3V",
-  "link": "http://localhost:3000/checkout/eF9mJc3V"
+  "link": "https://nagodpay.com/checkout/eF9mJc3V"
 }`}
   </pre>
 
@@ -101,7 +101,7 @@ const Apidocs = () => {
     <p className="mt-2 text-sm">
       <strong>POST:</strong>{" "}
       <code className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-mono">
-        https://api.pi2payz.com/api/payment/payout
+        https://api.nagodpay.com/api/payment/payout
       </code>
     </p>
   </div>
