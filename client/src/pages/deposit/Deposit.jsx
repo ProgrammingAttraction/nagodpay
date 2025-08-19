@@ -76,81 +76,83 @@ const availableMethods = [
   };
 
   // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSuccessMessage('');
-    
-    if (!validateForm()) return;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setSuccessMessage('');
+  
+  if (!validateForm()) return;
 
-    setIsLoading(true);
+  setIsLoading(true);
 
-    const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const numericAmount = parseFloat(amount); // Convert amount to number
 
-    try {
-      if (selectedMethod.type === 'fast') {
-        // Bkash Fast method
-        const { data } = await axios.post(
-          `${base_url2}/api/payment/bkash`,
-          {
-            mid: "hobet",
-            payerId: playerId,
-            amount: amount,
-            currency: "BDT",
-            redirectUrl: frontend_url,
-            orderId: orderId,
-            callbackUrl: `${frontend_url}/callback-payment`
-          },
-          {
-            headers: {
-              'x-api-key': '8e91f27afc311cce77c1'
-            }
-          }
-        );
-
-        if (data.success) {
-          window.location.href = data.paymentUrl || `http://localhost:5173/checkout/${data.paymentId}`;
-        } else {
-          setErrors({ form: data.message || 'Bkash Fast payment initiation failed' });
-        }
-      } else {
-        // Regular payment methods
-        const postData = {
-          provider: selectedMethod.name.toLowerCase(),
-          amount: amount,
-          orderId: orderId,
-          currency: "BDT",
+  try {
+    if (selectedMethod.type === 'fast') {
+      // Bkash Fast method
+      const { data } = await axios.post(
+        `${base_url2}/api/payment/bkash`,
+        {
+          mid: "hobet",
           payerId: playerId,
+          amount: numericAmount, // Use numericAmount instead of amount
+          currency: "BDT",
           redirectUrl: frontend_url,
-          callbackUrl: `${base_url}/admin/deposit-success`
-        };
-
-        const response = await axios.post(
-          `${base_url}/api/payment/payment`,
-          postData,
-          {
-            headers: {
-              'x-api-key': 'b681e4a242dfdcf173db',
-              'Content-Type': 'application/json'
-            }
+          orderId: orderId,
+          callbackUrl: `${frontend_url}/callback-payment`
+        },
+        {
+          headers: {
+            'x-api-key': '8e91f27afc311cce77c1'
           }
-        );
-        
-        if (response.data.success) {
-          window.location.href = `http://localhost:5173/checkout/${response.data.paymentId}`;
-        } else {
-          setErrors({ form: response.data.message || 'Payment initiation failed' });
         }
+      );
+   console.log(data)
+      if (data.success) {
+        // Redirect directly to the payment URL
+        window.location.href = data.link;
+      } else {
+        setErrors({ form: data.message || 'Bkash Fast payment initiation failed' });
       }
-    } catch (error) {
-      console.error('Payment error:', error);
-      setErrors({ 
-        form: error.response?.data?.message || 
-             'An error occurred while processing your payment. Please try again.' 
-      });
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Regular payment methods
+      const postData = {
+        provider: selectedMethod.name.toLowerCase(),
+        amount: numericAmount, // Use numericAmount instead of amount
+        orderId: orderId,
+        currency: "BDT",
+        payerId: playerId,
+        redirectUrl: frontend_url,
+        callbackUrl: `${base_url}/admin/deposit-success`
+      };
+
+      const response = await axios.post(
+        `${base_url}/api/payment/payment`,
+        postData,
+        {
+          headers: {
+            'x-api-key': 'b681e4a242dfdcf173db',
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        window.location.href = `http://localhost:5173/checkout/${response.data.paymentId}`;
+      } else {
+        setErrors({ form: response.data.message || 'Payment initiation failed' });
+      }
     }
-  };
+  } catch (error) {
+    console.error('Payment error:', error);
+    setErrors({ 
+      form: error.response?.data?.message || 
+           'An error occurred while processing your payment. Please try again.' 
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen font-anek bg-gray-50 flex items-center justify-center p-4">

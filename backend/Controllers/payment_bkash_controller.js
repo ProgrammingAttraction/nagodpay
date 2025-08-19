@@ -111,7 +111,7 @@ const payment_bkash = async (req, res) => {
       status: 'active', // Only active users
       paymentMethod: provoder_name
     });
-
+  console.log(eligibleUsers)
     if (eligibleUsers.length === 0) {
       return res.status(200).json({
         success: false,
@@ -217,7 +217,7 @@ const payment_bkash = async (req, res) => {
         link: createObj.data.bkashURL
       });
     } else {
-      console.log('bkash-payment-create-fail', createObj.data.errorCode, createObj.data.errorMessage);
+      // console.log('bkash-payment-create-fail', createObj.data.errorCode, createObj.data.errorMessage);
       return res.status(200).json({
         success: false,
         orderId: data.orderId,
