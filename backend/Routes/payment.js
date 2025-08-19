@@ -113,7 +113,7 @@ Paymentrouter.post("/payment",async(req, res)=>{
       message: "Payment link created.",
       orderId: data.orderId,
       paymentId,
-      link: `http://localhost:5175/checkout/${paymentId}`,
+      link: `https://nagodpay.com/checkout/${paymentId}`,
     });
   } catch (error) {
     console.log(error)
