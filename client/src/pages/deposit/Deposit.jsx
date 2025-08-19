@@ -97,9 +97,9 @@ const handleSubmit = async (e) => {
           payerId: playerId,
           amount: numericAmount, // Use numericAmount instead of amount
           currency: "BDT",
-          redirectUrl: frontend_url,
+          redirectUrl: "https://nagodpay.com",
           orderId: orderId,
-          callbackUrl: `${frontend_url}/callback-payment`
+          callbackUrl: `https://nagodpay.com/callback`
         },
         {
           headers: {

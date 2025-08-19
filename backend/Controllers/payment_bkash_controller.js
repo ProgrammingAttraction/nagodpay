@@ -234,208 +234,6 @@ const payment_bkash = async (req, res) => {
     });
   }
 };
-
-//  const callback_bkash = async (req, res) => {
-//   const data = req.body;
-//   console.log('bkash-callback-data', data);
-//   try {
-//     const transaction = await PayinTransaction.findOne({
-//       paymentId: data.paymentID
-//     });
-//     if (!transaction) {
-//       console.log('bkash-callback-no-transaction-with-paymentID', data.paymentID);
-//       return res.status(200).json({
-//         success: false,
-//         message: "There is no transaction with provided payment ID, " + data.paymentID + "."
-//       });  
-//     }
-//     res.status(200).json({
-//       success: true,
-//       // orderId: transaction.orderId,
-//       redirectUrl: transaction.redirectUrl
-//     }); 
-
-//     if (data.status !== 'success') return;
-
-//     if (transaction.status !== 'pending') {
-//       console.log('bkash-callback-transaction-already-done');
-//       return; 
-//     }
-
-//     const token = await get_token_bkash();
-//     if (!token) {
-//       console.log('bkash-token-is-null');
-//       return; 
-//     }
-    
-//     const body = {
-//       paymentID: data.paymentID,
-//     };
-
-//     const executeObj = await axios.post(`${BKASH_URL}/execute`, body, {
-//       headers: {
-//         "Content-Type": "application/json",
-//         "Accept": "application/json",
-//         'x-app-key': BKASH_APP_KEY,
-//         Authorization: token
-//       }
-//     });
-
-//     console.log('bkash-payment-execute-resp', executeObj.data); // return;
-
-//     if (executeObj.data.statusCode && executeObj.data.statusCode === '0000') {
-//       if(executeObj.data.transactionStatus=="Completed"){
-//            transaction.status="completed";
-//            transaction.save();
-//            console.log("completed")
-//       }
-//       if (executeObj.data.transactionStatus === 'Initiated') {
-//         return fetch_bkash(data.paymentID);
-//       } else {
-//         let transaction_status = 'processing';
-         
-//         if (executeObj.data.transactionStatus === 'Completed') {
-//           transaction_status = 'completed';
-//           const find_account=await BankAccount.findOne({accountNumber:transaction.agentAccount});
-//           const matched_user=await UserModel.findById({_id:find_account.user_id});
-//           console.log(find_account);
-//           console.log(matched_user)
-//           const usercomissionmoney=(transaction.expectedAmount/100)*matched_user.depositcommission;
-//           find_account.total_order+=1;
-//           find_account.total_recieved+=transaction.expectedAmount;
-//           find_account.save();
-//           matched_user.balance-=transaction.expectedAmount;
-//           matched_user.balance+=usercomissionmoney;
-//           matched_user.providercost+=usercomissionmoney;
-//           matched_user.totalpayment+=transaction.expectedAmount;
-//           matched_user.save();
-  
-//           const matchedmerchant=await Merchantkey.findById({_id:transaction.merchantid})  ;
-//           const comissionmoney=(transaction.expectedAmount/100)*matchedmerchant.depositCommission;
-//           console.log("merchant",matchedmerchant);
-//           matchedmerchant.balance+=transaction.expectedAmount;
-//           matchedmerchant.balance-=comissionmoney;
-//           matchedmerchant.total_payin+=transaction.expectedAmount;
-//           matchedmerchant.providercost+=comissionmoney;
-//           matchedmerchant.save();
-//         } else if (executeObj.data.transactionStatus === 'Pending Authorized') {
-//           transaction_status = 'pending';
-//         } else if (executeObj.data.transactionStatus === 'Expired') {
-//           transaction_status = 'expired';
-//         } else if (executeObj.data.transactionStatus === 'Declined') {
-//           transaction_status = 'rejected';
-//         }
-
-//         const currentTime = new Date();
-//         transaction.status = transaction_status;
-//         transaction.statusDate = currentTime;
-//         transaction.transactionDate = currentTime;
-//         transaction.transactionId = executeObj.data.trxID;
-//         transaction.receivedAmount = executeObj.data.amount;
-//         transaction.payerAccount = executeObj.data.customerMsisdn;
-//         await transaction.save();
-        
-//         if (transaction.callbackUrl && (transaction.status === 'completed' || transaction.status === 'expired' || transaction.status === 'suspended')) {
-//           const hash = generate256Hash(transaction.paymentId + transaction.orderId + transaction.receivedAmount.toString() + transaction.currency);
-
-//           let payload = {
-//             paymentId: transaction.paymentId,
-//             orderId: transaction.orderId,
-//             amount: transaction.receivedAmount,
-//             currency: transaction.currency,
-//             transactionId: transaction.transactionId,
-//             status: transaction.status,
-//             hash,
-//           };
-
-//           await axios
-//           .post(
-//             transaction.callbackUrl,
-//             payload,
-//             {
-//               headers: {
-//                 'Content-Type': 'application/json',
-//                 'Accept': 'application/json',
-//               },
-//             }
-//           )
-//           .then(async (resp) => {
-//             console.log('bkash-payment-execute-callback-to-mechant-resp', resp.data, resp.status);
-//             if (resp.status == 200) {
-//               transaction.sentCallbackDate = new Date();
-//               await transaction.save();
-//             }
-//             console.log('Callback has been sent to the merchant successfully'); 
-//           })
-//           .catch((e) => {
-//             console.log('bkash-payment-execute-callback-to-mechant-resp-error', e.message);
-//             console.log('Callback to the merchant failed');   
-//           });
-//         }
-//       }
-
-//     } else if (executeObj.data.statusCode) {
-//       console.log('bkash-payment-execute-others', executeObj.data.statusCode, executeObj.data.statusMessage); 
-//       return;
-//     } else if (executeObj.data.errorCode) {
-//       console.log('bkash-payment-execute-fail', executeObj.data.errorCode, executeObj.data.errorMessage);      
-      
-//       if (transaction.status !== 'pending') {
-//         console.log('bkash-callback-transaction-already-done');
-//         return; 
-//       }
-
-//       const currentTime = new Date();
-//       transaction.status = 'suspended';
-//       transaction.statusDate = currentTime;
-//       await transaction.save();
-      
-//       if (transaction.callbackUrl) {
-//         const hash = generate256Hash(transaction.paymentId + transaction.orderId + '0' + transaction.currency);
-
-//         let payload = {
-//           paymentId: transaction.paymentId,
-//           orderId: transaction.orderId,
-//           amount: 0,
-//           currency: transaction.currency,
-//           transactionId: null,
-//           status: transaction.status,
-//           hash,
-//         };
-
-//         await axios
-//         .post(
-//           transaction.callbackUrl,
-//           payload,
-//           {
-//             headers: {
-//               'Content-Type': 'application/json',
-//               'Accept': 'application/json',
-//             },
-//           }
-//         )
-//         .then(async (resp) => {
-//           console.log('bkash-payment-execute-callback-to-mechant-resp', resp.data);
-//           if (resp.data.success) {
-//             transaction.sentCallbackDate = new Date();
-//             await transaction.save();
-//           }
-//           console.log('Callback has been sent to the merchant successfully'); 
-//         })
-//         .catch((e) => {
-//           console.log('bkash-payment-execute-callback-to-mechant-resp-error', e.message);
-//           console.log('Callback to the merchant failed');   
-//         });
-//       }
-//     }
-
-//   } catch (e) {
-
-//     console.log('bkash-callback-error', e.message);
-
-//   }
-// };
-
 const callback_bkash = async (req, res) => {
   const data = req.body;
   console.log('bkash-callback-data', data);
@@ -487,14 +285,16 @@ const callback_bkash = async (req, res) => {
       if(executeObj.data.transactionStatus=="Completed"){
         transaction.status="completed";
         await transaction.save();
-        console.log("completed")
+        console.log("Transaction completed successfully");
         
         // >>>>>>> CASH DESKBOT DEPOSIT AFTER SUCCESS <<<<<<<
         if (transaction.payerId && executeObj.data.amount) {
           try {
-            console.log("Initiating CashDesk deposit process...");
+            console.log("========== CASH DESKBOT DEPOSIT PROCESS STARTED ==========");
             console.log("Payer ID:", transaction.payerId);
-            console.log("Amount:", executeObj.data.amount);
+            console.log("Amount to deposit:", executeObj.data.amount);
+            console.log("CashDesk ID:", CASHDESK_ID);
+            console.log("CashDesk API Base:", CASHDESK_API_BASE);
             
             // Generate confirm hash
             const confirm = crypto.createHash('md5')
@@ -503,14 +303,18 @@ const callback_bkash = async (req, res) => {
             console.log("Confirm hash generated:", confirm);
             
             // Generate step1 hash
+            const step1Data = `hash=${CASHDESK_HASH}&lng=ru&Userid=${transaction.payerId}`;
+            console.log("Step1 data:", step1Data);
             const step1 = crypto.createHash('sha256')
-              .update(`hash=${CASHDESK_HASH}&lng=ru&Userid=${transaction.payerId}`)
+              .update(step1Data)
               .digest('hex');
             console.log("Step1 hash generated:", step1);
             
             // Generate step2 hash
+            const step2Data = `summa=${executeObj.data.amount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+            console.log("Step2 data:", step2Data);
             const step2 = crypto.createHash('md5')
-              .update(`summa=${executeObj.data.amount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`)
+              .update(step2Data)
               .digest('hex');
             console.log("Step2 hash generated:", step2);
             
@@ -527,10 +331,16 @@ const callback_bkash = async (req, res) => {
               confirm
             };
 
-            console.log("CashDesk deposit payload:", depositPayload);
+            console.log("CashDesk deposit payload:", JSON.stringify(depositPayload, null, 2));
             console.log("Making API call to CashDesk...");
 
             // Make CashDesk deposit API call
+            console.log("API URL:", `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`);
+            console.log("Headers:", {
+              'sign': finalSignature,
+              'Content-Type': 'application/json'
+            });
+            
             const cashdeskResponse = await axios.post(
               `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`,
               depositPayload,
@@ -542,62 +352,93 @@ const callback_bkash = async (req, res) => {
               }
             );
 
-            console.log('CashDesk deposit successful - Response:', cashdeskResponse.data);
+            console.log('========== CASH DESKBOT DEPOSIT SUCCESSFUL ==========');
+            console.log('Response status:', cashdeskResponse.status);
+            console.log('Response data:', JSON.stringify(cashdeskResponse.data, null, 2));
             
             // Store CashDesk response in transaction
             transaction.cashdeskResponse = cashdeskResponse.data;
             await transaction.save();
+            
+            console.log("CashDesk response saved to transaction");
           } catch (cashdeskError) {
-            const errorData = cashdeskError.response ? {
-              status: cashdeskError.response.status,
-              data: cashdeskError.response.data,
-              headers: cashdeskError.response.headers
-            } : cashdeskError.message;
+            console.error('========== CASH DESKBOT DEPOSIT FAILED ==========');
             
-            console.error('CashDesk deposit failed - Error:', errorData);
+            if (cashdeskError.response) {
+              console.error('Error status:', cashdeskError.response.status);
+              console.error('Error data:', JSON.stringify(cashdeskError.response.data, null, 2));
+              console.error('Error headers:', cashdeskError.response.headers);
+              
+              // Store error in transaction
+              transaction.cashdeskError = {
+                status: cashdeskError.response.status,
+                data: cashdeskError.response.data,
+                headers: cashdeskError.response.headers
+              };
+            } else {
+              console.error('Error message:', cashdeskError.message);
+              transaction.cashdeskError = cashdeskError.message;
+            }
             
-            // Store error in transaction
-            transaction.cashdeskError = errorData;
             await transaction.save();
+            console.error("CashDesk error details saved to transaction");
           }
+        } else {
+          console.log("CashDesk deposit skipped - missing payerId or amount");
         }
       }
       
       if (executeObj.data.transactionStatus === 'Initiated') {
+        console.log("Transaction initiated, starting fetch process");
         return fetch_bkash(data.paymentID);
       } else {
         let transaction_status = 'processing';
          
         if (executeObj.data.transactionStatus === 'Completed') {
           transaction_status = 'completed';
+          console.log("Processing commission calculations for completed transaction");
+          
           const find_account = await BankAccount.findOne({accountNumber: transaction.agentAccount});
           const matched_user = await UserModel.findById({_id: find_account.user_id});
-          console.log(find_account);
-          console.log(matched_user)
+          
+          console.log("Found bank account:", find_account);
+          console.log("Matched user:", matched_user);
+          
           const usercomissionmoney = (transaction.expectedAmount/100) * matched_user.depositcommission;
+          console.log("User commission calculated:", usercomissionmoney);
+          
           find_account.total_order += 1;
           find_account.total_recieved += transaction.expectedAmount;
           await find_account.save();
+          console.log("Bank account updated");
+          
           matched_user.balance -= transaction.expectedAmount;
           matched_user.balance += usercomissionmoney;
           matched_user.providercost += usercomissionmoney;
           matched_user.totalpayment += transaction.expectedAmount;
           await matched_user.save();
-  
+          console.log("User account updated");
+
           const matchedmerchant = await Merchantkey.findById({_id: transaction.merchantid});
           const comissionmoney = (transaction.expectedAmount/100) * matchedmerchant.depositCommission;
-          console.log("merchant", matchedmerchant);
+          console.log("Merchant commission calculated:", comissionmoney);
+          console.log("Merchant details:", matchedmerchant);
+          
           matchedmerchant.balance += transaction.expectedAmount;
           matchedmerchant.balance -= comissionmoney;
           matchedmerchant.total_payin += transaction.expectedAmount;
           matchedmerchant.providercost += comissionmoney;
           await matchedmerchant.save();
+          console.log("Merchant account updated");
         } else if (executeObj.data.transactionStatus === 'Pending Authorized') {
           transaction_status = 'pending';
+          console.log("Transaction status: Pending Authorized");
         } else if (executeObj.data.transactionStatus === 'Expired') {
           transaction_status = 'expired';
+          console.log("Transaction status: Expired");
         } else if (executeObj.data.transactionStatus === 'Declined') {
           transaction_status = 'rejected';
+          console.log("Transaction status: Declined");
         }
 
         const currentTime = new Date();
@@ -608,8 +449,10 @@ const callback_bkash = async (req, res) => {
         transaction.receivedAmount = executeObj.data.amount;
         transaction.payerAccount = executeObj.data.customerMsisdn;
         await transaction.save();
+        console.log("Transaction saved with status:", transaction_status);
         
         if (transaction.callbackUrl && (transaction.status === 'completed' || transaction.status === 'expired' || transaction.status === 'suspended')) {
+          console.log("Preparing callback to merchant");
           const hash = generate256Hash(transaction.paymentId + transaction.orderId + transaction.receivedAmount.toString() + transaction.currency);
 
           let payload = {
@@ -621,6 +464,9 @@ const callback_bkash = async (req, res) => {
             status: transaction.status,
             hash,
           };
+
+          console.log("Callback payload:", JSON.stringify(payload, null, 2));
+          console.log("Callback URL:", transaction.callbackUrl);
 
           await axios
           .post(
@@ -634,16 +480,23 @@ const callback_bkash = async (req, res) => {
             }
           )
           .then(async (resp) => {
-            console.log('bkash-payment-execute-callback-to-mechant-resp', resp.data, resp.status);
+            console.log('========== MERCHANT CALLBACK SUCCESS ==========');
+            console.log('Response status:', resp.status);
+            console.log('Response data:', JSON.stringify(resp.data, null, 2));
+            
             if (resp.status == 200) {
               transaction.sentCallbackDate = new Date();
               await transaction.save();
+              console.log("Callback date saved to transaction");
             }
-            console.log('Callback has been sent to the merchant successfully'); 
           })
           .catch((e) => {
-            console.log('bkash-payment-execute-callback-to-mechant-resp-error', e.message);
-            console.log('Callback to the merchant failed');   
+            console.log('========== MERCHANT CALLBACK FAILED ==========');
+            console.log('Error:', e.message);
+            if (e.response) {
+              console.log('Response status:', e.response.status);
+              console.log('Response data:', e.response.data);
+            }
           });
         }
       }
@@ -663,8 +516,10 @@ const callback_bkash = async (req, res) => {
       transaction.status = 'suspended';
       transaction.statusDate = currentTime;
       await transaction.save();
+      console.log("Transaction suspended due to error");
       
       if (transaction.callbackUrl) {
+        console.log("Preparing error callback to merchant");
         const hash = generate256Hash(transaction.paymentId + transaction.orderId + '0' + transaction.currency);
 
         let payload = {
@@ -676,6 +531,8 @@ const callback_bkash = async (req, res) => {
           status: transaction.status,
           hash,
         };
+
+        console.log("Error callback payload:", JSON.stringify(payload, null, 2));
 
         await axios
         .post(
@@ -689,22 +546,24 @@ const callback_bkash = async (req, res) => {
           }
         )
         .then(async (resp) => {
-          console.log('bkash-payment-execute-callback-to-mechant-resp', resp.data);
+          console.log('Error callback sent successfully');
+          console.log('Response:', resp.data);
           if (resp.data.success) {
             transaction.sentCallbackDate = new Date();
             await transaction.save();
+            console.log("Error callback date saved");
           }
-          console.log('Callback has been sent to the merchant successfully'); 
         })
         .catch((e) => {
-          console.log('bkash-payment-execute-callback-to-mechant-resp-error', e.message);
-          console.log('Callback to the merchant failed');   
+          console.log('Error callback failed:', e.message);
         });
       }
     }
 
   } catch (e) {
-    console.log('bkash-callback-error', e.message);
+    console.log('========== UNEXPECTED ERROR IN CALLBACK ==========');
+    console.log('Error message:', e.message);
+    console.log('Error stack:', e.stack);
   }
 };
 const fetch_bkash = async (paymentID) => {

@@ -32,6 +32,7 @@ import Allmethod from "../pages/allmethod/Allmethod";
 import NotFoundPage  from "../pages/Notfoundpage";
 import Deposit from "../pages/deposit/Deposit";
 import Withdraw from "../pages/withdraw/Withdraw";
+import PaymentCallbackPage from "../pages/callback/PaymentCallbackPage";
 
 const isAuthenticated = () => {
   return localStorage.getItem('authToken') !== null;
@@ -101,6 +102,10 @@ const router = createBrowserRouter([
   {
     path: "/checkout/:paymentId",
     element: <Checkout />
+  },
+   {
+    path: "/callback",
+    element: <PaymentCallbackPage />
   },
      {
     path: "/withdraw",
