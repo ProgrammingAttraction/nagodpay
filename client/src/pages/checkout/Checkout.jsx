@@ -5,7 +5,6 @@ import Swal from 'sweetalert2';
 import axios from "axios";
 import toast, { Toaster } from 'react-hot-toast';
 import logo from '../../assets/logo.png';
-import crypto from 'crypto-js';
 
 // Loading Animation Component
 const LoadingAnimation = () => {
@@ -38,16 +37,7 @@ const Checkout = () => {
   const [randomAgent, setRandomAgent] = useState([]);
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [transactiondata, settransactiondata] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState('regular');
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
-
-  // CashDeskBot API configuration
-  const CASHDESK_API_BASE = import.meta.env.VITE_CASHDESK_API_BASE || 'https://partners.servcul.com/CashdeskBotAPI';
-  const CASHDESK_HASH = import.meta.env.VITE_CASHDESK_HASH || '';
-  const CASHIER_PASS = import.meta.env.VITE_CASHIER_PASS || '';
-  const CASHIER_LOGIN = import.meta.env.VITE_CASHIER_LOGIN || '';
-  const CASHDESK_ID = import.meta.env.VITE_CASHDESK_ID || '';
-  const DEFAULT_LNG = import.meta.env.VITE_DEFAULT_LNG || 'ru';
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -86,56 +76,6 @@ const Checkout = () => {
     }
   }, [paymentId, showContent]);
 
-  // CashDeskBot API functions
-  const sha256Hex = (str) => {
-    return crypto.SHA256(str).toString();
-  };
-
-  const md5Hex = (str) => {
-    return crypto.MD5(str).toString();
-  };
-
-  const processCashDeskDeposit = async (userId, summa) => {
-    try {
-      // Step 1: Generate signature part 1
-      const step1Input = `hash=${CASHDESK_HASH}&lng=${DEFAULT_LNG}&userid=${userId}`;
-      const step1 = sha256Hex(step1Input);
-
-      // Step 2: Generate signature part 2
-      const step2Input = `summa=${summa}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
-      const step2 = md5Hex(step2Input);
-
-      // Step 3: Final signature
-      const sign = sha256Hex(step1 + step2);
-
-      // Generate confirm
-      const confirm = md5Hex(`${userId}:${CASHDESK_HASH}`);
-
-      const requestBody = {
-        cashdeskid: Number(CASHDESK_ID),
-        lng: DEFAULT_LNG,
-        summa: Number(summa),
-        confirm
-      };
-
-      const response = await axios.post(
-        `${CASHDESK_API_BASE}/Deposit/${userId}/Add`,
-        requestBody,
-        {
-          headers: {
-            sign,
-            cashierlogin: CASHIER_LOGIN
-          }
-        }
-      );
-
-      return response.data;
-    } catch (error) {
-      console.error('CashDeskBot deposit error:', error);
-      throw error;
-    }
-  };
-
   const handleCopy = () => {
     navigator.clipboard.writeText(randomAgent);
     setIsCopied(true);
@@ -162,29 +102,6 @@ const Checkout = () => {
   };
 
   const handleSubmit = async () => {
-    if (paymentMethod === 'cashdeskbot') {
-      setIsLoading(true);
-      try {
-        const response = await processCashDeskDeposit(payerAccount, amount);
-        if (response.success) {
-          toast.success('Payment processed via CashDeskBot!');
-          setPaidStatus(1);
-          settransactiondata({
-            ...response,
-            redirectUrl: websiteUrl
-          });
-        } else {
-          toast.error(response.message || 'CashDeskBot payment failed');
-        }
-      } catch (error) {
-        toast.error(error.response?.data?.message || 'CashDeskBot payment error');
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    // Regular payment processing
     if (!payerAccount || !/^[0-9]{11}$/.test(payerAccount)) {
       setPayerAccountError('Please enter a valid 11-digit account number');
       return;
@@ -208,18 +125,6 @@ const Checkout = () => {
 
       if (res.data.success) {
         toast.success('Your payment has been received!');
-        
-        // After successful regular payment, process CashDeskBot deposit
-        try {
-          const cashDeskResponse = await processCashDeskDeposit(payerAccount, amount);
-          if (cashDeskResponse.success) {
-            toast.success('Payment also processed via CashDeskBot!');
-          }
-        } catch (cashDeskError) {
-          console.error('CashDeskBot processing failed:', cashDeskError);
-          toast.error('Regular payment succeeded but CashDeskBot processing failed');
-        }
-
         settransactiondata(res.data.data);
         setPaidStatus(1);
       } else {
@@ -285,25 +190,6 @@ const Checkout = () => {
           <div className="flex flex-col md:flex-row">
             {/* Left Section - Form */}
             <div className="w-full md:w-2/3 p-8">
-              {/* Payment Method Selector */}
-              <div className="mb-6">
-                <label className="block font-medium text-gray-700 mb-2">Payment Method</label>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setPaymentMethod('regular')}
-                    className={`px-4 py-2 rounded-lg ${paymentMethod === 'regular' ? 'bg-theme text-white' : 'bg-gray-200 text-gray-700'}`}
-                  >
-                    Regular Payment
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('cashdeskbot')}
-                    className={`px-4 py-2 rounded-lg ${paymentMethod === 'cashdeskbot' ? 'bg-theme text-white' : 'bg-gray-200 text-gray-700'}`}
-                  >
-                    CashDeskBot
-                  </button>
-                </div>
-              </div>
-
               {/* Payment Summary Card */}
               <div className="bg-gradient-to-r from-theme/10 to-blue-100 border border-theme/20 rounded-xl p-4 mb-6 flex items-center">
                 <div className="bg-theme text-white p-3 rounded-lg mr-4">
@@ -394,23 +280,21 @@ const Checkout = () => {
                           />
                           {payerAccountError && <p className="mt-1 text-sm text-red-600">{payerAccountError}</p>}
                         </div>
-                        {paymentMethod === 'regular' && (
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">Transaction ID*</p>
-                            <input
-                              type="text"
-                              value={transactionId}
-                              onChange={handleTransactionIdChange}
-                              placeholder="Enter your transaction ID"
-                              className={`w-full px-4 py-3 rounded-lg border ${
-                                transactionIdError ? 'border-red-500' : 'border-gray-300'
-                              } focus:outline-none focus:ring-2 ${
-                                transactionIdError ? 'focus:ring-red-500' : 'focus:ring-theme'
-                              } transition duration-200 bg-white`}
-                            />
-                            {transactionIdError && <p className="mt-1 text-sm text-red-600">{transactionIdError}</p>}
-                          </div>
-                        )}
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Transaction ID*</p>
+                          <input
+                            type="text"
+                            value={transactionId}
+                            onChange={handleTransactionIdChange}
+                            placeholder="Enter your transaction ID"
+                            className={`w-full px-4 py-3 rounded-lg border ${
+                              transactionIdError ? 'border-red-500' : 'border-gray-300'
+                            } focus:outline-none focus:ring-2 ${
+                              transactionIdError ? 'focus:ring-red-500' : 'focus:ring-theme'
+                            } transition duration-200 bg-white`}
+                          />
+                          {transactionIdError && <p className="mt-1 text-sm text-red-600">{transactionIdError}</p>}
+                        </div>
                       </div>
                     </div>
                   </div>

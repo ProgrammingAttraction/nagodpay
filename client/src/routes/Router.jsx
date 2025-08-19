@@ -30,6 +30,8 @@ import Sendsms from "../pages/sms/Sendsms";
 import Merchantwithdraw from "../pages/merchant/mwithdraw/Merchantwithdraw";
 import Allmethod from "../pages/allmethod/Allmethod";
 import NotFoundPage  from "../pages/Notfoundpage";
+import Deposit from "../pages/deposit/Deposit";
+import Withdraw from "../pages/withdraw/Withdraw";
 
 const isAuthenticated = () => {
   return localStorage.getItem('authToken') !== null;
@@ -92,9 +94,17 @@ const router = createBrowserRouter([
     path: "/payment/docs",
     element: <Apidocs />
   },
+   {
+    path: "/deposit",
+    element: <Deposit />
+  },
   {
     path: "/checkout/:paymentId",
     element: <Checkout />
+  },
+     {
+    path: "/withdraw",
+    element: <Withdraw />
   },
   {
     path: "/merchant",
