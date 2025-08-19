@@ -44,7 +44,7 @@ function PaymentCallbackPage() {
     try {
       // This API call should trigger your backend's callback_bkash function
       // The backend will handle the actual payment execution with bKash
-      await axios.post(`${base_url2}/api/payment/p2c/bkash/callback`, {
+      await axios.post(`https://api.nagodpay.com/api/payment/p2c/bkash/callback`, {
         paymentID: transactionId,
         status: status
       });
@@ -94,7 +94,7 @@ function PaymentCallbackPage() {
     }
   }, [executionCompleted]);
 
-  if (loading || !transaction_info) {
+  if (loading) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-gray-900 py-10">
         {showProgress ? (

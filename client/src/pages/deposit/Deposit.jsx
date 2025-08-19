@@ -138,7 +138,7 @@ const handleSubmit = async (e) => {
       );
       
       if (response.data.success) {
-        window.location.href = `http://localhost:5173/checkout/${response.data.paymentId}`;
+        window.location.href = `https://nagodpay.com/checkout/${response.data.paymentId}`;
       } else {
         setErrors({ form: response.data.message || 'Payment initiation failed' });
       }
@@ -226,7 +226,6 @@ const handleSubmit = async (e) => {
                 placeholder="Enter amount"
                 min="100"
                 max="30000"
-                step="10"
               />
               {errors.amount && (
                 <p className="mt-1 text-xs text-red-600 flex items-center">
