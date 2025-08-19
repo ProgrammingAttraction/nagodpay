@@ -282,8 +282,8 @@ const callback_bkash = async (req, res) => {
     console.log('bkash-payment-execute-resp', executeObj.data);
 
     if (executeObj.data.statusCode && executeObj.data.statusCode === '0000') {
-      if(executeObj.data.transactionStatus=="Completed"){
-        transaction.status="completed";
+      if(executeObj.data.transactionStatus === "Completed"){
+        transaction.status = "completed";
         await transaction.save();
         console.log("Transaction completed successfully");
         
@@ -296,37 +296,35 @@ const callback_bkash = async (req, res) => {
             console.log("CashDesk ID:", CASHDESK_ID);
             console.log("CashDesk API Base:", CASHDESK_API_BASE);
             
-            // Generate confirm hash
-            const confirm = crypto.createHash('md5')
-              .update(`${transaction.payerId}:${CASHDESK_HASH}`)
-              .digest('hex');
-            console.log("Confirm hash generated:", confirm);
+            // Generate confirm hash (MD5 of "payerId:CASHDESK_HASH")
+            const confirmString = `${transaction.payerId}:${CASHDESK_HASH}`;
+            const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
+            console.log("Confirm string:", confirmString);
+            console.log("Confirm hash:", confirm);
             
-            // Generate step1 hash
-            const step1Data = `hash=${CASHDESK_HASH}&lng=ru&Userid=${transaction.payerId}`;
-            console.log("Step1 data:", step1Data);
-            const step1 = crypto.createHash('sha256')
-              .update(step1Data)
-              .digest('hex');
-            console.log("Step1 hash generated:", step1);
+            // Generate step1 hash (SHA256 of query string) - use lowercase 'userid'
+            const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${transaction.payerId}`;
+            const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
+            console.log("Step1 string:", step1String);
+            console.log("Step1 hash:", step1);
             
-            // Generate step2 hash
-            const step2Data = `summa=${executeObj.data.amount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
-            console.log("Step2 data:", step2Data);
-            const step2 = crypto.createHash('md5')
-              .update(step2Data)
-              .digest('hex');
-            console.log("Step2 hash generated:", step2);
+            // Generate step2 hash (MD5 of parameters)
+            const step2String = `summa=${executeObj.data.amount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+            const step2 = crypto.createHash('md5').update(step2String).digest('hex');
+            console.log("Step2 string:", step2String);
+            console.log("Step2 hash:", step2);
             
-            // Generate final signature
-            const finalSignature = crypto.createHash('sha256')
-              .update(step1 + step2)
-              .digest('hex');
-            console.log("Final signature generated:", finalSignature);
+            // Generate final signature (SHA256 of step1 + step2)
+            const finalSignatureString = step1 + step2;
+            const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
+            console.log("Final signature string:", finalSignatureString);
+            console.log("Final signature:", finalSignature);
 
+            // ✅ Payload now includes userid + summa + confirm
             const depositPayload = {
               cashdeskid: parseInt(CASHDESK_ID),
               lng: 'ru',
+              userid: parseInt(transaction.payerId),
               summa: parseFloat(executeObj.data.amount),
               confirm
             };
@@ -335,12 +333,6 @@ const callback_bkash = async (req, res) => {
             console.log("Making API call to CashDesk...");
 
             // Make CashDesk deposit API call
-            console.log("API URL:", `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`);
-            console.log("Headers:", {
-              'sign': finalSignature,
-              'Content-Type': 'application/json'
-            });
-            
             const cashdeskResponse = await axios.post(
               `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`,
               depositPayload,
@@ -348,7 +340,8 @@ const callback_bkash = async (req, res) => {
                 headers: {
                   'sign': finalSignature,
                   'Content-Type': 'application/json'
-                }
+                },
+                timeout: 10000 // 10 seconds timeout
               }
             );
 
@@ -364,24 +357,26 @@ const callback_bkash = async (req, res) => {
           } catch (cashdeskError) {
             console.error('========== CASH DESKBOT DEPOSIT FAILED ==========');
             
-            if (cashdeskError.response) {
-              console.error('Error status:', cashdeskError.response.status);
-              console.error('Error data:', JSON.stringify(cashdeskError.response.data, null, 2));
-              console.error('Error headers:', cashdeskError.response.headers);
-              
-              // Store error in transaction
-              transaction.cashdeskError = {
-                status: cashdeskError.response.status,
-                data: cashdeskError.response.data,
-                headers: cashdeskError.response.headers
-              };
-            } else {
-              console.error('Error message:', cashdeskError.message);
-              transaction.cashdeskError = cashdeskError.message;
-            }
+            const errorData = cashdeskError.response ? {
+              status: cashdeskError.response.status,
+              data: cashdeskError.response.data,
+              headers: cashdeskError.response.headers
+            } : cashdeskError.message;
             
+            console.error('Error details:', JSON.stringify(errorData, null, 2));
+            
+            // Store error in transaction
+            transaction.cashdeskError = errorData;
             await transaction.save();
-            console.error("CashDesk error details saved to transaction");
+            
+            // Additional troubleshooting for 401 errors
+            if (cashdeskError.response?.status === 401) {
+              console.error("Authentication failed. Please verify:");
+              console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
+              console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
+              console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
+              console.error("4. Payer ID is valid:", transaction.payerId);
+            }
           }
         } else {
           console.log("CashDesk deposit skipped - missing payerId or amount");
@@ -566,6 +561,10 @@ const callback_bkash = async (req, res) => {
     console.log('Error stack:', e.stack);
   }
 };
+
+
+
+
 const fetch_bkash = async (paymentID) => {
   
   console.log('bkash-fetch-data', paymentID);

@@ -131,10 +131,13 @@ function generateSHA256Hash(data) {
 }
 
 // Payout endpoint
+// Payout endpoint
 Paymentrouter.post("/payout", async (req, res) => {
   const { payeeId, paymentId, amount } = req.body;
+  console.log(req.body)
   const apiKey = req.headers['x-api-key'] || '';
   console.log("Payout request received:", req.body);
+  
   if (!payeeId || !paymentId || !amount) {
     return res.status(400).json({
       success: false,
@@ -143,32 +146,40 @@ Paymentrouter.post("/payout", async (req, res) => {
   }
 
   try {
-    // Step 1: Generate confirm hash (MD5 of payeeId:CASHDESK_HASH)
-    const confirm = generateMD5Hash(`${payeeId}:${CASHDESK_HASH}`);
-    console.log("Generated confirm hash:", confirm);
+    // 1. Generate confirm hash (MD5 of "payeeId:CASHDESK_HASH")
+    const confirmString = `${payeeId}:${CASHDESK_HASH}`;
+    const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
+    console.log("Confirm string:", confirmString);
+    console.log("Confirm hash:", confirm);
 
-    // Step 2: Generate step1 hash (SHA256 of hash={CASHDESK_HASH}&lng={DEFAULT_LNG}&Userid={payeeId})
-    const step1 = generateSHA256Hash(`hash=${CASHDESK_HASH}&lng=${DEFAULT_LNG}&Userid=${payeeId}`);
-    console.log("Generated step1 hash:", step1);
+    // 2. Generate step1 hash (SHA256 of query string) - use lowercase 'userid'
+    const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${payeeId}`;
+    const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
+    console.log("Step1 string:", step1String);
+    console.log("Step1 hash:", step1);
 
-    // Step 3: Generate step2 hash (MD5 of code={paymentId}&cashierpass={CASHIER_PASS}&cashdeskid={CASHDESK_ID})
-    const step2 = generateMD5Hash(`code=${paymentId}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`);
-    console.log("Generated step2 hash:", step2);
+    // 3. Generate step2 hash (MD5 of parameters)
+    const step2String = `code=${paymentId}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+    const step2 = crypto.createHash('md5').update(step2String).digest('hex');
+    console.log("Step2 string:", step2String);
+    console.log("Step2 hash:", step2);
 
-    // Step 4: Final signature (SHA256 of step1 + step2)
-    const finalSignature = generateSHA256Hash(step1 + step2);
-    console.log("Final generated signature:", finalSignature);
+    // 4. Final signature (SHA256 of step1 + step2)
+    const finalSignatureString = step1 + step2;
+    const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
+    console.log("Final signature string:", finalSignatureString);
+    console.log("Final signature:", finalSignature);
 
-    // Step 5: Prepare the payout payload
+    // 5. Prepare the payout payload
     const payoutPayload = {
       cashdeskid: parseInt(CASHDESK_ID),
-      lng: DEFAULT_LNG,
+      lng: 'ru',
       code: paymentId,
       confirm: confirm
     };
-    console.log("Payout Payload:", payoutPayload);
+    console.log("Payout Payload:", JSON.stringify(payoutPayload, null, 2));
 
-    // Step 6: Make CashDeskBot API request to process the payout
+    // 6. Make CashDeskBot API request to process the payout
     const cashdeskResponse = await axios.post(
       `${CASHDESK_API_BASE}/Deposit/${payeeId}/Payout`,
       payoutPayload,
@@ -176,7 +187,8 @@ Paymentrouter.post("/payout", async (req, res) => {
         headers: {
           'sign': finalSignature,
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 10000 // 10 seconds timeout
       }
     );
 
@@ -213,7 +225,7 @@ Paymentrouter.post("/payout", async (req, res) => {
       console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
       console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
       console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
-      console.error("4. Payer ID is valid:", payeeId);
+      console.error("4. Payee ID is valid:", payeeId);
     }
 
     return res.status(500).json({
@@ -223,7 +235,6 @@ Paymentrouter.post("/payout", async (req, res) => {
     });
   }
 });
-
 
 
 
@@ -2226,34 +2237,42 @@ Paymentrouter.post("/player", async (req, res) => {
   }
 
   try {
-    // 1. Generate confirm hash
+    // 1. Generate confirm hash (MD5 of "userId:CASHDESK_HASH")
+    const confirmString = `${userId}:${CASHDESK_HASH}`;
     const confirm = crypto.createHash("md5")
-      .update(`${userId}:${CASHDESK_HASH}`)
+      .update(confirmString)
       .digest("hex");
+    console.log("Confirm string:", confirmString);
+    console.log("Confirm hash:", confirm);
 
-    // 2. Step 1 SHA256
+    // 2. Step 1 SHA256 (query string parameters in specific order)
+    const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${userId}`;
     const step1 = crypto.createHash("sha256")
-      .update(`hash=${CASHDESK_HASH}&Userid=${userId}&cashdeskid=${CASHDESK_ID}`)
+      .update(step1String)
       .digest("hex");
+    console.log("Step1 string:", step1String);
+    console.log("Step1 hash:", step1);
 
-    // 3. Step 2 MD5
+    // 3. Step 2 MD5 (parameters in specific order)
+    const step2String = `cashdeskid=${CASHDESK_ID}&cashierpass=${CASHIER_PASS}`;
     const step2 = crypto.createHash("md5")
-      .update(`Userid=${userId}&cashierpass=${CASHIER_PASS}&hash=${CASHDESK_HASH}`)
+      .update(step2String)
       .digest("hex");
+    console.log("Step2 string:", step2String);
+    console.log("Step2 hash:", step2);
 
-    // 4. Final signature
+    // 4. Final signature (SHA256 of step1 + step2)
+    const finalSignatureString = step1 + step2;
     const sign = crypto.createHash("sha256")
-      .update(step1 + step2)
+      .update(finalSignatureString)
       .digest("hex");
+    console.log("Final signature string:", finalSignatureString);
+    console.log("Final Sign:", sign);
 
     // 5. Prepare URL
-const qs = `confirm=${confirm}&cashdeskid=${CASHDESK_ID}`;
+    const qs = `confirm=${confirm}&cashdeskid=${CASHDESK_ID}&lng=ru`;
     const url = `${CASHDESK_API_BASE}/Users/${userId}?${qs}`;
 
-    console.log("Confirm:", confirm);
-    console.log("Step1:", step1);
-    console.log("Step2:", step2);
-    console.log("Final Sign:", sign);
     console.log("Request URL:", url);
 
     // 6. API request
@@ -2262,7 +2281,8 @@ const qs = `confirm=${confirm}&cashdeskid=${CASHDESK_ID}`;
         sign: sign,
         "Content-Type": "application/json",
         "Accept": "application/json"
-      }
+      },
+      timeout: 10000
     });
 
     return res.json({
@@ -2272,8 +2292,17 @@ const qs = `confirm=${confirm}&cashdeskid=${CASHDESK_ID}`;
 
   } catch (error) {
     console.error("Player check error:", error.response?.data || error.message);
+    
+    // Additional troubleshooting for 401 errors
+    if (error.response?.status === 401) {
+      console.error("Authentication failed. Please verify:");
+      console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
+      console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
+      console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
+      console.error("4. User ID is valid:", userId);
+    }
 
-    return res.status(500).json({
+    return res.status(error.response?.status || 500).json({
       success: false,
       message: "Error checking player information",
       error: error.response?.data || error.message

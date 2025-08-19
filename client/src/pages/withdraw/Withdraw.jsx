@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
-import { FaSpinner, FaMoneyBillWave, FaSearch } from 'react-icons/fa';
-import { MdAccountCircle, MdPayment, MdError, MdInfo } from 'react-icons/md';
+import { FaSpinner, FaMoneyBillWave } from 'react-icons/fa';
+import { MdError, MdInfo } from 'react-icons/md';
 import withdraw_img from "../../assets/withdraw_img.png";
-import alert_img from "../../assets/alert.png";
 
 const Withdraw = () => {
   // Configuration
@@ -18,10 +17,6 @@ const Withdraw = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
-  const [balance, setBalance] = useState(null);
-  const [playerInfo, setPlayerInfo] = useState(null);
-  const [isCheckingPlayer, setIsCheckingPlayer] = useState(false);
-  const [isPlayerVerified, setIsPlayerVerified] = useState(false);
 
   // Withdrawal methods data
   const availableMethods = [
@@ -41,54 +36,12 @@ const Withdraw = () => {
     },
   ];
 
-  // Fetch balance on component mount
-  useEffect(() => {
-    const fetchBalance = async () => {
-      try {
-        const response = await axios.post(`${base_url}/api/payment/balance`);
-        if (response.data.success) {
-          setBalance(response.data.data.balance);
-        }
-      } catch (error) {
-        console.error('Error fetching balance:', error);
-      }
-    };
-    
-    fetchBalance();
-  }, [base_url]);
-
-  // Check player info
-  const checkPlayer = async () => {
-    if (!playerId.trim()) {
-      setErrors({...errors, playerId: 'Player ID is required'});
-      return;
-    }
-    
-    setIsCheckingPlayer(true);
-    setIsPlayerVerified(false);
-    try {
-      const response = await axios.post(`${base_url}/api/payment/player`, { userId: playerId });
-      if (response.data.success) {
-        setPlayerInfo(response.data.data);
-        setErrors({...errors, playerId: null});
-        setIsPlayerVerified(true);
-      }
-    } catch (error) {
-      console.error('Error checking player:', error);
-      setErrors({...errors, playerId: error.response?.data?.message || 'Error checking player'});
-      setPlayerInfo(null);
-      setIsPlayerVerified(false);
-    } finally {
-      setIsCheckingPlayer(false);
-    }
-  };
-
   // Validation function
   const validateForm = () => {
     const newErrors = {};
 
-    if (!isPlayerVerified) {
-      newErrors.playerId = 'Please verify your player ID first';
+    if (!playerId.trim()) {
+      newErrors.playerId = 'Player ID is required';
     }
 
     if (!code.trim()) {
@@ -105,10 +58,7 @@ const Withdraw = () => {
       newErrors.amount = 'Minimum withdrawal amount is 100 BDT';
     } else if (parseFloat(amount) > 30000) {
       newErrors.amount = 'Maximum withdrawal amount is 30,000 BDT';
-    } else if (balance && parseFloat(amount) > parseFloat(balance)) {
-      newErrors.amount = 'Amount exceeds available balance';
     }
-
     if (!accountNumber.trim()) {
       newErrors.accountNumber = 'Account number is required';
     } else if (!/^[0-9]+$/.test(accountNumber)) {
@@ -136,25 +86,27 @@ const Withdraw = () => {
 
     const orderId = `WDR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+    // Updated withdrawal data structure
     const withdrawalData = {
-      mid: "shihab",
+      merchantId: "shihab", // Changed from 'mid' to 'merchantId'
       provider: selectedMethod.name.toLowerCase(),
-      amount: amount,
+      amount: parseFloat(amount), // Ensure it's a number
       orderId: orderId,
-      payeeId: playerId,
-      payeeCode: code,
-      payeeAccount: accountNumber,
-      callbackUrl: `${base_url}/admin/withdrawals-take`,
-      currency: "BDT"
+      playerId: playerId, // Changed from 'payeeId' to 'playerId'
+      code: code, // Changed from 'payeeCode' to 'code'
+      accountNumber: accountNumber, // Changed from 'payeeAccount' to 'accountNumber'
+      callbackUrl: `${base_url}/api/payment/payout/callback`, // Updated callback URL
+      currency: "BDT",
+      payeeId:playerId,
+      paymentId: code, // Added paymentId
     };
-
     try {
       const response = await axios.post(
-        `${base_url}/api/payment/payout`,
+        `${base_url}/api/payment/payout`, // Updated endpoint
         withdrawalData,
         {
           headers: {
-            'x-api-key': 'b681e4a242dfdcf173db',
+            'x-api-key': '28915f245e5b2f4b7637',
             'Content-Type': 'application/json'
           }
         }
@@ -168,8 +120,6 @@ const Withdraw = () => {
         setAmount('');
         setAccountNumber('');
         setSelectedMethod(null);
-        setPlayerInfo(null);
-        setIsPlayerVerified(false);
       } else {
         setErrors({ form: response.data.message || 'Withdrawal request failed' });
       }
@@ -198,11 +148,6 @@ const Withdraw = () => {
               <div className="bg-white/20 p-3 rounded-lg flex items-center justify-center mb-2">
                 <FaMoneyBillWave className="text-2xl" />
               </div>
-              {balance && (
-                <div className="text-xs bg-white/10 px-2 py-1 rounded">
-                  Balance: {balance} BDT
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -236,40 +181,21 @@ const Withdraw = () => {
               <label htmlFor="playerId" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
                 Player ID
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  id="playerId"
-                  value={playerId}
-                  onChange={(e) => {
-                    setPlayerId(e.target.value);
-                    setIsPlayerVerified(false);
-                    setPlayerInfo(null);
-                  }}
-                  className={`w-full px-4 py-2 md:py-2.5 border rounded-[5px] outline-blue-600 transition ${
-                    errors.playerId ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-blue-400'
-                  }`}
-                  placeholder="Enter your player ID"
-                />
-                <button
-                  type="button"
-                  onClick={checkPlayer}
-                  disabled={isCheckingPlayer}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-[5px] flex items-center justify-center"
-                >
-                  {isCheckingPlayer ? <FaSpinner className="animate-spin" /> : <FaSearch />}
-                </button>
-              </div>
+              <input
+                type="text"
+                id="playerId"
+                value={playerId}
+                onChange={(e) => setPlayerId(e.target.value)}
+                className={`w-full px-4 py-2 md:py-2.5 border rounded-[5px] outline-blue-600 transition ${
+                  errors.playerId ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-blue-400'
+                }`}
+                placeholder="Enter your player ID"
+              />
               {errors.playerId && (
                 <p className="mt-1 text-xs text-red-600 flex items-center">
                   <MdError className="mr-1 text-xs" />
                   {errors.playerId}
                 </p>
-              )}
-              {playerInfo && (
-                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
-                  Player verified: {playerInfo.name || playerInfo.userId}
-                </div>
               )}
             </div>
 
@@ -287,7 +213,6 @@ const Withdraw = () => {
                   errors.code ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-blue-400'
                 }`}
                 placeholder="Enter your code"
-                disabled={!isPlayerVerified}
               />
               {errors.code && (
                 <p className="mt-1 text-xs text-red-600 flex items-center">
@@ -314,7 +239,6 @@ const Withdraw = () => {
                 min="100"
                 max="30000"
                 step="10"
-                disabled={!isPlayerVerified}
               />
               {errors.amount && (
                 <p className="mt-1 text-xs text-red-600 flex items-center">
@@ -342,7 +266,6 @@ const Withdraw = () => {
                   errors.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-blue-400'
                 }`}
                 placeholder={`Enter your ${selectedMethod?.name || 'payment method'} account number`}
-                disabled={!isPlayerVerified}
               />
               {errors.accountNumber && (
                 <p className="mt-1 text-xs text-red-600 flex items-center">
@@ -363,12 +286,11 @@ const Withdraw = () => {
                     key={method.id}
                     type="button"
                     onClick={() => setSelectedMethod(method)}
-                    disabled={!isPlayerVerified}
                     className={`py-2 md:p-3 border rounded-[5px] cursor-pointer transition-all flex flex-col items-center ${method.color} ${method.textColor} ${
                       selectedMethod?.id === method.id
                         ? 'ring-2 ring-blue-500 ring-offset-2'
                         : 'hover:shadow-md'
-                    } ${!isPlayerVerified ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    }`}
                   >
                     <img 
                       src={method.icon} 
@@ -390,10 +312,10 @@ const Withdraw = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading || !isPlayerVerified}
+              disabled={isLoading}
               className={`w-full py-2.5 px-4 cursor-pointer bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg transition-all shadow hover:shadow-lg flex items-center justify-center ${
                 isLoading ? 'opacity-80 cursor-not-allowed' : ''
-              } ${!isPlayerVerified ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
             >
               {isLoading ? (
                 <>
