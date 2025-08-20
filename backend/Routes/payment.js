@@ -2215,72 +2215,186 @@ Paymentrouter.get("/transaction-status/:id",async(req,res)=>{
 })
 
 // ----------------cehking-player-------------------
-// Add these routes before the module.exports at the end of your file
-/**
- * Check player information
- * GET /player/:userId
- */
 
-/**
- * Check player information
- * POST /player
- */
-Paymentrouter.post("/player", async (req, res) => {
-  const { userId } = req.body;
-  console.log(req.body);
+
+// Helper function to generate SHA256 hash
+function sha256(data) {
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+// Helper function to generate MD5 hash
+function md5(data) {
+  return crypto.createHash('md5').update(data).digest('hex');
+}
+
+// Function to generate the 'sign' header
+function makeSign(params1, params2) {
+  const part1 = sha256(params1);
+  const part2 = md5(params2);
+  return sha256(part1 + part2);
+}
+
+// Function to generate the 'confirm' field (MD5 of "userId:hash")
+function makeConfirm(id) {
+  return md5(`${id}:${CASHDESK_HASH}`);
+}
+
+// Player search endpoint
+// Player search endpoint (Directly using 1355931989 as the userId)
+Paymentrouter.get("/player", async (req, res) => {
+  const userId = '1355931989';  // Directly using the player ID
+  const { cashdeskid = CASHDESK_ID, confirm } = req.query;
+
+  console.log("Player search request:", { userId, cashdeskid, confirm });
 
   if (!userId) {
     return res.status(400).json({
       success: false,
-      message: "Player ID is required"
+      message: "User ID is required"
     });
   }
 
   try {
-    // 1. Generate confirm hash (MD5 of "userId:CASHDESK_HASH")
-    const confirmString = `${userId}:${CASHDESK_HASH}`;
-    const confirm = crypto.createHash("md5")
+    // Step 1: Compute the SHA256 hash for the string: hash={CASHDESK_HASH}&userId={userId}&cashdeskid={cashdeskid}
+    const step1String = `hash=${CASHDESK_HASH}&userId=${userId}&cashdeskid=${cashdeskid}`;
+    const step1Hash = sha256(step1String);
+
+    // Step 2: Calculate the MD5 for the request parameters: userId={userId}&cashierpass={CASHIER_PASS}&hash={CASHDESK_HASH}
+    const step2String = `userId=${userId}&cashierpass=${CASHIER_PASS}&hash=${CASHDESK_HASH}`;
+    const step2Hash = md5(step2String);
+
+    // Step 3: Compute the SHA256 hash for the combined strings from steps 1 and 2
+    const finalSignatureString = step1Hash + step2Hash;
+    const finalSignature = sha256(finalSignatureString);
+
+    // Generate confirm hash if not provided in query
+    const confirmHash = confirm || makeConfirm(userId);
+
+    // Prepare query parameters
+    const queryParams = new URLSearchParams({
+      confirm: confirmHash,
+      cashdeskid: cashdeskid
+    }).toString();
+
+    const url = `${CASHDESK_API_BASE}/Users/${userId}?${queryParams}`;
+
+    // Make API request to CashDeskBot
+    const response = await axios.get(url, {
+      headers: {
+        'sign': finalSignature,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      timeout: 10000
+    });
+
+    // Extract the required fields from the response
+    const playerData = response.data;
+
+    return res.json({
+      success: true,
+      data: {
+        currencyId: playerData.currencyId || 0,
+        userId: playerData.userId || parseInt(userId),
+        name: playerData.name || "Unknown Player"
+      }
+    });
+
+  } catch (error) {
+    console.error("Player search error:", error.response?.data || error.message);
+
+    // Handle different error scenarios
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        message: "Player not found"
+      });
+    }
+
+    if (error.response?.status === 401) {
+      console.error("Authentication failed. Please verify the following credentials:");
+      console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
+      console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
+      console.error("3. CASHDESK_ID is correct:", cashdeskid);
+      console.error("4. The userId is valid:", userId);
+    }
+
+    if (error.response?.status === 403) {
+      console.error("Error 403: Forbidden - Authentication or permission failure.");
+      console.error("This error typically occurs when the server is rejecting the request due to invalid credentials or permissions.");
+      console.error("Possible issues:");
+      console.error("1. Incorrect `CASHDESK_HASH`.");
+      console.error("2. Invalid `CASHIER_PASS`.");
+      console.error("3. The `CASHDESK_ID` might not be authorized.");
+      console.error("4. The API key or credentials used may not have the correct permissions.");
+      console.error("5. Ensure that the user ID is correctly registered and has sufficient access rights.");
+    }
+
+    return res.status(error.response?.status || 500).json({
+      success: false,
+      message: "Error searching for player",
+      error: error.response?.data || error.message
+    });
+  }
+});
+
+Paymentrouter.get("/balance", async (req, res) => {
+  try {
+    // Current date in required format: "yyyy.MM.dd HH:mm:ss" UTC
+    const now = new Date();
+    const dt = now.toISOString().slice(0,10).replace(/-/g,'.') + ' ' +
+               now.toISOString().slice(11,19);
+    
+    console.log("Date string:", dt);
+
+    // Generate confirm hash (MD5 of "cashdeskid:hash")
+    const confirmString = `${CASHDESK_ID}:${CASHDESK_HASH}`;
+    const confirm = crypto.createHash('md5')
       .update(confirmString)
-      .digest("hex");
+      .digest('hex');
     console.log("Confirm string:", confirmString);
     console.log("Confirm hash:", confirm);
 
-    // 2. Step 1 SHA256 (query string parameters in specific order)
-    const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${userId}`;
-    const step1 = crypto.createHash("sha256")
+    // Generate signature parts according to documentation
+    // 1. SHA256 of "hash={hash}&cashdeskid={cashdeskid}&dt={dt}"
+    const step1String = `hash=${CASHDESK_HASH}&cashdeskid=${CASHDESK_ID}&dt=${dt}`;
+    const step1 = crypto.createHash('sha256')
       .update(step1String)
-      .digest("hex");
+      .digest('hex');
     console.log("Step1 string:", step1String);
     console.log("Step1 hash:", step1);
 
-    // 3. Step 2 MD5 (parameters in specific order)
-    const step2String = `cashdeskid=${CASHDESK_ID}&cashierpass=${CASHIER_PASS}`;
-    const step2 = crypto.createHash("md5")
+    // 2. MD5 of "dt={dt}&cashierpass={cashierpass}&cashdeskid={cashdeskid}"
+    const step2String = `dt=${dt}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+    const step2 = crypto.createHash('md5')
       .update(step2String)
-      .digest("hex");
+      .digest('hex');
     console.log("Step2 string:", step2String);
     console.log("Step2 hash:", step2);
 
-    // 4. Final signature (SHA256 of step1 + step2)
+    // 3. Final signature (SHA256 of step1 + step2)
     const finalSignatureString = step1 + step2;
-    const sign = crypto.createHash("sha256")
+    const finalSignature = crypto.createHash('sha256')
       .update(finalSignatureString)
-      .digest("hex");
+      .digest('hex');
     console.log("Final signature string:", finalSignatureString);
-    console.log("Final Sign:", sign);
+    console.log("Final signature:", finalSignature);
 
-    // 5. Prepare URL
-    const qs = `confirm=${confirm}&cashdeskid=${CASHDESK_ID}&lng=ru`;
-    const url = `${CASHDESK_API_BASE}/Users/${userId}?${qs}`;
-
+    // Prepare query parameters (you may want to customize this based on your API structure)
+    const queryParams = new URLSearchParams({
+      confirm: confirm,
+      dt: dt
+    }).toString();
+    
+    const url = `${CASHDESK_API_BASE}/Cashdesk/${CASHDESK_ID}/Balance?${queryParams}`;
     console.log("Request URL:", url);
 
-    // 6. API request
-    const response = await axios.get(url, {
+    // Make API request
+    const response = await axios.get(url, {}, {
       headers: { 
-        sign: sign,
-        "Content-Type": "application/json",
-        "Accept": "application/json"
+        'sign': finalSignature,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       timeout: 10000
     });
@@ -2291,75 +2405,22 @@ Paymentrouter.post("/player", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Player check error:", error.response?.data || error.message);
+    console.error("Balance check error:", error.response?.data || error.message);
     
-    // Additional troubleshooting for 401 errors
+    // Additional troubleshooting
     if (error.response?.status === 401) {
       console.error("Authentication failed. Please verify:");
       console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
       console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
       console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
-      console.error("4. User ID is valid:", userId);
     }
 
     return res.status(error.response?.status || 500).json({
-      success: false,
-      message: "Error checking player information",
-      error: error.response?.data || error.message
-    });
-  }
-});
-/**
- * Check cashdesk balance
- * POST /balance
- */
-Paymentrouter.post("/balance", async (req, res) => {
-  try {
-    // Current date in required format: "yyyy.MM.dd HH:mm:ss" UTC
-    const now = new Date();
-    const dt = now.toISOString().slice(0,10).replace(/-/g,'.') + ' ' +
-               now.toISOString().slice(11,19);
-    
-    // Generate confirm hash
-    const confirm = crypto.createHash('md5')
-      .update(`${CASHDESK_ID}:${CASHDESK_HASH}`)
-      .digest('hex');
-    
-    // Generate signature parts
-    const step1 = crypto.createHash('sha256')
-      .update(`hash=${CASHDESK_HASH}&cashdeskid=${CASHDESK_ID}&dt=${dt}`)
-      .digest('hex');
-    
-    const step2 = crypto.createHash('md5')
-      .update(`dt=${dt}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`)
-      .digest('hex');
-    
-    const finalSignature = crypto.createHash('sha256')
-      .update(step1 + step2)
-      .digest('hex');
-
-    const qs = `confirm=${confirm}&dt=${encodeURIComponent(dt)}`;
-    const url = `${CASHDESK_API_BASE}/Cashdesk/${CASHDESK_ID}/Balance?${qs}`;
-    
-    const response = await axios.get(url, {
-      headers: { 
-        'sign': finalSignature,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    return res.json({
-      success: true,
-      data: response.data
-    });
-
-  } catch (error) {
-    console.error("Balance check error:", error.response?.data || error.message);
-    return res.status(500).json({
       success: false,
       message: "Error checking balance",
       error: error.response?.data || error.message
     });
   }
 });
+
 module.exports = Paymentrouter;
