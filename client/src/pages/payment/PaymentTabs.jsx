@@ -156,7 +156,7 @@ const DepositForm = () => {
             currency: "BDT",
             redirectUrl: "https://nagodpay.com",
             orderId: orderId,
-            callbackUrl: `http://localhost:5173/callback`
+            callbackUrl: `https://nagodpay.com/callback`
           },
           {
             headers: {
