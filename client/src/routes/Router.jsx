@@ -34,6 +34,7 @@ import Deposit from "../pages/deposit/Deposit";
 import Withdraw from "../pages/withdraw/Withdraw";
 import PaymentCallbackPage from "../pages/callback/PaymentCallbackPage";
 import DepositWithdrawTabs from "../pages/payment/DepositWithdrawTabs";
+import PaymentTabs from "../pages/payment/PaymentTabs";
 
 const isAuthenticated = () => {
   return localStorage.getItem('authToken') !== null;
@@ -114,7 +115,7 @@ const router = createBrowserRouter([
   },
       {
     path: "/payment-methods",
-    element: <DepositWithdrawTabs />
+    element: <PaymentTabs />
   },
   {
     path: "/merchant",

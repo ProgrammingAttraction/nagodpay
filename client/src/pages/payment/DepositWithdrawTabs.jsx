@@ -234,7 +234,7 @@ const Deposit = () => {
           },
           {
             headers: {
-              'x-api-key': '28915f245e5b2f4b7637'
+              'x-api-key': '07f511d662a122719303'
             }
           }
         );
@@ -261,7 +261,7 @@ const Deposit = () => {
           postData,
           {
             headers: {
-              'x-api-key': '28915f245e5b2f4b7637',
+              'x-api-key': '07f511d662a122719303',
               'Content-Type': 'application/json'
             }
           }
