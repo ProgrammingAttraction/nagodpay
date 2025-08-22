@@ -685,7 +685,6 @@ Userrouter.post('/filter-by-date', async (req, res) => {
     });
   }
 });
-
 // --------------------bank-account---------------------
 Userrouter.get("/bank-accunts/:id",async(req,res)=>{
   try {

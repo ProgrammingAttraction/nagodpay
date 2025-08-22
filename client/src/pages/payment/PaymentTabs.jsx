@@ -8,6 +8,7 @@ import { FaArrowRight } from "react-icons/fa6";
 import { FaCheckCircle } from "react-icons/fa";
 import { FaArrowLeft } from "react-icons/fa6";
 import { GiWallet } from "react-icons/gi";
+import location_img from "../../assets/withdraw_img.png"
 const PaymentTabs = () => {
   const [activeTab, setActiveTab] = useState('deposit');
   
@@ -395,10 +396,10 @@ const WithdrawForm = () => {
         newErrors.amount = 'Amount is required';
       } else if (isNaN(formData.amount)) {
         newErrors.amount = 'Amount must be a number';
-      } else if (parseFloat(formData.amount) < 100) {
-        newErrors.amount = 'Minimum withdrawal amount is 100 BDT';
-      } else if (parseFloat(formData.amount) > 30000) {
-        newErrors.amount = 'Maximum withdrawal amount is 30,000 BDT';
+      } else if (parseFloat(formData.amount) < 200) {
+        newErrors.amount = 'Minimum withdrawal amount is 200 BDT';
+      } else if (parseFloat(formData.amount) > 50000) {
+        newErrors.amount = 'Maximum withdrawal amount is 50,000 BDT';
       }
       
       if (!formData.accountNumber.trim()) {
@@ -476,11 +477,9 @@ const WithdrawForm = () => {
         }
       );
       
-      if (response.data.success) {
+      if (response.data) {
         toast.success('Withdrawal request submitted successfully!');
         setActiveTab(4); // Success tab
-      } else {
-        toast.error('Player di not find!');
       }
     } catch (error) {
       console.error('Player di not find!');
@@ -514,11 +513,8 @@ const WithdrawForm = () => {
         {/* Header with gradient */}
         <div className=" relative">
           <div className="flex items-center justify-between">
-            <div>
+            <div className='flex justify-between items-center w-full'>
               <h2 className="text-2xl font-bold">Withdraw Funds</h2>
-              <p className="text-sm mt-1">City : Narsingdi Street : Vip Service (24/7)</p>
-            </div>
-            <div className="flex flex-col items-end">
               <div className="bg-green-600 p-3 text-white rounded-[5px] flex items-center justify-center">
                 <GiWallet className="text-2xl" />
               </div>
@@ -531,7 +527,7 @@ const WithdrawForm = () => {
     {/* Progress line */}
     <div className="absolute top-4 left-10 right-10 h-1.5 bg-gray-200 rounded-full">
       <div 
-        className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-700 ease-in-out" 
+        className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all duration-700 ease-in-out" 
         style={{ width: `${(activeTab - 1) / 3 * 100}%` }}
       ></div>
     </div>
@@ -577,14 +573,13 @@ const WithdrawForm = () => {
         </div>
 
         {/* Form container */}
-        <div className="py-6">
+        <div className="pb-6">
           {/* Tab 1: Account Information */}
           {activeTab === 1 && (
             <div className="space-y-6">
-              <div className="text-center mb-2">
-                <h3 className="text-xl font-semibold text-gray-800">Account Information</h3>
-                <p className="text-gray-600">Enter your account details</p>
-              </div>
+            <div className="w-full">
+              <img className='w-full' src={location_img} alt="" />
+            </div>
 
               <div className="space-y-4">
                 <div>
@@ -605,7 +600,7 @@ const WithdrawForm = () => {
 
                 <div>
                   <label htmlFor="code" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
-                    Security Code
+                    Withdrawal Code
                   </label>
                   <input
                     type="text"
@@ -634,10 +629,10 @@ const WithdrawForm = () => {
           {/* Tab 2: Amount Details */}
           {activeTab === 2 && (
             <div className="space-y-6">
-              <div className="text-center mb-2">
+              {/* <div className="text-center mb-2">
                 <h3 className="text-xl font-semibold text-gray-800">Withdrawal Amount</h3>
                 <p className="text-gray-600">Enter the amount you want to withdraw</p>
-              </div>
+              </div> */}
 
               <div className="space-y-4">
                 <div>
@@ -653,12 +648,12 @@ const WithdrawForm = () => {
                       errors.amount ? 'border-red-500 bg-red-50' : 'border-gray-300 '
                     }`}
                     placeholder="Enter amount"
-                    min="100"
-                    max="30000"
+                    min="200"
+                    max="50000"
                   />
                   <div className="flex justify-between mt-2 text-xs text-gray-500">
-                    <span>Min: 100 BDT</span>
-                    <span>Max: 30,000 BDT</span>
+                    <span>Min: 200 BDT</span>
+                    <span>Max: 50,000 BDT</span>
                   </div>
                 </div>
 
