@@ -152,7 +152,7 @@ const DepositForm = () => {
           {
             mid: "hobet",
             payerId: playerId,
-            amount: 1,
+            amount: numericAmount,
             currency: "BDT",
             redirectUrl: "https://nagodpay.com",
             orderId: orderId,
