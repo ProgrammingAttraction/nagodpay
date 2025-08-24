@@ -76,7 +76,7 @@ const MerchantPublicRoute = ({ children }) => {
 const router = createBrowserRouter([
    {
     path: "/",
-    element: <PublicRoute><Home /></PublicRoute>
+    element:<Home />
   },
   {
     path: "/login",
