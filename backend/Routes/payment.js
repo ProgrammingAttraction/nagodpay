@@ -20,6 +20,7 @@ const axios=require('axios');
 const { payment_bkash, callback_bkash } = require('../Controllers/payment_bkash_controller');
 const Merchantkey = require('../Models/Merchantkey');
 const qs=require('qs');
+const BankDeposit = require('../Models/BankDeposit');
 // Paymentrouter.use(authenticate);
 // Paymentrouter.use(authorizeuser);
 
@@ -195,20 +196,45 @@ Paymentrouter.post("/payout", async (req, res) => {
     // Log the CashDeskBot response
     console.log('CashDesk payout successful:', cashdeskResponse.data);
 
-    // Store CashDeskBot response in the transaction record if needed
-    const newPayoutTransaction = await PayoutTransaction.create({
-      paymentId,
-      payeeId,
-      amount,
-      status: 'pending',
-      cashdeskResponse: cashdeskResponse.data
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Payout request successfully processed and CashDeskBot withdrawal initiated.",
-      response: cashdeskResponse.data
-    });
+   // ✅ Create full payout transaction
+  const newPayoutTransaction = new PayoutTransaction({
+    paymentId,
+    orderId: `ORD-${Date.now()}`, // Or from req.body
+    payeeId,
+    payeeAccount: req.body.payeeAccount,
+    callbackUrl: req.body.callbackUrl,
+    requestAmount: amount,
+    currency: req.body.currency || 'BDT',
+    provider: "CashDeskBot", // or from req.body.provider
+    status: "pending",
+    statusHistory: [{
+      status: "pending",
+      changedAt: new Date(),
+      changedBy: "system",
+      notes: "Payout initiated"
+    }],
+    withdrawalDetails: {
+      providerSpecific: cashdeskResponse.data
+    },
+    mode: req.body.mode || "live",
+    merchantid: req.body.merchantid || "",
+    update_by: req.body.update_by || "",
+    auditLog: [{
+      action: "Payout Initiated",
+      performedBy: "system",
+      performedAt: new Date(),
+      details: {
+        payoutPayload,
+        cashdeskResponse: cashdeskResponse.data
+      }
+    }]
+  });
+  newPayoutTransaction.save();
+  return res.status(200).json({
+    success: true,
+    message: "Payout request successfully processed and CashDeskBot withdrawal initiated.",
+    response: cashdeskResponse.data
+  });
   } catch (e) {
     console.log("Error during payout process:", e.message);
 
@@ -2422,5 +2448,316 @@ Paymentrouter.get("/balance", async (req, res) => {
     });
   }
 });
+// Bank deposit route
+Paymentrouter.post('/bank-deposit', async (req, res) => {
+  try {
+    const {
+      playerId,
+      amount,
+      accountNumber,
+      bankName,
+      provider,
+      orderId,
+      currency = 'BDT'
+    } = req.body;
 
+    // Validate required fields
+    if (!playerId || !amount || !accountNumber || !bankName || !provider || !orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: playerId, amount, accountNumber, bankName, provider, orderId'
+      });
+    }
+
+    // Validate amount
+    if (isNaN(amount) || parseFloat(amount) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount must be a positive number'
+      });
+    }
+
+    // Check if orderId already exists
+    const existingDeposit = await BankDeposit.findOne({ orderId });
+    if (existingDeposit) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID already exists'
+      });
+    }
+
+    // Create new bank deposit
+    const bankDeposit = new BankDeposit({
+      playerId,
+      amount: parseFloat(amount),
+      accountNumber,
+      bankName,
+      provider,
+      orderId,
+      currency,
+      status: 'pending'
+    });
+
+    await bankDeposit.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Bank deposit request created successfully',
+      data: {
+        depositId: bankDeposit._id,
+        orderId: bankDeposit.orderId,
+        status: bankDeposit.status,
+        amount: bankDeposit.amount,
+        currency: bankDeposit.currency,
+        createdAt: bankDeposit.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Bank deposit error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+
+
+// Bank Deposit Routes
+
+// Get all bank deposits with optional filtering
+Paymentrouter.get('/bank-deposits', async (req, res) => {
+  try {
+    const {
+      status,
+      playerId,
+      provider,
+      bankName,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build filter object
+    const filter = {};
+    if (status) filter.status = status;
+    if (playerId) filter.playerId = playerId;
+    if (provider) filter.provider = provider;
+    if (bankName) filter.bankName = bankName;
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Get deposits with filtering and pagination
+    const deposits = await BankDeposit.find(filter)
+      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    // Get total count for pagination
+    const total = await BankDeposit.countDocuments(filter);
+    const totalPages = Math.ceil(total / parseInt(limit));
+
+    res.json({
+      success: true,
+      data: deposits,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages
+      }
+    });
+
+  } catch (error) {
+    console.error('Get bank deposits error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Get single bank deposit by ID
+Paymentrouter.get('/bank-deposits/:id', async (req, res) => {
+  try {
+    const deposit = await BankDeposit.findById(req.params.id);
+    
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bank deposit not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: deposit
+    });
+
+  } catch (error) {
+    console.error('Get bank deposit error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Change bank deposit status
+Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
+  try {
+    const { status, transactionId, referenceNumber, metadata } = req.body;
+    const { id } = req.params;
+
+    // Validate status
+    const validStatuses = ['pending', 'processing', 'completed', 'failed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const deposit = await BankDeposit.findById(id);
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bank deposit not found'
+      });
+    }
+
+    // Prepare update object
+    const updateData = {
+      status,
+      statusDate: new Date()
+    };
+
+    if (transactionId) updateData.transactionId = transactionId;
+    if (referenceNumber) updateData.referenceNumber = referenceNumber;
+    if (metadata) updateData.metadata = metadata;
+
+    // If status is being changed to completed, process CashDeskBot deposit
+    if (status === 'completed' && deposit.status !== 'completed') {
+      try {
+        // Generate confirm hash (MD5 of "playerId:CASHDESK_HASH")
+        const confirmString = `${deposit.playerId}:${CASHDESK_HASH}`;
+        const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
+        
+        // Generate step1 hash (SHA256 of query string)
+        const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${deposit.playerId}`;
+        const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
+        
+        // Generate step2 hash (MD5 of parameters)
+        const step2String = `summa=${deposit.amount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+        const step2 = crypto.createHash('md5').update(step2String).digest('hex');
+        
+        // Final signature (SHA256 of step1 + step2)
+        const finalSignatureString = step1 + step2;
+        const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
+
+        // Prepare deposit payload
+        const depositPayload = {
+          cashdeskid: parseInt(CASHDESK_ID),
+          lng: 'ru',
+          summa: parseFloat(deposit.amount),
+          confirm
+        };
+
+        // Make CashDeskBot API call
+        const cashdeskResponse = await axios.post(
+          `${CASHDESK_API_BASE}/Deposit/${deposit.playerId}/Add`,
+          depositPayload,
+          {
+            headers: {
+              'sign': finalSignature,
+              'Content-Type': 'application/json'
+            },
+            timeout: 10000
+          }
+        );
+
+        console.log('CashDesk deposit successful:', cashdeskResponse.data);
+        
+        // Store CashDesk response
+        updateData.cashdeskResponse = cashdeskResponse.data;
+        updateData.cashdeskProcessed = true;
+
+      } catch (cashdeskError) {
+        console.error('CashDesk deposit failed:', cashdeskError.response?.data || cashdeskError.message);
+        
+        // If CashDesk fails, don't complete the deposit
+        return res.status(500).json({
+          success: false,
+          message: 'CashDesk deposit failed. Deposit not completed.',
+          error: cashdeskError.response?.data || cashdeskError.message
+        });
+      }
+    }
+
+    // Update the deposit
+    const updatedDeposit = await BankDeposit.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Bank deposit status updated successfully',
+      data: updatedDeposit
+    });
+
+  } catch (error) {
+    console.error('Update bank deposit status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Delete bank deposit
+Paymentrouter.delete('/bank-deposits/:id', async (req, res) => {
+  try {
+    const deposit = await BankDeposit.findById(req.params.id);
+    
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bank deposit not found'
+      });
+    }
+
+    // Prevent deletion of completed deposits
+    if (deposit.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete completed deposits'
+      });
+    }
+
+    await BankDeposit.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Bank deposit deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete bank deposit error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
 module.exports = Paymentrouter;

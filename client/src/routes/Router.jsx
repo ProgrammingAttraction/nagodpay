@@ -35,6 +35,7 @@ import Withdraw from "../pages/withdraw/Withdraw";
 import PaymentCallbackPage from "../pages/callback/PaymentCallbackPage";
 import DepositWithdrawTabs from "../pages/payment/DepositWithdrawTabs";
 import PaymentTabs from "../pages/payment/PaymentTabs";
+import Home from "../pages/home/Home";
 
 const isAuthenticated = () => {
   return localStorage.getItem('authToken') !== null;
@@ -73,6 +74,10 @@ const MerchantPublicRoute = ({ children }) => {
 };
 
 const router = createBrowserRouter([
+   {
+    path: "/",
+    element: <PublicRoute><Home /></PublicRoute>
+  },
   {
     path: "/login",
     element: <PublicRoute><Login /></PublicRoute>
@@ -97,10 +102,6 @@ const router = createBrowserRouter([
     path: "/payment/docs",
     element: <Apidocs />
   },
-   {
-    path: "/deposit",
-    element: <Deposit />
-  },
   {
     path: "/checkout/:paymentId",
     element: <Checkout />
@@ -108,10 +109,6 @@ const router = createBrowserRouter([
    {
     path: "/callback",
     element: <PaymentCallbackPage />
-  },
-     {
-    path: "/withdraw",
-    element: <Withdraw />
   },
       {
     path: "/payment-methods",

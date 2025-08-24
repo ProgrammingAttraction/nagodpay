@@ -5,6 +5,7 @@ const PrepaymentRequest = require('../Models/PrepaymentRequest');
 const BankAccount = require('../Models/BankAccount');
 const PayinTransaction = require('../Models/PayinTransaction');
 const PayoutTransaction = require('../Models/PayoutTransaction');
+const BankDeposit = require('../Models/BankDeposit');
 const Userrouter = express.Router();
 
 

@@ -33,6 +33,9 @@ import Apikey from './pages/apikey/Apikey'
 import Merchantpayment from './pages/merchantpayment/Merchantpayment'
 import Allmerchat from './pages/apikey/Allmerchat'
 import Merchantwithdrwals from './pages/merchantwithdraw/Merchantwithdrwals'
+import Cashdesk from './pages/cashdesk/Cashdesk'
+import Bankcashin from './pages/cashin/Bankcashin'
+import MerchantWithdrawals from './pages/merchantwithdraw/Merchantwithdrwals'
 
 const ProtectedRoute = ({ children }) => {
   // Check if user data exists in localStorage
@@ -64,6 +67,12 @@ const App = () => {
         <Route exact path="/dashboard/generate-key" element={
           <ProtectedRoute>
             <Apikey />
+          </ProtectedRoute>
+        }/>
+                    {/* Protected routes - require authentication */}
+        <Route exact path="/dashboard/merchant-withdrawal" element={
+          <ProtectedRoute>
+            <MerchantWithdrawals />
           </ProtectedRoute>
         }/>
         <Route exact path="/dashboard/agents" element={
@@ -236,13 +245,21 @@ const App = () => {
             <System />
           </ProtectedRoute>
         }/>
-        
-     <Route exact path="/dashboard/merchant-withdrawal" element={
+            <Route exact path="/dashboard/settings/system" element={
           <ProtectedRoute>
-            <Merchantwithdrwals />
+            <System />
           </ProtectedRoute>
         }/>
-
+     <Route exact path="/dashboard/cash-desk" element={
+          <ProtectedRoute>
+            <Cashdesk />
+          </ProtectedRoute>
+        }/>
+ <Route exact path="/dashboard/all-bank-payin" element={
+          <ProtectedRoute>
+            <Bankcashin />
+          </ProtectedRoute>
+        }/>
         {/* Redirect to login by default if no route matches */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

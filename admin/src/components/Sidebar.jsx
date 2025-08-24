@@ -13,8 +13,8 @@ import { TfiLayoutSliderAlt } from "react-icons/tfi";
 import { LuKeySquare } from "react-icons/lu";
 import { MdOutlinePayment } from "react-icons/md";
 import { MdOutlineSupervisorAccount } from "react-icons/md";
-
-
+import { PiDesktopTower } from "react-icons/pi";
+import { BsBank } from "react-icons/bs";
 const Sidebar = ({ isOpen }) => {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState(null);
@@ -128,6 +128,19 @@ const Sidebar = ({ isOpen }) => {
       </div>
              <div className="mb-3">
         <NavLink
+          to="/dashboard/all-bank-payin"
+          className={({ isActive }) =>
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+          }
+        >
+          <span className="flex items-center gap-2 text-gray-100">
+            <BsBank className="text-[18px]" />
+          Bank Pay In
+          </span>
+        </NavLink>
+      </div>
+             <div className="mb-3">
+        <NavLink
           to="/dashboard/all-payout"
           className={({ isActive }) =>
             `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
@@ -174,7 +187,15 @@ const Sidebar = ({ isOpen }) => {
             Forward SMS
           </span>
         </NavLink>
-
+  <NavLink
+         to="/dashboard/cash-desk"
+          className={ ` flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`}
+        >
+          <span className="flex items-center gap-2 text-gray-100">
+            <PiDesktopTower className="text-[18px]" />
+            Cash Desk
+          </span>
+        </NavLink>
       {/* Sidebar Menus */}
       {[
        

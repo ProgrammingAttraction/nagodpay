@@ -22,7 +22,6 @@ const PayoutTransactionSchema = new mongoose.Schema(
     },
     payeeAccount: {
       type: String,
-      required: true
     },
     agentAccount: {
       type: String,
