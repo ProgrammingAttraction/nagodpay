@@ -68,9 +68,11 @@ const PaymentTabs = () => {
     </div>
   );
 };
-
+import { FaMobileAlt } from "react-icons/fa";
+import { FaBuilding } from "react-icons/fa";
 const DepositForm = () => {
-  const [step, setStep] = useState(1); // 1: Select method, 2: Enter details, 3: Success
+  const [step, setStep] = useState(1); // 1: Select category, 2: Select method, 3: Enter details, 4: Success
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [playerId, setPlayerId] = useState('');
   const [amount, setAmount] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -84,6 +86,22 @@ const DepositForm = () => {
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
   const base_url2 = "https://api.nagodpay.com";
 
+  // Payment categories
+  const paymentCategories = [
+    {
+      id: 'mobile',
+      name: 'Mobile Banking',
+      description: 'Quick deposits using mobile wallets',
+      icon: <FaMobileAlt className="text-2xl text-blue-600" />
+    },
+    {
+      id: 'bank',
+      name: 'Bank Transfer',
+      description: 'Direct bank transfers',
+      icon: <FaBuilding className="text-2xl text-green-600" />
+    }
+  ];
+
   // All available payment methods with their images
   const availableMethods = [
     { 
@@ -91,6 +109,7 @@ const DepositForm = () => {
       name: 'Nagad', 
       image: "https://xxxbetgames.com/icons-xxx/payments/227.svg",
       type: 'regular',
+      category: 'mobile',
       minAmount: 100,
       maxAmount: 30000,
     },
@@ -99,6 +118,7 @@ const DepositForm = () => {
       name: 'Bkash', 
       image: "https://xxxbetgames.com/icons-xxx/payments/75.svg",
       type: 'regular',
+      category: 'mobile',
       minAmount: 100,
       maxAmount: 30000,
     },
@@ -107,58 +127,70 @@ const DepositForm = () => {
       name: 'Bkash Fast', 
       image: "https://xxxbetgames.com/icons-xxx/payments/75.svg",
       type: 'fast',
+      category: 'mobile',
       minAmount: 100,
       maxAmount: 30000,
     },
     { 
       id: 4, 
       name: 'Nagad Free', 
-      image: nagad_free_img,
-      type: 'regular',
+      image: "https://xxxbetgames.com/icons-xxx/payments/227.svg", // Using same image as regular Nagad
+      type: 'nagad_free',
+      category: 'mobile',
       minAmount: 100,
       maxAmount: 30000,
     },
     { 
       id: 5, 
       name: 'Rocket', 
-      image: rocket_img,
+      image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Rocket_mobile_banking_logo.svg/200px-Rocket_mobile_banking_logo.svg.png",
       type: 'regular',
+      category: 'mobile',
       minAmount: 100,
       maxAmount: 30000,
     },
     { 
       id: 6, 
       name: 'Upay', 
-      image: upay_img,
+      image: "https://upload.wikimedia.org/wikipedia/commons/d/d5/Upay_logo.svg",
       type: 'regular',
+      category: 'mobile',
       minAmount: 100,
       maxAmount: 30000,
     },
     { 
       id: 7, 
       name: 'BRAC Bank', 
-      image: brac_img,
+      image: "https://play-lh.googleusercontent.com/xbBwfeUNIru5qMU0giaQIATfrt_AdMWujIhVu_M-RHG0SEVNY6lK_JQFQ_bER7k1jm8",
       type: 'bank',
+      category: 'bank',
       minAmount: 100,
       maxAmount: 30000,
     },
     { 
       id: 8, 
       name: 'Dutch Bangla', 
-      image: duch_bangla_img,
+      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8e4SixYh3d4Me6HuncJHAA60BCGS6HFx-kQ&s",
       type: 'bank',
+      category: 'bank',
       minAmount: 100,
       maxAmount: 30000,
     },
     { 
       id: 9, 
-      name: 'UDB Bank', 
-      image: udb_bank_img,
+      name: 'UCB Bank', 
+      image: "https://upload.wikimedia.org/wikipedia/en/thumb/b/b9/Logo_of_United_Commercial_Bank.svg/800px-Logo_of_United_Commercial_Bank.svg.png",
       type: 'bank',
+      category: 'bank',
       minAmount: 100,
       maxAmount: 30000,
     },
   ];
+
+  // Filter methods by category
+  const filteredMethods = selectedCategory 
+    ? availableMethods.filter(method => method.category === selectedCategory.id)
+    : [];
 
   // Validation function
   const validateForm = () => {
@@ -180,8 +212,8 @@ const DepositForm = () => {
       newErrors.amount = `Maximum deposit amount is ${selectedMethod.maxAmount} BDT`;
     }
 
-    // Bank account validation
-    if (selectedMethod.type === 'bank') {
+    // Account number validation for bank and nagad_free methods
+    if (selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free') {
       if (!accountNumber.trim()) {
         newErrors.accountNumber = 'Account number is required';
       } else if (!/^[0-9]+$/.test(accountNumber)) {
@@ -195,21 +227,34 @@ const DepositForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Handle category selection
+  const handleCategorySelect = (category) => {
+    setSelectedCategory(category);
+    setStep(2);
+  };
+
   // Handle method selection
   const handleMethodSelect = (method) => {
     setSelectedMethod(method);
-    setStep(2);
+    setStep(3);
+  };
+
+  // Handle back to category selection
+  const handleBackToCategories = () => {
+    setSelectedCategory(null);
+    setStep(1);
   };
 
   // Handle back to method selection
   const handleBackToMethods = () => {
     setSelectedMethod(null);
     setAccountNumber('');
-    setStep(1);
+    setStep(2);
   };
 
   // Reset form for new deposit
   const handleNewDeposit = () => {
+    setSelectedCategory(null);
     setPlayerId('');
     setAmount('');
     setAccountNumber('');
@@ -293,10 +338,46 @@ const DepositForm = () => {
             orderId,
             timestamp: new Date().toLocaleString()
           });
-          setStep(3);
+          setStep(4);
           toast.success('Bank deposit request submitted successfully!');
         } else {
           toast.error(response.data.message || 'Bank deposit request failed');
+        }
+      } else if (selectedMethod.type === 'nagad_free') {
+        // Nagad Free payment method
+        const postData = {
+          playerId,
+          amount: numericAmount,
+          accountNumber,
+          provider: 'nagad_free',
+          orderId,
+          currency: "BDT"
+        };
+
+        const response = await axios.post(
+          `${base_url}/api/payment/nagad-free-deposit`,
+          postData,
+          {
+            headers: {
+              'x-api-key': '28915f245e5b2f4b7637',
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        if (response.data.success) {
+          // Store success data and show success screen
+          setSuccessData({
+            method: selectedMethod.name,
+            amount: numericAmount,
+            playerId,
+            orderId,
+            timestamp: new Date().toLocaleString()
+          });
+          setStep(4);
+          toast.success('Nagad Free deposit request submitted successfully!');
+        } else {
+          toast.error(response.data.message || 'Nagad Free deposit request failed');
         }
       } else {
         // Regular payment methods
@@ -363,18 +444,18 @@ const DepositForm = () => {
       </div>
 
       {/* Progress Steps */}
-      {step !== 3 && (
+      {step !== 4 && (
         <div className="mt-8 mb-8">
           <div className="flex justify-between items-center relative">
             {/* Progress line */}
-            <div className="absolute top-4 left-10 right-10 h-2 bg-gray-200 rounded-full">
+            <div className="absolute top-4 left-0 right-0 mx-10 h-2 bg-gray-200 rounded-full">
               <div 
                 className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-700 ease-in-out" 
-                style={{ width: `${(step - 1) / 2 * 100}%` }}
+                style={{ width: `${(step - 1) / 3 * 100}%` }}
               ></div>
             </div>
             
-            {[1, 2].map((stepNum) => (
+            {[1, 2, 3].map((stepNum) => (
               <div key={stepNum} className="flex flex-col items-center z-10 relative">
                 {/* Step circle */}
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
@@ -398,8 +479,9 @@ const DepositForm = () => {
                 <div className={`text-sm font-medium mt-3 transition-colors duration-300 ${
                   step >= stepNum ? 'text-blue-700 font-semibold' : 'text-gray-500'
                 }`}>
-                  {stepNum === 1 && 'Select Method'}
-                  {stepNum === 2 && 'Enter Details'}
+                  {stepNum === 1 && 'Select Category'}
+                  {stepNum === 2 && 'Select Method'}
+                  {stepNum === 3 && 'Enter Details'}
                 </div>
               </div>
             ))}
@@ -407,16 +489,75 @@ const DepositForm = () => {
         </div>
       )}
 
-      {/* Step 1: Method Selection */}
+      {/* Step 1: Category Selection */}
       {step === 1 && (
         <div className="space-y-8">
-          <div className="text-center mb-4">
-            <h3 className="text-xl font-semibold text-gray-800">Select Payment Method</h3>
-            <p className="text-gray-600 mt-1">Choose your preferred deposit method</p>
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-6">
+            {paymentCategories.map((category) => (
+              <div
+                key={category.id}
+                onClick={() => handleCategorySelect(category)}
+                className={`p-6 border-1 rounded-xl cursor-pointer transition-all duration-300 transform hover:scale-105 ${
+                  selectedCategory?.id === category.id
+                    ? 'border-blue-500 bg-blue-50 shadow-md'
+                    : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+                }`}
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="p-4 rounded-full bg-white mb-1">
+                    {category.icon}
+                  </div>
+                  <div>
+                    <h4 className={`text-lg font-semibold ${selectedCategory?.id === category.id ? 'text-blue-600' : 'text-gray-800'}`}>
+                      {category.name}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-2">
+                      {category.description}
+                    </p>
+                  </div>
+                  {selectedCategory?.id === category.id && (
+                    <div className="mt-4 bg-blue-600 rounded-full p-1">
+                      <FaCheckCircle className="text-white text-sm" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {availableMethods.map((method) => (
+          {selectedCategory && (
+            <div className="p-4 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 shadow-sm">
+              <div className="flex items-center">
+                <div className="bg-white p-2 rounded-lg mr-3 border border-blue-200">
+                  {selectedCategory.icon}
+                </div>
+                <div>
+                  <h4 className="font-semibold">Selected: {selectedCategory.name}</h4>
+                  <p className="text-sm opacity-90 mt-1">
+                    {selectedCategory.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={() => setStep(2)}
+              disabled={!selectedCategory}
+              className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-[5px] transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              Continue to Methods 
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Method Selection */}
+      {step === 2 && selectedCategory && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3 gap-4">
+            {filteredMethods.map((method) => (
               <div
                 key={method.id}
                 onClick={() => handleMethodSelect(method)}
@@ -469,9 +610,15 @@ const DepositForm = () => {
             </div>
           )}
 
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-between pt-4">
             <button
-              onClick={() => setStep(2)}
+              onClick={handleBackToCategories}
+              className="flex items-center justify-center px-6 py-3 border-1 border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold rounded-[5px] cursor-pointer transition-all"
+            >
+              <MdArrowBackIos className="mr-2" /> Back
+            </button>
+            <button
+              onClick={() => setStep(3)}
               disabled={!selectedMethod}
               className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-[5px] transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
@@ -481,12 +628,12 @@ const DepositForm = () => {
         </div>
       )}
 
-      {/* Step 2: Deposit Details */}
-      {step === 2 && selectedMethod && (
+      {/* Step 3: Deposit Details */}
+      {step === 3 && selectedMethod && (
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
-              <div className="p-2 rounded-lg bg-gray-100 mr-2">
+            <div className="flex items-center bg-white px-4 py-2 rounded-full ">
+              <div className="p-2 rounded-lg mr-2">
                 <img 
                   src={selectedMethod.image} 
                   alt={selectedMethod.name} 
@@ -518,8 +665,8 @@ const DepositForm = () => {
               )}
             </div>
 
-            {/* Account Number Field (only for bank methods) */}
-            {selectedMethod.type === 'bank' && (
+            {/* Account Number Field (for bank and nagad_free methods) */}
+            {(selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free') && (
               <div>
                 <label htmlFor="accountNumber" className="block text-sm font-semibold text-gray-700 mb-2">
                   Account Number
@@ -602,8 +749,8 @@ const DepositForm = () => {
         </form>
       )}
 
-      {/* Step 3: Success Message */}
-      {step === 3 && successData && (
+      {/* Step 4: Success Message */}
+      {step === 4 && successData && (
         <div className="bg-white p-6  border border-green-200">
           <div className="text-center">
             <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
@@ -654,11 +801,11 @@ const DepositForm = () => {
 
 
 
-
 import { MdOutlineArrowBackIos } from "react-icons/md";
 import { MdOutlineArrowForwardIos } from "react-icons/md";
 const WithdrawForm = () => {
   const [activeTab, setActiveTab] = useState(1);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [formData, setFormData] = useState({
     playerId: '',
     code: '',
@@ -672,25 +819,102 @@ const WithdrawForm = () => {
   // Configuration
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
   
-  // Withdrawal methods data
+  // Payment categories
+  const paymentCategories = [
+    {
+      id: 'mobile',
+      name: 'Mobile Banking',
+      description: 'Quick withdrawals to mobile wallets',
+      icon: <FaMobileAlt className="text-2xl text-blue-600" />
+    },
+    {
+      id: 'bank',
+      name: 'Bank Transfer',
+      description: 'Direct bank transfers',
+      icon: <FaBuilding className="text-2xl text-green-600" />
+    }
+  ];
+
+  // All available withdrawal methods with their images
   const availableMethods = [
     { 
       id: 1, 
       name: 'Nagad', 
-      icon: 'https://xxxbetgames.com/icons-xxx/payments/76.svg',
-      color: 'from-green-500 to-green-600',
-      textColor: 'text-white',
-      bgColor: 'bg-green-100'
+      image: "https://xxxbetgames.com/icons-xxx/payments/227.svg",
+      category: 'mobile',
+      minAmount: 200,
+      maxAmount: 50000
     },
     { 
       id: 2, 
       name: 'Bkash', 
-      icon: 'https://xxxbetgames.com/icons-xxx/payments/75.svg',
-      color: 'from-pink-500 to-pink-600',
-      textColor: 'text-white',
-      bgColor: 'bg-pink-100'
+      image: "https://xxxbetgames.com/icons-xxx/payments/75.svg",
+      category: 'mobile',
+      minAmount: 200,
+      maxAmount: 50000
+    },
+    { 
+      id: 3, 
+      name: 'Bkash Fast', 
+      image: "https://xxxbetgames.com/icons-xxx/payments/75.svg",
+      category: 'mobile',
+      minAmount: 200,
+      maxAmount: 50000
+    },
+    { 
+      id: 4, 
+      name: 'Nagad Free', 
+      image: nagad_free_img, // Placeholder image
+      category: 'mobile',
+      minAmount: 200,
+      maxAmount: 50000
+    },
+    { 
+      id: 5, 
+      name: 'Rocket', 
+      image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Rocket_mobile_banking_logo.svg/200px-Rocket_mobile_banking_logo.svg.png",
+      category: 'mobile',
+      minAmount: 200,
+      maxAmount: 50000
+    },
+    { 
+      id: 6, 
+      name: 'Upay', 
+      image: "https://upload.wikimedia.org/wikipedia/commons/d/d5/Upay_logo.svg",
+      category: 'mobile',
+      minAmount: 200,
+      maxAmount: 50000
+    },
+    { 
+      id: 7, 
+      name: 'BRAC Bank', 
+      image: "https://play-lh.googleusercontent.com/xbBwfeUNIru5qMU0giaQIATfrt_AdMWujIhVu_M-RHG0SEVNY6lK_JQFQ_bER7k1jm8",
+      category: 'bank',
+      minAmount: 200,
+      maxAmount: 50000
+    },
+    { 
+      id: 8, 
+      name: 'Dutch Bangla', 
+      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8e4SixYh3d4Me6HuncJHAA60BCGS6HFx-kQ&s",
+      category: 'bank',
+      minAmount: 200,
+      maxAmount: 50000
+    },
+    { 
+      id: 9, 
+      name: 'UCB Bank', 
+      image: "https://upload.wikimedia.org/wikipedia/en/thumb/b/b9/Logo_of_United_Commercial_Bank.svg/800px-Logo_of_United_Commercial_Bank.svg.png",
+      category: 'bank',
+      minAmount: 200,
+      maxAmount: 50000
     },
   ];
+
+  // Filter methods by category
+  const filteredMethods = selectedCategory 
+    ? availableMethods.filter(method => method.category === selectedCategory.id)
+    : [];
 
   // Handle input changes
   const handleInputChange = (field, value) => {
@@ -708,11 +932,37 @@ const WithdrawForm = () => {
     }
   };
 
+  // Handle category selection
+  const handleCategorySelect = (category) => {
+    setSelectedCategory(category);
+  };
+
+  // Handle method selection
+  const handleMethodSelect = (method) => {
+    setFormData({
+      ...formData,
+      selectedMethod: method
+    });
+  };
+
+  // Handle back to category selection
+  const handleBackToCategories = () => {
+    setSelectedCategory(null);
+    setFormData({
+      ...formData,
+      selectedMethod: null
+    });
+  };
+
   // Validate current tab
   const validateTab = (tabNumber) => {
     const newErrors = {};
     
     if (tabNumber === 1) {
+      // No validation needed for tab 1 as we're only selecting payment method
+    }
+    
+    if (tabNumber === 2) {
       if (!formData.playerId.trim()) {
         newErrors.playerId = 'Player ID is required';
       }
@@ -724,21 +974,15 @@ const WithdrawForm = () => {
       }
     }
     
-    // Updated validation for tab 2 (now payment method)
-    if (tabNumber === 2 && !formData.selectedMethod) {
-      newErrors.method = 'Please select a payment method';
-    }
-    
-    // Updated validation for tab 3 (now amount and account number)
     if (tabNumber === 3) {
       if (!formData.amount) {
         newErrors.amount = 'Amount is required';
       } else if (isNaN(formData.amount)) {
         newErrors.amount = 'Amount must be a number';
-      } else if (parseFloat(formData.amount) < 200) {
-        newErrors.amount = 'Minimum withdrawal amount is 200 BDT';
-      } else if (parseFloat(formData.amount) > 50000) {
-        newErrors.amount = 'Maximum withdrawal amount is 50,000 BDT';
+      } else if (parseFloat(formData.amount) < formData.selectedMethod.minAmount) {
+        newErrors.amount = `Minimum withdrawal amount is ${formData.selectedMethod.minAmount} BDT`;
+      } else if (parseFloat(formData.amount) > formData.selectedMethod.maxAmount) {
+        newErrors.amount = `Maximum withdrawal amount is ${formData.selectedMethod.maxAmount} BDT`;
       }
       
       if (!formData.accountNumber.trim()) {
@@ -756,6 +1000,18 @@ const WithdrawForm = () => {
 
   // Navigate to next tab
   const goToNextTab = () => {
+    if (activeTab === 1 && !selectedCategory) {
+      setErrors({ category: 'Please select a category' });
+      toast.error('Please select a category');
+      return;
+    }
+    
+    if (activeTab === 1 && !formData.selectedMethod) {
+      setErrors({ method: 'Please select a payment method' });
+      toast.error('Please select a payment method');
+      return;
+    }
+    
     if (validateTab(activeTab)) {
       setActiveTab(activeTab + 1);
     } else {
@@ -826,6 +1082,7 @@ const WithdrawForm = () => {
 
   // Reset form and start over
   const resetForm = () => {
+    setSelectedCategory(null);
     setFormData({
       playerId: '',
       code: '',
@@ -838,14 +1095,14 @@ const WithdrawForm = () => {
   };
 
   return (
-    <div className="font-anek  flex items-center justify-center w-full">
+    <div className="font-anek flex items-center justify-center w-full">
       <Toaster 
         position="top-center"
       />
       
-      <div className="w-full  bg-white text-gray-700 overflow-hidden">
+      <div className="w-full bg-white text-gray-700 overflow-hidden">
         {/* Header with gradient */}
-        <div className=" relative">
+        <div className="relative">
           <div className="flex items-center justify-between">
             <div className='flex justify-between items-center w-full'>
               <h2 className="text-2xl font-bold">Withdraw Funds</h2>
@@ -890,9 +1147,9 @@ const WithdrawForm = () => {
                   <div className={`text-xs font-medium mt-3 transition-colors duration-300 ${
                     activeTab >= step ? 'text-green-700 font-semibold' : 'text-gray-500'
                   }`}>
-                    {step === 1 && 'Account'}
-                    {step === 2 && 'Method'} {/* Updated label */}
-                    {step === 3 && 'Amount'} {/* Updated label */}
+                    {step === 1 && 'Method'}
+                    {step === 2 && 'Account'}
+                    {step === 3 && 'Amount'}
                     {step === 4 && 'Complete'}
                   </div>
                   
@@ -908,11 +1165,147 @@ const WithdrawForm = () => {
 
         {/* Form container */}
         <div className="pb-6">
-          {/* Tab 1: Account Information (unchanged) */}
+          {/* Tab 1: Payment Method Selection */}
           {activeTab === 1 && (
             <div className="space-y-6">
-              <div className="w-full">
-                <img className='w-full' src={location_img} alt="" />
+              {!selectedCategory ? (
+                // Category selection
+                <>
+                  <div className="w-full">
+                    <img className='w-full' src={location_img} alt="Payment methods" />
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+                    {paymentCategories.map((category) => (
+                      <div
+                        key={category.id}
+                        onClick={() => handleCategorySelect(category)}
+                        className={`p-4 border-2 rounded-[5px] cursor-pointer transition-all ${
+                          selectedCategory?.id === category.id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center text-center">
+                          <div className="p-3 rounded-full bg-white mb-2">
+                            {category.icon}
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-800">{category.name}</h4>
+                            <p className="text-xs text-gray-600 mt-1">{category.description}</p>
+                          </div>
+                          {selectedCategory?.id === category.id && (
+                            <div className="mt-3 bg-blue-500 rounded-full p-1">
+                              <FaCheckCircle className="text-white text-sm" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {errors.category && (
+                    <p className="text-sm text-red-600 text-center">{errors.category}</p>
+                  )}
+                </>
+              ) : (
+                // Method selection
+                <>
+                  <div className="text-center mb-2">
+                    <h3 className="text-xl font-semibold text-gray-800">Select {selectedCategory.name}</h3>
+                    <p className="text-gray-600">Choose your preferred withdrawal method</p>
+                  </div>
+
+                  <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3 gap-4">
+                    {filteredMethods.map((method) => (
+                      <div
+                        key={method.id}
+                        onClick={() => handleMethodSelect(method)}
+                        className={`p-4 border-2 rounded-[5px] cursor-pointer transition-all ${
+                          formData.selectedMethod?.id === method.id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center text-center">
+                          <div className="p-3 rounded-xl ">
+                            <img 
+                              src={method.image} 
+                              alt={method.name} 
+                              className="h-8 w-8 object-contain mx-auto"
+                            />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-800">{method.name}</h4>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {formData.selectedMethod && (
+                    <div className="p-4 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 shadow-sm">
+                      <div className="flex items-center">
+                        <div className="bg-white p-2 rounded-lg mr-3 border border-blue-200">
+                          <img 
+                            src={formData.selectedMethod.image} 
+                            alt={formData.selectedMethod.name} 
+                            className="h-10 w-10 object-contain"
+                          />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">Selected: {formData.selectedMethod.name}</h4>
+                          <p className="text-sm opacity-90 mt-1">
+                            Your withdrawal will be processed via {formData.selectedMethod.name}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {errors.method && (
+                    <p className="text-sm text-red-600 text-center">{errors.method}</p>
+                  )}
+                </>
+              )}
+
+              <div className="flex justify-between pt-4">
+                {selectedCategory ? (
+                  <button
+                    onClick={handleBackToCategories}
+                    className="flex items-center justify-center cursor-pointer px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-[5px] border-[1px] border-gray-200 transition-all"
+                  >
+                    <MdOutlineArrowBackIos className="mr-2" /> Back to Categories
+                  </button>
+                ) : (
+                  <div></div> // Empty div to maintain flex spacing
+                )}
+                
+                <button
+                  onClick={goToNextTab}
+                  disabled={!formData.selectedMethod}
+                  className="flex items-center justify-center cursor-pointer px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-medium rounded-[5px] transition-all shadow hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next <MdOutlineArrowForwardIos className="ml-2" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 2: Player ID and Withdrawal Code */}
+          {activeTab === 2 && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center bg-white px-4 py-2 rounded-full ">
+                  <div className="p-2 rounded-lg mr-2">
+                    <img 
+                      src={formData.selectedMethod.image} 
+                      alt={formData.selectedMethod.name} 
+                      className="h-6 w-6 object-contain"
+                    />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700">{formData.selectedMethod.name}</span>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -925,11 +1318,14 @@ const WithdrawForm = () => {
                     id="playerId"
                     value={formData.playerId}
                     onChange={(e) => handleInputChange('playerId', e.target.value)}
-                    className={`w-full px-4 py-3  rounded-[3px] border-[1px] border-gray-200 outline-blue-600 transition ${
+                    className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200 outline-blue-600 transition ${
                       errors.playerId ? 'border-red-500 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="Enter your player ID"
                   />
+                  {errors.playerId && (
+                    <p className="mt-1 text-sm text-red-600">{errors.playerId}</p>
+                  )}
                 </div>
 
                 <div>
@@ -941,88 +1337,23 @@ const WithdrawForm = () => {
                     id="code"
                     value={formData.code}
                     onChange={(e) => handleInputChange('code', e.target.value)}
-                    className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200  transition ${
+                    className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200 transition ${
                       errors.code ? 'border-red-500 bg-red-50' : 'border-gray-300 outline-blue-600'
                     }`}
                     placeholder="Enter your security code"
                   />
+                  {errors.code && (
+                    <p className="mt-1 text-sm text-red-600">{errors.code}</p>
+                  )}
                 </div>
               </div>
-
-              <div className="flex justify-end pt-1">
-                <button
-                  onClick={goToNextTab}
-                  className="flex items-center w-full justify-center px-6 py-3 bg-[#009F49] hover:to-indigo-700 text-white font-medium rounded-[5px] cursor-pointer transition-all shadow hover:shadow-lg"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Tab 2: Payment Method (moved from tab 3) */}
-          {activeTab === 2 && (
-            <div className="space-y-6">
-              <div className="text-center mb-2">
-                <h3 className="text-xl font-semibold text-gray-800">Payment Method</h3>
-                <p className="text-gray-600">Select your preferred withdrawal method</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {availableMethods.map((method) => (
-                  <div
-                    key={method.id}
-                    onClick={() => handleInputChange('selectedMethod', method)}
-                    className={`p-4 border-2 rounded-[5px] cursor-pointer transition-all ${
-                      formData.selectedMethod?.id === method.id
-                        ? `border-blue-500 bg-blue-50`
-                        : `border-gray-200 hover:border-blue-300 hover:bg-blue-50`
-                    }`}
-                  >
-                    <div className="flex items-center">
-                      <div className={`p-2 rounded-[3px] ${method.bgColor} mr-3`}>
-                        <img 
-                          src={method.icon} 
-                          alt={method.name} 
-                          className="h-8 w-8 object-contain"
-                        />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-800">{method.name}</h4>
-                        <p className="text-xs text-gray-600">Processing time: 2-24 hours</p>
-                      </div>
-                      {formData.selectedMethod?.id === method.id && (
-                        <div className="ml-auto bg-blue-500 rounded-full p-1">
-                          <FaCheckCircle className="text-white text-sm" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {formData.selectedMethod && (
-                <div className={`p-4 rounded-[5px] bg-gradient-to-r ${formData.selectedMethod.color} text-white`}>
-                  <div className="flex items-center">
-                    <img 
-                      src={formData.selectedMethod.icon} 
-                      alt={formData.selectedMethod.name} 
-                      className="h-10 w-10 object-contain mr-3 bg-white/20 p-2 rounded-lg"
-                    />
-                    <div>
-                      <h4 className="font-medium">Selected: {formData.selectedMethod.name}</h4>
-                      <p className="text-xs opacity-90">Your withdrawal will be processed via {formData.selectedMethod.name}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="flex justify-between pt-4">
                 <button
                   onClick={goToPrevTab}
-                  className="flex items-center justify-center cursor-pointer px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-[5px] border-[1px] border-gray-200 transition-all"
+                  className="flex items-center cursor-pointer justify-center px-6 py-3 border-[1px] border-gray-200 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-[5px] transition-all"
                 >
-                  <MdOutlineArrowBackIos  className="mr-2" /> Back
+                  <MdOutlineArrowBackIos className="mr-2" /> Back
                 </button>
                 <button
                   onClick={goToNextTab}
@@ -1034,9 +1365,22 @@ const WithdrawForm = () => {
             </div>
           )}
 
-          {/* Tab 3: Amount Details (moved from tab 2) */}
+          {/* Tab 3: Amount and Account Number */}
           {activeTab === 3 && (
             <div className="space-y-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center bg-white px-4 py-2 rounded-full ">
+                  <div className="p-2 rounded-lg mr-2">
+                    <img 
+                      src={formData.selectedMethod.image} 
+                      alt={formData.selectedMethod.name} 
+                      className="h-6 w-6 object-contain"
+                    />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700">{formData.selectedMethod.name}</span>
+                </div>
+              </div>
+
               <div className="space-y-4">
                 <div>
                   <label htmlFor="amount" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
@@ -1047,17 +1391,20 @@ const WithdrawForm = () => {
                     id="amount"
                     value={formData.amount}
                     onChange={(e) => handleInputChange('amount', e.target.value)}
-                    className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200  outline-blue-600 transition ${
-                      errors.amount ? 'border-red-500 bg-red-50' : 'border-gray-300 '
+                    className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200 outline-blue-600 transition ${
+                      errors.amount ? 'border-red-500 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="Enter amount"
-                    min="200"
-                    max="50000"
+                    min={formData.selectedMethod.minAmount}
+                    max={formData.selectedMethod.maxAmount}
                   />
                   <div className="flex justify-between mt-2 text-xs text-gray-500">
-                    <span>Min: 200 BDT</span>
-                    <span>Max: 50,000 BDT</span>
+                    <span>Min: {formData.selectedMethod.minAmount} BDT</span>
+                    <span>Max: {formData.selectedMethod.maxAmount} BDT</span>
                   </div>
+                  {errors.amount && (
+                    <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
+                  )}
                 </div>
 
                 <div>
@@ -1070,10 +1417,13 @@ const WithdrawForm = () => {
                     value={formData.accountNumber}
                     onChange={(e) => handleInputChange('accountNumber', e.target.value)}
                     className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200 transition outline-blue-600 ${
-                      errors.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300 '
+                      errors.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="Enter your account number"
                   />
+                  {errors.accountNumber && (
+                    <p className="mt-1 text-sm text-red-600">{errors.accountNumber}</p>
+                  )}
                 </div>
               </div>
 
@@ -1109,7 +1459,7 @@ const WithdrawForm = () => {
             </div>
           )}
 
-          {/* Tab 4: Success (unchanged) */}
+          {/* Tab 4: Success */}
           {activeTab === 4 && (
             <div className="text-center py-8">
               <div className="bg-gradient-to-r from-green-100 to-teal-100 inline-flex p-4 rounded-full mb-6">
@@ -1162,6 +1512,5 @@ const WithdrawForm = () => {
     </div>
   );
 };
-
 
 export default PaymentTabs;

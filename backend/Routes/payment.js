@@ -21,6 +21,7 @@ const { payment_bkash, callback_bkash } = require('../Controllers/payment_bkash_
 const Merchantkey = require('../Models/Merchantkey');
 const qs=require('qs');
 const BankDeposit = require('../Models/BankDeposit');
+const NagadFreeDeposit = require('../Models/NagadFreeDeposit');
 // Paymentrouter.use(authenticate);
 // Paymentrouter.use(authorizeuser);
 
@@ -135,10 +136,11 @@ function generateSHA256Hash(data) {
 // Payout endpoint
 Paymentrouter.post("/payout", async (req, res) => {
   const { payeeId, paymentId, amount } = req.body;
-  console.log(req.body)
+  console.log(req.body);
+
   const apiKey = req.headers['x-api-key'] || '';
   console.log("Payout request received:", req.body);
-  
+
   if (!payeeId || !paymentId || !amount) {
     return res.status(400).json({
       success: false,
@@ -150,37 +152,27 @@ Paymentrouter.post("/payout", async (req, res) => {
     // 1. Generate confirm hash (MD5 of "payeeId:CASHDESK_HASH")
     const confirmString = `${payeeId}:${CASHDESK_HASH}`;
     const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
-    console.log("Confirm string:", confirmString);
-    console.log("Confirm hash:", confirm);
 
-    // 2. Generate step1 hash (SHA256 of query string) - use lowercase 'userid'
+    // 2. Generate step1 hash (SHA256 of query string)
     const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${payeeId}`;
     const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
-    console.log("Step1 string:", step1String);
-    console.log("Step1 hash:", step1);
 
     // 3. Generate step2 hash (MD5 of parameters)
     const step2String = `code=${paymentId}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
     const step2 = crypto.createHash('md5').update(step2String).digest('hex');
-    console.log("Step2 string:", step2String);
-    console.log("Step2 hash:", step2);
 
-    // 4. Final signature (SHA256 of step1 + step2)
-    const finalSignatureString = step1 + step2;
-    const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
-    console.log("Final signature string:", finalSignatureString);
-    console.log("Final signature:", finalSignature);
+    // 4. Final signature
+    const finalSignature = crypto.createHash('sha256').update(step1 + step2).digest('hex');
 
-    // 5. Prepare the payout payload
+    // 5. Prepare payload
     const payoutPayload = {
       cashdeskid: parseInt(CASHDESK_ID),
       lng: 'ru',
       code: paymentId,
       confirm: confirm
     };
-    console.log("Payout Payload:", JSON.stringify(payoutPayload, null, 2));
 
-    // 6. Make CashDeskBot API request to process the payout
+    // 6. Call CashDeskBot API
     const cashdeskResponse = await axios.post(
       `${CASHDESK_API_BASE}/Deposit/${payeeId}/Payout`,
       payoutPayload,
@@ -189,69 +181,67 @@ Paymentrouter.post("/payout", async (req, res) => {
           'sign': finalSignature,
           'Content-Type': 'application/json'
         },
-        timeout: 10000 // 10 seconds timeout
+        timeout: 10000
       }
     );
 
-    // Log the CashDeskBot response
-    console.log('CashDesk payout successful:', cashdeskResponse.data);
+    console.log("CashDesk response:", cashdeskResponse.data);
 
-   // ✅ Create full payout transaction
-  const newPayoutTransaction = new PayoutTransaction({
-    paymentId,
-    orderId: `ORD-${Date.now()}`, // Or from req.body
-    payeeId,
-    payeeAccount: req.body.payeeAccount,
-    callbackUrl: req.body.callbackUrl,
-    requestAmount: amount,
-    currency: req.body.currency || 'BDT',
-    provider: "CashDeskBot", // or from req.body.provider
-    status: "pending",
-    statusHistory: [{
-      status: "pending",
-      changedAt: new Date(),
-      changedBy: "system",
-      notes: "Payout initiated"
-    }],
-    withdrawalDetails: {
-      providerSpecific: cashdeskResponse.data
-    },
-    mode: req.body.mode || "live",
-    merchantid: req.body.merchantid || "",
-    update_by: req.body.update_by || "",
-    auditLog: [{
-      action: "Payout Initiated",
-      performedBy: "system",
-      performedAt: new Date(),
-      details: {
-        payoutPayload,
-        cashdeskResponse: cashdeskResponse.data
-      }
-    }]
-  });
-  newPayoutTransaction.save();
-  return res.status(200).json({
-    success: true,
-    message: "Payout request successfully processed and CashDeskBot withdrawal initiated.",
-    response: cashdeskResponse.data
-  });
-  } catch (e) {
-    console.log("Error during payout process:", e.message);
+    // ✅ Only save if CashDeskBot confirms success
+    if (cashdeskResponse.data && cashdeskResponse.data.success === true) {
+      const newPayoutTransaction = new PayoutTransaction({
+        paymentId,
+        orderId: req.body.orderId || `ORD-${Date.now()}`,
+        payeeId,
+        payeeAccount: req.body.payeeAccount,
+        callbackUrl: req.body.callbackUrl,
+        requestAmount: amount,
+        currency: req.body.currency || 'BDT',
+        provider: "CashDeskBot",
+        status: "pending",
+        statusHistory: [{
+          status: "pending",
+          changedAt: new Date(),
+          changedBy: "system",
+          notes: "Payout initiated"
+        }],
+        withdrawalDetails: {
+          providerSpecific: cashdeskResponse.data
+        },
+        mode: req.body.mode || "live",
+        merchantid: req.body.merchantid || "",
+        update_by: req.body.update_by || "",
+        auditLog: [{
+          action: "Payout Initiated",
+          performedBy: "system",
+          performedAt: new Date(),
+          details: {
+            payoutPayload,
+            cashdeskResponse: cashdeskResponse.data
+          }
+        }]
+      });
 
-    // Handle error responses
-    if (e.response) {
-      console.log("Error response from CashDeskBot:", e.response.data);
-      console.log("Error status code:", e.response.status);
-      console.log("Error headers:", e.response.headers);
+      await newPayoutTransaction.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Payout request successfully processed and CashDeskBot withdrawal initiated.",
+        response: cashdeskResponse.data
+      });
+    } else {
+      // If CashDeskBot failed, don’t save anything
+      return res.status(400).json({
+        success: false,
+        message: "CashDeskBot rejected payout.",
+        response: cashdeskResponse.data
+      });
     }
+  } catch (e) {
+    console.error("Error during payout process:", e.message);
 
-    // Additional checks for 401 Error (authentication failure)
-    if (e.response && e.response.status === 401) {
-      console.error("Authentication failed. Please verify:");
-      console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
-      console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
-      console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
-      console.error("4. Payee ID is valid:", payeeId);
+    if (e.response) {
+      console.error("CashDeskBot error:", e.response.data);
     }
 
     return res.status(500).json({
@@ -2363,7 +2353,6 @@ Paymentrouter.get("/player", async (req, res) => {
     });
   }
 });
-
 Paymentrouter.get("/balance", async (req, res) => {
   try {
     // Current date in required format: "yyyy.MM.dd HH:mm:ss" UTC
@@ -2381,7 +2370,9 @@ Paymentrouter.get("/balance", async (req, res) => {
     console.log("Confirm string:", confirmString);
     console.log("Confirm hash:", confirm);
 
-    // Generate signature parts according to documentation
+    // CORRECT SIGNATURE GENERATION FOR BALANCE ENDPOINT:
+    // According to documentation page 2:
+    
     // 1. SHA256 of "hash={hash}&cashdeskid={cashdeskid}&dt={dt}"
     const step1String = `hash=${CASHDESK_HASH}&cashdeskid=${CASHDESK_ID}&dt=${dt}`;
     const step1 = crypto.createHash('sha256')
@@ -2406,7 +2397,7 @@ Paymentrouter.get("/balance", async (req, res) => {
     console.log("Final signature string:", finalSignatureString);
     console.log("Final signature:", finalSignature);
 
-    // Prepare query parameters (you may want to customize this based on your API structure)
+    // Prepare query parameters
     const queryParams = new URLSearchParams({
       confirm: confirm,
       dt: dt
@@ -2416,7 +2407,7 @@ Paymentrouter.get("/balance", async (req, res) => {
     console.log("Request URL:", url);
 
     // Make API request
-    const response = await axios.get(url, {}, {
+    const response = await axios.get(url, {
       headers: { 
         'sign': finalSignature,
         'Content-Type': 'application/json',
@@ -2439,6 +2430,7 @@ Paymentrouter.get("/balance", async (req, res) => {
       console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
       console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
       console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
+      console.error("4. Check if all credentials are active with manager");
     }
 
     return res.status(error.response?.status || 500).json({
@@ -2760,4 +2752,425 @@ Paymentrouter.delete('/bank-deposits/:id', async (req, res) => {
     });
   }
 });
+
+
+
+// Create Nagad Free deposit
+Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
+  try {
+    const {
+      playerId,
+      amount,
+      accountNumber,
+      orderId,
+      currency = 'BDT'
+    } = req.body;
+
+    const apiKey = req.headers['x-api-key'];
+    
+    // Validate required fields
+    if (!playerId || !amount || !accountNumber || !orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: playerId, amount, accountNumber, orderId'
+      });
+    }
+
+    // Validate amount
+    if (isNaN(amount) || parseFloat(amount) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount must be a positive number'
+      });
+    }
+
+    // Validate account number (Nagad specific validation)
+    if (!/^01[3-9]\d{8}$/.test(accountNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Nagad account number format'
+      });
+    }
+
+    // Find merchant
+    const merchant = await Merchantkey.findOne({ apiKey });
+    if (!merchant) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid API key'
+      });
+    }
+
+    // Check if orderId already exists
+    const existingDeposit = await NagadFreeDeposit.findOne({ orderId });
+    if (existingDeposit) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID already exists'
+      });
+    }
+
+    // Create new Nagad Free deposit
+    const nagadFreeDeposit = new NagadFreeDeposit({
+      playerId,
+      amount: parseFloat(amount),
+      accountNumber,
+      orderId,
+      currency,
+      merchantid: merchant._id,
+      status: 'pending'
+    });
+
+    await nagadFreeDeposit.save();
+
+    // Send Telegram notification
+    const telegramPayload = 
+      `🎯 **New Nagad Free Deposit Request** 🎯\n` +
+      `\n` +
+      `🆔 **Order ID:** \`${orderId}\`\n` +
+      `👤 **Player ID:** \`${playerId}\`\n` +
+      `📱 **Nagad Account:** \`${accountNumber}\`\n` +
+      `💰 **Amount:** ${currency} ${amount}\n` +
+      `🏪 **Merchant:** ${merchant.merchantName || merchant._id}\n` +
+      `⏰ **Time:** ${new Date().toLocaleString()}\n` +
+      `📊 **Status:** ⏳ Pending`;
+
+    easypay_payin_bot.sendMessage(7920367057, telegramPayload, { parse_mode: "Markdown" });
+
+    res.status(201).json({
+      success: true,
+      message: 'Nagad Free deposit request created successfully',
+      data: {
+        depositId: nagadFreeDeposit._id,
+        orderId: nagadFreeDeposit.orderId,
+        status: nagadFreeDeposit.status,
+        amount: nagadFreeDeposit.amount,
+        currency: nagadFreeDeposit.currency,
+        createdAt: nagadFreeDeposit.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Nagad Free deposit error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Get all Nagad Free deposits
+Paymentrouter.get('/nagad-free-deposits', async (req, res) => {
+  try {
+    const {
+      status,
+      playerId,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    const apiKey = req.headers['x-api-key'];
+    const merchant = await Merchantkey.findOne({ apiKey });
+
+    if (!merchant) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid API key'
+      });
+    }
+
+    // Build filter object
+    const filter = { merchantid: merchant._id };
+    if (status) filter.status = status;
+    if (playerId) filter.playerId = playerId;
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Get deposits with filtering and pagination
+    const deposits = await NagadFreeDeposit.find(filter)
+      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('merchantid', 'merchantName email')
+      .lean();
+
+    // Get total count for pagination
+    const total = await NagadFreeDeposit.countDocuments(filter);
+    const totalPages = Math.ceil(total / parseInt(limit));
+
+    res.json({
+      success: true,
+      data: deposits,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages
+      }
+    });
+
+  } catch (error) {
+    console.error('Get Nagad Free deposits error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Get single Nagad Free deposit
+Paymentrouter.get('/nagad-free-deposits/:id', async (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'];
+    const merchant = await Merchantkey.findOne({ apiKey });
+
+    if (!merchant) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid API key'
+      });
+    }
+
+    const deposit = await NagadFreeDeposit.findOne({
+      _id: req.params.id,
+      merchantid: merchant._id
+    }).populate('merchantid', 'merchantName email');
+    
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: 'Nagad Free deposit not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: deposit
+    });
+
+  } catch (error) {
+    console.error('Get Nagad Free deposit error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Update Nagad Free deposit status
+Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
+  try {
+    const { status, transactionId, referenceNumber, metadata } = req.body;
+    const { id } = req.params;
+    const apiKey = req.headers['x-api-key'];
+
+    const merchant = await Merchantkey.findOne({ apiKey });
+    if (!merchant) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid API key'
+      });
+    }
+
+    // Validate status
+    const validStatuses = ['pending', 'processing', 'completed', 'failed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const deposit = await NagadFreeDeposit.findOne({
+      _id: id,
+      merchantid: merchant._id
+    });
+
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: 'Nagad Free deposit not found'
+      });
+    }
+
+    // Prepare update object
+    const updateData = {
+      status,
+      statusDate: new Date()
+    };
+
+    if (transactionId) updateData.transactionId = transactionId;
+    if (referenceNumber) updateData.referenceNumber = referenceNumber;
+    if (metadata) updateData.metadata = metadata;
+
+    // If status is being changed to completed, process CashDeskBot deposit
+    if (status === 'completed' && deposit.status !== 'completed') {
+      try {
+        // Generate confirm hash (MD5 of "playerId:CASHDESK_HASH")
+        const confirmString = `${deposit.playerId}:${CASHDESK_HASH}`;
+        const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
+        
+        // Generate step1 hash (SHA256 of query string)
+        const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${deposit.playerId}`;
+        const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
+        
+        // Generate step2 hash (MD5 of parameters)
+        const step2String = `summa=${deposit.amount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+        const step2 = crypto.createHash('md5').update(step2String).digest('hex');
+        
+        // Final signature (SHA256 of step1 + step2)
+        const finalSignatureString = step1 + step2;
+        const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
+
+        // Prepare deposit payload
+        const depositPayload = {
+          cashdeskid: parseInt(CASHDESK_ID),
+          lng: 'ru',
+          summa: parseFloat(deposit.amount),
+          confirm
+        };
+
+        // Make CashDeskBot API call
+        const cashdeskResponse = await axios.post(
+          `${CASHDESK_API_BASE}/Deposit/${deposit.playerId}/Add`,
+          depositPayload,
+          {
+            headers: {
+              'sign': finalSignature,
+              'Content-Type': 'application/json'
+            },
+            timeout: 10000
+          }
+        );
+
+        console.log('CashDesk deposit successful:', cashdeskResponse.data);
+        
+        // Store CashDesk response
+        updateData.cashdeskResponse = cashdeskResponse.data;
+        updateData.cashdeskProcessed = true;
+
+        // Update merchant balance
+        const commissionsmoney = (deposit.amount / 100) * merchant.depositCommission;
+        merchant.balance += deposit.amount;
+        merchant.balance -= commissionsmoney;
+        merchant.getwaycost += commissionsmoney;
+        merchant.total_payin += deposit.amount;
+        await merchant.save();
+
+      } catch (cashdeskError) {
+        console.error('CashDesk deposit failed:', cashdeskError.response?.data || cashdeskError.message);
+        
+        // If CashDesk fails, don't complete the deposit
+        return res.status(500).json({
+          success: false,
+          message: 'CashDesk deposit failed. Deposit not completed.',
+          error: cashdeskError.response?.data || cashdeskError.message
+        });
+      }
+    }
+
+    // Update the deposit
+    const updatedDeposit = await NagadFreeDeposit.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('merchantid', 'merchantName email');
+
+    // Send Telegram notification for status change
+    if (status !== deposit.status) {
+      let statusEmoji = '';
+      switch(status) {
+        case 'completed': statusEmoji = '✅'; break;
+        case 'failed': statusEmoji = '❌'; break;
+        case 'processing': statusEmoji = '🔄'; break;
+        case 'cancelled': statusEmoji = '🚫'; break;
+        default: statusEmoji = '⏳';
+      }
+
+      const telegramPayload = 
+        `📊 **Nagad Free Deposit Update** 📊\n` +
+        `\n` +
+        `🆔 **Order ID:** \`${deposit.orderId}\`\n` +
+        `👤 **Player ID:** \`${deposit.playerId}\`\n` +
+        `💰 **Amount:** ${deposit.currency} ${deposit.amount}\n` +
+        `📱 **Nagad Account:** \`${deposit.accountNumber}\`\n` +
+        `🔄 **Status:** ${statusEmoji} ${status.charAt(0).toUpperCase() + status.slice(1)}\n` +
+        `⏰ **Updated:** ${new Date().toLocaleString()}`;
+
+      easypay_payin_bot.sendMessage(7920367057, telegramPayload, { parse_mode: "Markdown" });
+    }
+
+    res.json({
+      success: true,
+      message: 'Nagad Free deposit status updated successfully',
+      data: updatedDeposit
+    });
+
+  } catch (error) {
+    console.error('Update Nagad Free deposit status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Get Nagad Free deposit statistics
+Paymentrouter.get('/nagad-free-deposits/stats', async (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'];
+    const merchant = await Merchantkey.findOne({ apiKey });
+
+    if (!merchant) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid API key'
+      });
+    }
+
+    const stats = await NagadFreeDeposit.getStats(merchant._id);
+    
+    const totalStats = {
+      total: 0,
+      completed: 0,
+      pending: 0,
+      failed: 0,
+      processing: 0,
+      cancelled: 0,
+      totalAmount: 0,
+      completedAmount: 0
+    };
+
+    stats.forEach(stat => {
+      totalStats[stat._id] = stat.count;
+      totalStats.total += stat.count;
+      totalStats.totalAmount += stat.totalAmount;
+      
+      if (stat._id === 'completed') {
+        totalStats.completedAmount = stat.totalAmount;
+      }
+    });
+
+    res.json({
+      success: true,
+      data: totalStats
+    });
+
+  } catch (error) {
+    console.error('Get Nagad Free deposit stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
 module.exports = Paymentrouter;

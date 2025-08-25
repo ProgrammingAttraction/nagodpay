@@ -94,7 +94,6 @@ const AgentAccountSchema = new Schema({
   provider: {
     type: String,
     required: true,
-    enum: ['Bkash P2C', 'Nagad P2C', 'Bkash P2P', 'Nagad P2P']
   },
   accountNumber: {
     type: String,
@@ -250,9 +249,6 @@ paymentMethod: {
     message: 'Cannot have more than 5 payment methods!'
   }
 },
-  paymentbrand: {
-    type: String,
-  },
   currency: {
     type: String,
     default: 'BDT',

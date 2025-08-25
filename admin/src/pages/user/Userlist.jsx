@@ -29,25 +29,28 @@ const Userlist = () => {
     withdrawCommission: '',
     depositCommission: '',
     paymentMethod: [],
-    paymentBrand: '',
     status: ''
   });
 
   const [statusFormErrors, setStatusFormErrors] = useState({
     withdrawCommission: '',
     depositCommission: '',
-    paymentMethod: '',
-    paymentBrand: ''
+    paymentMethod: ''
   });
 
-  // Payment methods and brands
-  const paymentMethods = ['Bkash P2C', 'Nagad P2C', 'Bkash P2P', 'Nagad P2P'];
-  const paymentBrands = {
-    'Bkash P2C': ['bKash', 'Nagad', 'Rocket', 'Upay'],
-    'Nagad P2C': ['bKash', 'Nagad', 'Rocket', 'Upay'],
-    'Bkash P2P': ['bKash', 'Nagad', 'Rocket', 'Upay'],
-    'Nagad P2P': ['bKash', 'Nagad', 'Rocket', 'Upay'],
-  };
+  // Payment methods
+  const paymentMethods = [
+    'Bkash P2C', 
+    'Nagad P2C', 
+    'Bkash P2P', 
+    'Nagad P2P',
+    'Nagad Free',
+    'Rocket P2P',
+    'Upay P2P',
+    'Dutch Bangla Bank',
+    'Brac Bank',
+    'UCB Bank'
+  ];
 
   // Get token from localStorage
   const getAuthToken = () => {
@@ -128,15 +131,13 @@ const Userlist = () => {
       withdrawCommission: user.withdracommission || '',
       depositCommission: user.depositcommission || '',
       paymentMethod: Array.isArray(user.paymentMethod) ? user.paymentMethod : [],
-      paymentBrand: user.paymentbrand || '',
       status: newStatus
     });
     
     setStatusFormErrors({
       withdrawCommission: '',
       depositCommission: '',
-      paymentMethod: '',
-      paymentBrand: ''
+      paymentMethod: ''
     });
     
     setIsStatusModalOpen(true);
@@ -188,8 +189,7 @@ const Userlist = () => {
     const newErrors = {
       withdrawCommission: '',
       depositCommission: '',
-      paymentMethod: '',
-      paymentBrand: ''
+      paymentMethod: ''
     };
     
     // Validate withdraw commission
@@ -228,12 +228,6 @@ const Userlist = () => {
       valid = false;
     }
     
-    // Validate payment brand
-    if (!statusFormData.paymentBrand) {
-      newErrors.paymentBrand = 'Payment brand is required';
-      valid = false;
-    }
-    
     setStatusFormErrors(newErrors);
     return valid;
   };
@@ -254,8 +248,7 @@ const Userlist = () => {
       await api.put(`/api/admin/users-commissions/${selectedUser._id}`, {
         withdracommission: statusFormData.withdrawCommission,
         depositcommission: statusFormData.depositCommission,
-        paymentMethod: statusFormData.paymentMethod,
-        paymentBrand: statusFormData.paymentBrand
+        paymentMethod: statusFormData.paymentMethod
       });
       
       // Update local state
@@ -265,8 +258,7 @@ const Userlist = () => {
           status: statusFormData.status,
           withdracommission: statusFormData.withdrawCommission,
           depositcommission: statusFormData.depositCommission,
-          paymentMethod: statusFormData.paymentMethod,
-          paymentbrand: statusFormData.paymentBrand
+          paymentMethod: statusFormData.paymentMethod
         } : user
       ));
       
@@ -620,7 +612,7 @@ const Userlist = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Methods
                     </label>
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
                       {paymentMethods.map(method => (
                         <div key={method} className="flex items-center">
                           <input
@@ -638,29 +630,6 @@ const Userlist = () => {
                     </div>
                     {statusFormErrors.paymentMethod && (
                       <p className="mt-1 text-sm text-red-600">{statusFormErrors.paymentMethod}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Payment Brand
-                    </label>
-                    <select
-                      name="paymentBrand"
-                      value={statusFormData.paymentBrand}
-                      onChange={handleStatusFormChange}
-                      className={`w-full p-2 border outline-blue-500 ${statusFormErrors.paymentBrand ? 'border-red-500' : 'border-gray-300'} rounded-lg`}
-                      disabled={statusFormData.paymentMethod.length === 0}
-                    >
-                      <option value="">Select Payment Brand</option>
-                      {statusFormData.paymentMethod.length > 0 && 
-                        paymentBrands[statusFormData.paymentMethod[0]]?.map(brand => (
-                          <option key={brand} value={brand}>{brand}</option>
-                        ))
-                      }
-                    </select>
-                    {statusFormErrors.paymentBrand && (
-                      <p className="mt-1 text-sm text-red-600">{statusFormErrors.paymentBrand}</p>
                     )}
                   </div>
 

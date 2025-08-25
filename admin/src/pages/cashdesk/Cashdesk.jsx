@@ -1,40 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../../components/Sidebar';
 import Header from '../../components/Header';
-import logo from '../../assets/logo.png';
 import toast, { Toaster } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 
 const Cashdesk = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-  
-  // API constants
-  const CASHDESK_API_BASE = 'https://partners.servcul.com/CashdeskBotAPI';
-  const CASHDESK_HASH = "a13d615c8ee6f83a12a0645de4d9a1c4068148562f2ea165dea920c66af2ed90";
-  const CASHIER_PASS = "901276";
-  const CASHIER_LOGIN = "MuktaA1";
-  const CASHDESK_ID = "1177830";
-  const DEFAULT_LNG = 'en';
-  
-  // Form state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [formData, setFormData] = useState({
-    amount: '',
-    currency: 'USD',
-    customerName: '',
-    customerEmail: '',
-    customerPhone: '',
-    description: '',
-    reference: ''
+    cashdeskId: '',
+    cashdesk: '',
+    cashdeskHash: '',
+    cashierPass: '',
+    cashierLogin: '',
+    cashdeskApiBase: '',
+    defaultLng: ''
   });
-  
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Handle input changes
+  const [cashdesks, setCashdesks] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentCashdeskId, setCurrentCashdeskId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  // Fetch all cashdesks on component mount
+  useEffect(() => {
+    fetchCashdesks();
+  }, []);
+
+  const fetchCashdesks = async () => {
+    try {
+      setIsLoading(true);
+      // Replace with your actual API endpoint
+      const response = await axios.get(`${base_url}/api/admin/cashdesk`);
+      if (response.data.success) {
+        setCashdesks(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching cashdesks:', error);
+      toast.error('Failed to fetch cashdesk configurations');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -50,110 +62,223 @@ const Cashdesk = () => {
       });
     }
   };
-  
-  // Validate form
+
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.amount || isNaN(formData.amount) || parseFloat(formData.amount) <= 0) {
-      newErrors.amount = 'Please enter a valid amount greater than 0';
+    // Cashdesk ID validation
+    if (!formData.cashdeskId.trim()) {
+      newErrors.cashdeskId = 'Cashdesk ID is required';
     }
     
-    if (!formData.customerName || formData.customerName.trim().length < 2) {
-      newErrors.customerName = 'Customer name is required';
+    // Cashdesk validation
+    if (!formData.cashdesk.trim()) {
+      newErrors.cashdesk = 'Cashdesk is required';
     }
     
-    if (formData.customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail)) {
-      newErrors.customerEmail = 'Please enter a valid email address';
+    // Cashdesk Hash validation
+    if (!formData.cashdeskHash.trim()) {
+      newErrors.cashdeskHash = 'Cashdesk Hash is required';
     }
     
-    if (formData.customerPhone && !/^[\+]?[1-9][\d]{0,15}$/.test(formData.customerPhone.replace(/\s/g, ''))) {
-      newErrors.customerPhone = 'Please enter a valid phone number';
+    // Cashier Password validation
+    if (!formData.cashierPass.trim()) {
+      newErrors.cashierPass = 'Cashier Password is required';
+    } else if (formData.cashierPass.length < 6) {
+      newErrors.cashierPass = 'Password must be at least 6 characters';
     }
     
-    if (!formData.description || formData.description.trim().length < 5) {
-      newErrors.description = 'Description must be at least 5 characters long';
+    // Cashier Login validation
+    if (!formData.cashierLogin.trim()) {
+      newErrors.cashierLogin = 'Cashier Login is required';
+    }
+    
+    // API Base URL validation
+    if (!formData.cashdeskApiBase.trim()) {
+      newErrors.cashdeskApiBase = 'API Base URL is required';
+    } else if (!/^https?:\/\/.+\..+/.test(formData.cashdeskApiBase)) {
+      newErrors.cashdeskApiBase = 'Please enter a valid URL';
+    }
+    
+    // Default Language validation
+    if (!formData.defaultLng.trim()) {
+      newErrors.defaultLng = 'Default Language is required';
+    } else if (formData.defaultLng.length !== 2) {
+      newErrors.defaultLng = 'Language code must be 2 characters (e.g., en, fr, es)';
     }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
-  // Handle form submission
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
-      toast.error('Please fix the errors in the form');
+      toast.error('Please fix the form errors');
       return;
     }
     
     setIsSubmitting(true);
     
     try {
-      // Prepare the request data
-      const requestData = {
-        cashdesk_id: CASHDESK_ID,
-        cashdesk_hash: CASHDESK_HASH,
-        cashier_login: CASHIER_LOGIN,
-        cashier_pass: CASHIER_PASS,
-        amount: parseFloat(formData.amount),
-        currency: formData.currency,
-        customer_name: formData.customerName,
-        customer_email: formData.customerEmail || null,
-        customer_phone: formData.customerPhone || null,
-        description: formData.description,
-        reference: formData.reference || `REF-${Date.now()}`,
-        lng: DEFAULT_LNG
-      };
+      let response;
       
-      // Make the API call
-      const response = await axios.post(`${CASHDESK_API_BASE}/transaction`, requestData, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      if (isEditing) {
+        // Update existing cashdesk
+        response = await axios.put(`${base_url}/api/admin/cashdesk/${currentCashdeskId}`, formData);
+      } else {
+        // Create new cashdesk
+        response = await axios.post(`${base_url}/api/admin/cashdesk`, formData);
+      }
       
-      if (response.data && response.data.success) {
-        // Show success message
+      if (response.data.success) {
         Swal.fire({
-          title: 'Success!',
-          text: 'Transaction completed successfully',
           icon: 'success',
-          confirmButtonText: 'OK'
+          title: 'Success!',
+          text: response.data.message || 'Cashdesk configuration saved successfully',
+          confirmButtonColor: '#4361ee',
         });
         
-        // Reset form
-        setFormData({
-          amount: '',
-          currency: 'USD',
-          customerName: '',
-          customerEmail: '',
-          customerPhone: '',
-          description: '',
-          reference: ''
-        });
-      } else {
-        throw new Error(response.data.message || 'Transaction failed');
+        // Reset form and refresh data
+        resetForm();
+        fetchCashdesks();
       }
     } catch (error) {
-      console.error('API Error:', error);
-      let errorMessage = 'An error occurred while processing your request';
+      console.error('Error submitting form:', error);
       
-      if (error.response && error.response.data && error.response.data.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+      if (error.response?.data?.errors) {
+        // Display validation errors
+        error.response.data.errors.forEach(err => {
+          toast.error(err);
+        });
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to save cashdesk configuration');
       }
-      
-      Swal.fire({
-        title: 'Error!',
-        text: errorMessage,
-        icon: 'error',
-        confirmButtonText: 'OK'
-      });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEdit = (cashdesk) => {
+    setFormData({
+      cashdeskId: cashdesk.cashdeskId,
+      cashdesk: cashdesk.cashdesk,
+      cashdeskHash: cashdesk.cashdeskHash,
+      cashierPass: cashdesk.cashierPass,
+      cashierLogin: cashdesk.cashierLogin,
+      cashdeskApiBase: cashdesk.cashdeskApiBase,
+      defaultLng: cashdesk.defaultLng
+    });
+    setCurrentCashdeskId(cashdesk._id);
+    setIsEditing(true);
+    
+    // Scroll to form
+    document.getElementById('cashdesk-form').scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!'
+    });
+    
+    if (result.isConfirmed) {
+      try {
+        const response = await axios.delete(`${base_url}/api/admin/cashdesk/${id}`);
+        
+        if (response.data.success) {
+          Swal.fire(
+            'Deleted!',
+            response.data.message || 'Cashdesk configuration has been deleted.',
+            'success'
+          );
+          
+          // Refresh data
+          fetchCashdesks();
+          
+          // If we were editing the deleted item, reset the form
+          if (currentCashdeskId === id) {
+            resetForm();
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting cashdesk:', error);
+        toast.error(error.response?.data?.message || 'Failed to delete cashdesk configuration');
+      }
+    }
+  };
+
+  const handleToggleStatus = async (id, currentStatus) => {
+    try {
+      const response = await axios.patch(`${base_url}/api/admin/cashdesk/${id}/status`, {
+        isActive: !currentStatus
+      });
+      
+      if (response.data.success) {
+        toast.success(response.data.message || 'Status updated successfully');
+        fetchCashdesks();
+      }
+    } catch (error) {
+      console.error('Error toggling status:', error);
+      toast.error(error.response?.data?.message || 'Failed to update status');
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      cashdeskId: '',
+      cashdesk: '',
+      cashdeskHash: '',
+      cashierPass: '',
+      cashierLogin: '',
+      cashdeskApiBase: '',
+      defaultLng: ''
+    });
+    setErrors({});
+    setIsEditing(false);
+    setCurrentCashdeskId(null);
+  };
+
+  const handleClearAll = async () => {
+    const result = await Swal.fire({
+      title: 'Clear All Cashdesks?',
+      text: "This will delete ALL cashdesk configurations. This action cannot be undone!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, clear all!',
+      reverseButtons: true
+    });
+    
+    if (result.isConfirmed) {
+      try {
+        // Delete all cashdesks one by one
+        const deletePromises = cashdesks.map(cashdesk => 
+          axios.delete(`${base_url}/api/admin/cashdesk/${cashdesk._id}`)
+        );
+        
+        await Promise.all(deletePromises);
+        
+        Swal.fire(
+          'Cleared!',
+          'All cashdesk configurations have been deleted.',
+          'success'
+        );
+        
+        // Refresh data and reset form
+        setCashdesks([]);
+        resetForm();
+      } catch (error) {
+        console.error('Error clearing all cashdesks:', error);
+        toast.error('Failed to clear all cashdesk configurations');
+      }
     }
   };
 
@@ -178,170 +303,306 @@ const Cashdesk = () => {
         <Sidebar isOpen={isSidebarOpen} />
 
         <main className={`transition-all duration-300 flex-1 p-6 ${isSidebarOpen ? 'ml-[17%]' : 'ml-0'}`}>
-          <div className="bg-white rounded-xl shadow-lg p-6 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-bold text-gray-800">Cash Desk Transaction</h1>
-              <img src={logo} alt="Logo" className="h-10" />
-            </div>
-            
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Amount Field */}
-                <div>
-                  <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
-                    Amount *
-                  </label>
-                  <input
-                    type="number"
-                    id="amount"
-                    name="amount"
-                    value={formData.amount}
-                    onChange={handleChange}
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
-                      errors.amount ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.amount && (
-                    <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
-                  )}
-                </div>
-                
-                {/* Currency Field */}
-                <div>
-                  <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
-                    Currency *
-                  </label>
-                  <select
-                    id="currency"
-                    name="currency"
-                    value={formData.currency}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  >
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
-                    <option value="CAD">CAD</option>
-                  </select>
-                </div>
-                
-                {/* Customer Name Field */}
-                <div>
-                  <label htmlFor="customerName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Customer Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="customerName"
-                    name="customerName"
-                    value={formData.customerName}
-                    onChange={handleChange}
-                    placeholder="John Doe"
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
-                      errors.customerName ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.customerName && (
-                    <p className="mt-1 text-sm text-red-600">{errors.customerName}</p>
-                  )}
-                </div>
-                
-                {/* Customer Email Field */}
-                <div>
-                  <label htmlFor="customerEmail" className="block text-sm font-medium text-gray-700 mb-1">
-                    Customer Email
-                  </label>
-                  <input
-                    type="email"
-                    id="customerEmail"
-                    name="customerEmail"
-                    value={formData.customerEmail}
-                    onChange={handleChange}
-                    placeholder="customer@example.com"
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
-                      errors.customerEmail ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.customerEmail && (
-                    <p className="mt-1 text-sm text-red-600">{errors.customerEmail}</p>
-                  )}
-                </div>
-                
-                {/* Customer Phone Field */}
-                <div>
-                  <label htmlFor="customerPhone" className="block text-sm font-medium text-gray-700 mb-1">
-                    Customer Phone
-                  </label>
-                  <input
-                    type="tel"
-                    id="customerPhone"
-                    name="customerPhone"
-                    value={formData.customerPhone}
-                    onChange={handleChange}
-                    placeholder="+1234567890"
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
-                      errors.customerPhone ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.customerPhone && (
-                    <p className="mt-1 text-sm text-red-600">{errors.customerPhone}</p>
-                  )}
-                </div>
-                
-                {/* Reference Field */}
-                <div>
-                  <label htmlFor="reference" className="block text-sm font-medium text-gray-700 mb-1">
-                    Reference (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    id="reference"
-                    name="reference"
-                    value={formData.reference}
-                    onChange={handleChange}
-                    placeholder="Transaction reference"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  />
-                </div>
+          <div className="bg-white rounded-xl shadow-md p-6 mb-6" id="cashdesk-form">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">Cashdesk Configuration</h1>
+                <p className="text-gray-600">
+                  {isEditing ? 'Edit existing cashdesk settings' : 'Create new cashdesk settings and API connections'}
+                </p>
               </div>
               
-              {/* Description Field */}
+              {isEditing && (
+                <button
+                  onClick={resetForm}
+                  className="px-4 py-2 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+            
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Cashdesk ID Field */}
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                  Description *
+                <label htmlFor="cashdeskId" className="block text-sm font-medium text-gray-700 mb-1">
+                  Cashdesk ID *
                 </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
+                <input
+                  type="text"
+                  id="cashdeskId"
+                  name="cashdeskId"
+                  value={formData.cashdeskId}
                   onChange={handleChange}
-                  rows={3}
-                  placeholder="Transaction description"
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
-                    errors.description ? 'border-red-500' : 'border-gray-300'
+                    errors.cashdeskId ? 'border-red-500' : 'border-gray-300'
                   }`}
+                  placeholder="Enter cashdesk ID"
+                  disabled={isEditing}
                 />
-                {errors.description && (
-                  <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+                {errors.cashdeskId && (
+                  <p className="mt-1 text-sm text-red-600">{errors.cashdeskId}</p>
+                )}
+              </div>
+              
+              {/* Cashdesk Field */}
+              <div>
+                <label htmlFor="cashdesk" className="block text-sm font-medium text-gray-700 mb-1">
+                  Cashdesk Name *
+                </label>
+                <input
+                  type="text"
+                  id="cashdesk"
+                  name="cashdesk"
+                  value={formData.cashdesk}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                    errors.cashdesk ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter cashdesk name"
+                />
+                {errors.cashdesk && (
+                  <p className="mt-1 text-sm text-red-600">{errors.cashdesk}</p>
+                )}
+              </div>
+              
+              {/* Cashdesk Hash Field */}
+              <div>
+                <label htmlFor="cashdeskHash" className="block text-sm font-medium text-gray-700 mb-1">
+                  Cashdesk Hash *
+                </label>
+                <input
+                  type="text"
+                  id="cashdeskHash"
+                  name="cashdeskHash"
+                  value={formData.cashdeskHash}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                    errors.cashdeskHash ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter cashdesk hash"
+                />
+                {errors.cashdeskHash && (
+                  <p className="mt-1 text-sm text-red-600">{errors.cashdeskHash}</p>
+                )}
+              </div>
+              
+              {/* Cashier Password Field */}
+              <div>
+                <label htmlFor="cashierPass" className="block text-sm font-medium text-gray-700 mb-1">
+                  Cashier Password *
+                </label>
+                <input
+                  type="password"
+                  id="cashierPass"
+                  name="cashierPass"
+                  value={formData.cashierPass}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                    errors.cashierPass ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter cashier password"
+                />
+                {errors.cashierPass && (
+                  <p className="mt-1 text-sm text-red-600">{errors.cashierPass}</p>
+                )}
+              </div>
+              
+              {/* Cashier Login Field */}
+              <div>
+                <label htmlFor="cashierLogin" className="block text-sm font-medium text-gray-700 mb-1">
+                  Cashier Login *
+                </label>
+                <input
+                  type="text"
+                  id="cashierLogin"
+                  name="cashierLogin"
+                  value={formData.cashierLogin}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                    errors.cashierLogin ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter cashier login"
+                />
+                {errors.cashierLogin && (
+                  <p className="mt-1 text-sm text-red-600">{errors.cashierLogin}</p>
+                )}
+              </div>
+              
+              {/* API Base URL Field */}
+              <div>
+                <label htmlFor="cashdeskApiBase" className="block text-sm font-medium text-gray-700 mb-1">
+                  API Base URL *
+                </label>
+                <input
+                  type="url"
+                  id="cashdeskApiBase"
+                  name="cashdeskApiBase"
+                  value={formData.cashdeskApiBase}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                    errors.cashdeskApiBase ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="https://api.example.com"
+                />
+                {errors.cashdeskApiBase && (
+                  <p className="mt-1 text-sm text-red-600">{errors.cashdeskApiBase}</p>
+                )}
+              </div>
+              
+              {/* Default Language Field */}
+              <div>
+                <label htmlFor="defaultLng" className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Language *
+                </label>
+                <input
+                  type="text"
+                  id="defaultLng"
+                  name="defaultLng"
+                  value={formData.defaultLng}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition ${
+                    errors.defaultLng ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="en, fr, es, etc."
+                  maxLength={2}
+                />
+                {errors.defaultLng && (
+                  <p className="mt-1 text-sm text-red-600">{errors.defaultLng}</p>
                 )}
               </div>
               
               {/* Submit Button */}
-              <div className="flex justify-end pt-4">
+              <div className="md:col-span-2 flex justify-end mt-4 space-x-4">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ${
-                    isSubmitting ? 'opacity-75 cursor-not-allowed' : ''
-                  }`}
+                  className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Processing...' : 'Process Transaction'}
+                  {isSubmitting ? 'Saving...' : isEditing ? 'Update Configuration' : 'Save Configuration'}
                 </button>
+                
+                {cashdesks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAll}
+                    className="px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition"
+                  >
+                    Clear All
+                  </button>
+                )}
               </div>
             </form>
+          </div>
+
+          {/* Cashdesk List Section */}
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800">Cashdesk Configurations</h2>
+              <button
+                onClick={fetchCashdesks}
+                className="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition flex items-center"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+            
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p className="mt-2 text-gray-600">Loading cashdesk configurations...</p>
+              </div>
+            ) : cashdesks.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No cashdesk configurations</h3>
+                <p className="mt-1 text-sm text-gray-500">Get started by creating a new cashdesk configuration.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ID
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Login
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        API Base
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Language
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {cashdesks.map((cashdesk) => (
+                      <tr key={cashdesk._id} className={cashdesk._id === currentCashdeskId ? 'bg-blue-50' : ''}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {cashdesk.cashdeskId}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {cashdesk.cashdesk}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {cashdesk.cashierLogin}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <div className="max-w-xs truncate" title={cashdesk.cashdeskApiBase}>
+                            {cashdesk.cashdeskApiBase}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {cashdesk.defaultLng.toUpperCase()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <button
+                            onClick={() => handleToggleStatus(cashdesk._id, cashdesk.isActive)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              cashdesk.isActive 
+                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                : 'bg-red-100 text-red-800 hover:bg-red-200'
+                            }`}
+                          >
+                            {cashdesk.isActive ? 'Active' : 'Inactive'}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                          <button
+                            onClick={() => handleEdit(cashdesk)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(cashdesk._id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </main>
       </div>
