@@ -282,8 +282,8 @@ Userrouter.get('/my-requests/filter', async (req, res) => {
 Userrouter.post('/add-bank-account', async (req, res) => {
   try {
     const { provider, accountNumber, shopName, walletType, isDefault } = req.body;
-    const userId = req.user._id; // Assuming you have user info from authentication
-    console.log(userId)
+    const userId = req.user._id;
+
     // Validate required fields
     if (!provider || !accountNumber || !shopName) {
       return res.status(400).json({ 
@@ -291,7 +291,7 @@ Userrouter.post('/add-bank-account', async (req, res) => {
         message: 'Provider, account number, and shop name are required' 
       });
     }
-// hello
+
     // Validate account number format
     const accountNumberRegex = /^01\d{9}$/;
     if (!accountNumberRegex.test(accountNumber)) {
@@ -301,16 +301,21 @@ Userrouter.post('/add-bank-account', async (req, res) => {
       });
     }
 
-    // Check if account number already exists for this user
+    // Check if account number with the same wallet type already exists for this user
     const user = await UserModel.findOne({
       _id: userId,
-      'agentAccounts.accountNumber': accountNumber
+      'agentAccounts': {
+        $elemMatch: {
+          accountNumber: accountNumber,
+          walletType: walletType || '' // Handle cases where walletType might be empty
+        }
+      }
     });
     
     if (user) {
       return res.status(400).json({ 
         success: false, 
-        message: 'An account with this number already exists for this user' 
+        message: 'An account with this number and wallet type already exists for this user' 
       });
     }
 
@@ -353,7 +358,7 @@ Userrouter.post('/add-bank-account', async (req, res) => {
     };
 
     // Add the new account to the user's agentAccounts array
-    const user_account=await UserModel.findById({_id:userId})
+    const user_account = await UserModel.findById(userId);
     const updatedUser = await UserModel.findByIdAndUpdate(
       userId,
       {
@@ -378,17 +383,21 @@ Userrouter.post('/add-bank-account', async (req, res) => {
         }
       );
     }
-       user_account.totalwallet+=1;
-       user_account.save();
-    // Get the newly added account (last one in the array)
-    const addedAccount = updatedUser.agentAccounts[updatedUser.agentAccounts.length - 1];
-// Create new bank account
+    
+    user_account.totalwallet += 1;
+    await user_account.save();
+    
+    // Create new bank account
     const bankAccount = new BankAccount({
       user_id: req.user._id,
       ...req.body
     });
 
     await bankAccount.save();
+    
+    // Get the newly added account (last one in the array)
+    const addedAccount = updatedUser.agentAccounts[updatedUser.agentAccounts.length - 1];
+    
     res.status(201).json({
       success: true,
       message: 'Bank account added successfully',

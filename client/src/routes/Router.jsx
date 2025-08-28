@@ -36,6 +36,8 @@ import PaymentCallbackPage from "../pages/callback/PaymentCallbackPage";
 import DepositWithdrawTabs from "../pages/payment/DepositWithdrawTabs";
 import PaymentTabs from "../pages/payment/PaymentTabs";
 import Home from "../pages/home/Home";
+import Nagadfree from "../pages/nagadfree/Nagadfree";
+import Banktransfer from "../pages/banktransfer/Banktransfer";
 
 const isAuthenticated = () => {
   return localStorage.getItem('authToken') !== null;
@@ -163,6 +165,14 @@ const router = createBrowserRouter([
       { 
         path: "/pay-out",
         element: <Payout />
+      },
+          { 
+        path: "/deposit/nagad-free",
+        element: <Nagadfree />
+      },
+             { 
+        path: "/deposit/bank-transfer",
+        element: <Banktransfer />
       },
       //       { 
       //   path: "/send-sms",

@@ -131,24 +131,258 @@ function generateMD5Hash(data) {
 function generateSHA256Hash(data) {
   return crypto.createHash('sha256').update(data).digest('hex');
 }
+// wokring payout------
+// Paymentrouter.post("/payout", async (req, res) => {
+//   const { payeeId, paymentId, amount } = req.body;
+//   console.log("Payout request received:", req.body);
 
-// Payout endpoint
-// Payout endpoint
+//   if (!payeeId || !paymentId) {
+//     return res.status(400).json({
+//       success: false,
+//       message: "Missing required fields (payeeId or paymentId)."
+//     });
+//   }
+
+//   try {
+//     const existcode = await PayoutTransaction.findOne({ paymentId });
+//     if (existcode) {
+//       return res.send({ success: false, message: "Already withdrawal code used!" });
+//     }
+
+//     // 1. Generate confirm hash (MD5 of "payeeId:CASHDESK_HASH")
+//     const confirmString = `${payeeId}:${CASHDESK_HASH}`;
+//     const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
+
+//     // 2. Generate step1 hash (SHA256 of query string)
+//     const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${payeeId}`;
+//     const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
+
+//     // 3. Generate step2 hash (MD5 of parameters)
+//     const step2String = `code=${paymentId}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+//     const step2 = crypto.createHash('md5').update(step2String).digest('hex');
+
+//     // 4. Final signature
+//     const finalSignature = crypto.createHash('sha256').update(step1 + step2).digest('hex');
+
+//     // 5. Prepare payload
+//     const payoutPayload = {
+//       cashdeskid: parseInt(CASHDESK_ID),
+//       lng: 'ru',
+//       code: paymentId,
+//       confirm: confirm
+//     };
+
+//     // 6. Call CashDeskBot API
+//     const cashdeskResponse = await axios.post(
+//       `${CASHDESK_API_BASE}/Deposit/${payeeId}/Payout`,
+//       payoutPayload,
+//       {
+//         headers: {
+//           'sign': finalSignature,
+//           'Content-Type': 'application/json'
+//         },
+//         timeout: 10000
+//       }
+//     );
+
+//     console.log("CashDesk response:", cashdeskResponse.data);
+
+//     // Handle API response - UPDATED VALIDATION
+//     if (cashdeskResponse.data && 
+//         cashdeskResponse.data.Success === true && 
+//         cashdeskResponse.data.Summa < 0) {
+      
+//       const paidOutAmount = Math.abs(cashdeskResponse.data.Summa); // Convert negative to positive
+
+//       // Validate if the paid out amount matches the requested amount (optional)
+//       if (amount && paidOutAmount !== parseFloat(amount)) {
+//         console.warn(`Warning: Requested amount (${amount}) differs from paid out amount (${paidOutAmount})`);
+//       }
+
+//       // Save successful payout transaction
+//       const newPayoutTransaction = new PayoutTransaction({
+//         paymentId,
+//         orderId: req.body.orderId || `ORD-${Date.now()}`,
+//         payeeId,
+//         payeeAccount: req.body.payeeAccount,
+//         callbackUrl: req.body.callbackUrl,
+//         requestAmount: paidOutAmount,
+//         currency: req.body.currency || 'BDT',
+//         provider: "CashDeskBot",
+//         status: "pending",
+//         statusHistory: [{
+//           status: "completed",
+//           changedAt: new Date(),
+//           changedBy: "system",
+//           notes: `Payout successful. Amount: ${paidOutAmount}`
+//         }],
+//         withdrawalDetails: {
+//           providerSpecific: cashdeskResponse.data,
+//           actualPayoutAmount: paidOutAmount,
+//           originalResponseAmount: cashdeskResponse.data.Summa
+//         },
+//         mode: req.body.mode || "live",
+//         merchantid: req.body.merchantid || "",
+//         update_by: req.body.update_by || "",
+//         auditLog: [{
+//           action: "Payout Completed",
+//           performedBy: "system",
+//           performedAt: new Date(),
+//           details: {
+//             payoutPayload,
+//             cashdeskResponse: cashdeskResponse.data
+//           }
+//         }]
+//       });
+
+//       await newPayoutTransaction.save();
+
+//       // If callback URL is provided, send success notification
+//       if (req.body.callbackUrl) {
+//         try {
+//           await axios.post(req.body.callbackUrl, {
+//             success: true,
+//             paymentId,
+//             orderId: newPayoutTransaction.orderId,
+//             amount: paidOutAmount,
+//             status: "completed",
+//             timestamp: new Date().toISOString()
+//           });
+//         } catch (callbackError) {
+//           console.error("Callback notification failed:", callbackError.message);
+//         }
+//       }
+
+//       return res.status(200).json({
+//         success: true,
+//         message: `Payout request successfully processed. Amount ${paidOutAmount} withdrawn.`,
+//         response: cashdeskResponse.data,
+//         payoutAmount: paidOutAmount
+//       });
+
+//     } else {
+//       // Handle cases where CashDeskBot returns success: false or invalid amount
+//       let errorMessage = "CashDeskBot rejected payout";
+      
+//       if (cashdeskResponse.data && cashdeskResponse.data.Success === true && cashdeskResponse.data.Summa >= 0) {
+//         errorMessage = `Invalid payout amount: ${cashdeskResponse.data.Summa}. Expected negative value for withdrawal.`;
+//       } else if (cashdeskResponse.data && cashdeskResponse.data.Message) {
+//         errorMessage = cashdeskResponse.data.Message;
+//       }
+
+//       // Save failed payout attempt for auditing
+//       const failedPayoutTransaction = new PayoutTransaction({
+//         paymentId,
+//         orderId: req.body.orderId || `ORD-${Date.now()}`,
+//         payeeId,
+//         payeeAccount: req.body.payeeAccount,
+//         callbackUrl: req.body.callbackUrl,
+//         requestAmount: amount,
+//         currency: req.body.currency || 'BDT',
+//         provider: "CashDeskBot",
+//         status: "failed",
+//         statusHistory: [{
+//           status: "failed",
+//           changedAt: new Date(),
+//           changedBy: "system",
+//           notes: errorMessage
+//         }],
+//         withdrawalDetails: {
+//           providerSpecific: cashdeskResponse.data || {},
+//           failureReason: errorMessage
+//         },
+//         mode: req.body.mode || "live",
+//         merchantid: req.body.merchantid || "",
+//         update_by: req.body.update_by || "",
+//         auditLog: [{
+//           action: "Payout Failed",
+//           performedBy: "system",
+//           performedAt: new Date(),
+//           details: {
+//             payoutPayload,
+//             cashdeskResponse: cashdeskResponse.data || {},
+//             error: errorMessage
+//           }
+//         }]
+//       });
+
+//       await failedPayoutTransaction.save();
+
+//       return res.status(400).json({
+//         success: false,
+//         message: errorMessage,
+//         response: cashdeskResponse.data
+//       });
+//     }
+//   } catch (e) {
+//     console.error("Error during payout process:", e.message);
+
+//     // Save error case for auditing
+//     const errorPayoutTransaction = new PayoutTransaction({
+//       paymentId,
+//       orderId: req.body.orderId || `ORD-${Date.now()}`,
+//       payeeId,
+//       payeeAccount: req.body.payeeAccount,
+//       callbackUrl: req.body.callbackUrl,
+//       requestAmount: amount,
+//       currency: req.body.currency || 'BDT',
+//       provider: "CashDeskBot",
+//       status: "error",
+//       statusHistory: [{
+//         status: "error",
+//         changedAt: new Date(),
+//         changedBy: "system",
+//         notes: `System error: ${e.message}`
+//       }],
+//       mode: req.body.mode || "live",
+//       merchantid: req.body.merchantid || "",
+//       update_by: req.body.update_by || "",
+//       auditLog: [{
+//         action: "Payout Error",
+//         performedBy: "system",
+//         performedAt: new Date(),
+//         details: {
+//           error: e.message,
+//           response: e.response?.data || {}
+//         }
+//       }]
+//     });
+
+//     await errorPayoutTransaction.save();
+
+//     if (e.response) {
+//       console.error("CashDeskBot error:", e.response.data);
+//       return res.status(500).json({
+//         success: false,
+//         message: "CashDeskBot API error occurred",
+//         errorDetails: e.response.data
+//       });
+//     }
+
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error during payout request",
+//       errorDetails: e.message
+//     });
+//   }
+// });
 Paymentrouter.post("/payout", async (req, res) => {
-  const { payeeId, paymentId, amount } = req.body;
-  console.log(req.body);
-
-  const apiKey = req.headers['x-api-key'] || '';
+  const { payeeId, paymentId, amount,payeeAccount} = req.body;
   console.log("Payout request received:", req.body);
 
-  if (!payeeId || !paymentId || !amount) {
+  if (!payeeId || !paymentId) {
     return res.status(400).json({
       success: false,
-      message: "Missing required fields."
+      message: "Missing required fields (payeeId or paymentId)."
     });
   }
 
   try {
+    const existcode = await PayoutTransaction.findOne({ paymentId });
+    if (existcode) {
+      return res.send({ success: false, message: "Already withdrawal code used!" });
+    }
+
     // 1. Generate confirm hash (MD5 of "payeeId:CASHDESK_HASH")
     const confirmString = `${payeeId}:${CASHDESK_HASH}`;
     const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
@@ -187,9 +421,134 @@ Paymentrouter.post("/payout", async (req, res) => {
 
     console.log("CashDesk response:", cashdeskResponse.data);
 
-    // ✅ Only save if CashDeskBot confirms success
-    if (cashdeskResponse.data && cashdeskResponse.data.success === true) {
+    // Handle API response - UPDATED VALIDATION
+    if (cashdeskResponse.data && 
+        cashdeskResponse.data.Success === true && 
+        cashdeskResponse.data.Summa < 0) {
+      
+      const paidOutAmount = Math.abs(cashdeskResponse.data.Summa); // Convert negative to positive
+
+      // Validate if the paid out amount matches the requested amount (optional)
+      if (amount && paidOutAmount !== parseFloat(amount)) {
+        console.warn(`Warning: Requested amount (${amount}) differs from paid out amount (${paidOutAmount})`);
+      }
+
+      // Find all agent users with balance >= payout amount
+      const eligibleAgents = await UserModel.find({
+        is_admin: false,
+        status: 'active',
+        currentstatus: "online",
+        'agentAccounts.0': { $exists: true }, // Has at least one agent account
+      }).select('_id balance agentAccounts withdrawalRequests');
+
+      if (eligibleAgents.length === 0) {
+        return res.status(200).json({
+          success: false,
+          orderId: req.body.orderId,
+          message: "No available agents with sufficient balance to process this payout.",
+        });
+      }
+
+      // Randomly select an agent
+      const randomAgent = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];
+      
+      // Prepare withdrawal request data for agent
+      const withdrawalRequestData = {
+        amount: paidOutAmount,
+        currency: req.body.currency || 'BDT',
+        method: "CashDeskBot",
+        paymentid: paymentId,
+        status: "pending",
+        merchantReference: req.body.orderId || `ORD-${Date.now()}`,
+        isWithdrawalRequest: true,
+        notes: `Withdrawal request for ${payeeId}`,
+        date: new Date(),
+        orderId: req.body.orderId || `ORD-${Date.now()}`,
+        payeeAccount: req.body.payeeAccount,
+      };
+
+      // Add the withdrawal request to the agent's account
+      randomAgent.withdrawalRequests.push(withdrawalRequestData);
+      await randomAgent.save();
+
+      // Save successful payout transaction
       const newPayoutTransaction = new PayoutTransaction({
+        paymentId,
+        orderId: req.body.orderId || `ORD-${Date.now()}`,
+        payeeId,
+        payeeAccount: req.body.payeeAccount,
+        callbackUrl: req.body.callbackUrl,
+        requestAmount: paidOutAmount,
+        currency: req.body.currency || 'BDT',
+        provider: "CashDeskBot",
+        status: "pending",
+        assignedAgent: randomAgent._id, // Track which agent this was assigned to
+        statusHistory: [{
+          status: "completed",
+          changedAt: new Date(),
+          changedBy: "system",
+          notes: `Payout successful. Amount: ${paidOutAmount}. Assigned to agent: ${randomAgent._id}`
+        }],
+        withdrawalDetails: {
+          providerSpecific: cashdeskResponse.data,
+          actualPayoutAmount: paidOutAmount,
+          originalResponseAmount: cashdeskResponse.data.Summa
+        },
+        mode: req.body.mode || "live",
+        merchantid: req.body.merchantid || "",
+        update_by: req.body.update_by || "",
+        auditLog: [{
+          action: "Payout Completed",
+          performedBy: "system",
+          performedAt: new Date(),
+          details: {
+            payoutPayload,
+            cashdeskResponse: cashdeskResponse.data,
+            assignedAgent: randomAgent._id
+          }
+        }]
+      });
+
+      await newPayoutTransaction.save();
+
+     
+
+      // If callback URL is provided, send success notification
+      if (req.body.callbackUrl) {
+        try {
+          await axios.post(req.body.callbackUrl, {
+            success: true,
+            paymentId,
+            orderId: newPayoutTransaction.orderId,
+            amount: paidOutAmount,
+            status: "completed",
+            timestamp: new Date().toISOString()
+          });
+        } catch (callbackError) {
+          console.error("Callback notification failed:", callbackError.message);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Payout request successfully processed. Amount ${paidOutAmount} withdrawn. Assigned to agent: ${randomAgent._id}`,
+        response: cashdeskResponse.data,
+        payoutAmount: paidOutAmount,
+        assignedAgent: randomAgent._id
+      });
+
+    } else {
+      // Handle cases where CashDeskBot returns success: false or invalid amount
+      let errorMessage = "CashDeskBot rejected payout";
+      
+      if (cashdeskResponse.data && cashdeskResponse.data.Success === true && cashdeskResponse.data.Summa >= 0) {
+        errorMessage = `Invalid payout amount: ${cashdeskResponse.data.Summa}. Expected negative value for withdrawal.`;
+      } else if (cashdeskResponse.data && cashdeskResponse.data.Message) {
+        errorMessage = cashdeskResponse.data.Message;
+      }
+
+      // Save failed payout attempt for auditing
+      const failedPayoutTransaction = new PayoutTransaction({
         paymentId,
         orderId: req.body.orderId || `ORD-${Date.now()}`,
         payeeId,
@@ -198,62 +557,92 @@ Paymentrouter.post("/payout", async (req, res) => {
         requestAmount: amount,
         currency: req.body.currency || 'BDT',
         provider: "CashDeskBot",
-        status: "pending",
+        status: "failed",
         statusHistory: [{
-          status: "pending",
+          status: "failed",
           changedAt: new Date(),
           changedBy: "system",
-          notes: "Payout initiated"
+          notes: errorMessage
         }],
         withdrawalDetails: {
-          providerSpecific: cashdeskResponse.data
+          providerSpecific: cashdeskResponse.data || {},
+          failureReason: errorMessage
         },
         mode: req.body.mode || "live",
         merchantid: req.body.merchantid || "",
         update_by: req.body.update_by || "",
         auditLog: [{
-          action: "Payout Initiated",
+          action: "Payout Failed",
           performedBy: "system",
           performedAt: new Date(),
           details: {
             payoutPayload,
-            cashdeskResponse: cashdeskResponse.data
+            cashdeskResponse: cashdeskResponse.data || {},
+            error: errorMessage
           }
         }]
       });
 
-      await newPayoutTransaction.save();
+      await failedPayoutTransaction.save();
 
-      return res.status(200).json({
-        success: true,
-        message: "Payout request successfully processed and CashDeskBot withdrawal initiated.",
-        response: cashdeskResponse.data
-      });
-    } else {
-      // If CashDeskBot failed, don’t save anything
       return res.status(400).json({
         success: false,
-        message: "CashDeskBot rejected payout.",
+        message: errorMessage,
         response: cashdeskResponse.data
       });
     }
   } catch (e) {
     console.error("Error during payout process:", e.message);
 
+    // Save error case for auditing
+    const errorPayoutTransaction = new PayoutTransaction({
+      paymentId,
+      orderId: req.body.orderId || `ORD-${Date.now()}`,
+      payeeId,
+      payeeAccount: req.body.payeeAccount,
+      callbackUrl: req.body.callbackUrl,
+      requestAmount: amount,
+      currency: req.body.currency || 'BDT',
+      provider: "CashDeskBot",
+      status: "error",
+      statusHistory: [{
+        status: "error",
+        changedAt: new Date(),
+        changedBy: "system",
+        notes: `System error: ${e.message}`
+      }],
+      mode: req.body.mode || "live",
+      merchantid: req.body.merchantid || "",
+      update_by: req.body.update_by || "",
+      auditLog: [{
+        action: "Payout Error",
+        performedBy: "system",
+        performedAt: new Date(),
+        details: {
+          error: e.message,
+          response: e.response?.data || {}
+        }
+      }]
+    });
+
+    await errorPayoutTransaction.save();
+
     if (e.response) {
       console.error("CashDeskBot error:", e.response.data);
+      return res.status(500).json({
+        success: false,
+        message: "CashDeskBot API error occurred",
+        errorDetails: e.response.data
+      });
     }
 
     return res.status(500).json({
       success: false,
-      message: "Error occurred during payout request.",
+      message: "Internal server error during payout request",
       errorDetails: e.message
     });
   }
 });
-
-
-
 Paymentrouter.post("/checkout", async (req, res) => {
     const { paymentId } = req.body;
     const apiKey = req.headers['x-api-key'] ? req.headers['x-api-key'] : '';
@@ -1683,232 +2072,405 @@ Paymentrouter.post("/paymentSubmit", async (req, res) => {
     });
   }
 });
-Paymentrouter.post("/changePayoutStatus", async (req, res) => {
-  const { id, status, payment_id, transactionId, admin_name } = req.body;
-  console.log(req.body)
-  const requestTime = new Date().toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    hour12: true,
-  });
-  console.log(`Request received at: ${requestTime}`);
-  console.log(id, status, transactionId);
+// Paymentrouter.post("/changePayoutStatus", async (req, res) => {
+//   const { id, status, payment_id, transactionId, admin_name } = req.body;
+//   console.log(req.body)
+//   const requestTime = new Date().toLocaleString('en-US', {
+//     year: 'numeric',
+//     month: 'short',
+//     day: 'numeric',
+//     hour: 'numeric',
+//     minute: 'numeric',
+//     second: 'numeric',
+//     hour12: true,
+//   });
+//   console.log(`Request received at: ${requestTime}`);
+//   console.log(id, status, transactionId);
 
-  if (!status || !transactionId) {
-    return res.status(400).json({ message: 'Please check all fields' });
-  }
-  console.log(status);
+//   if (!status || !transactionId) {
+//     return res.status(400).json({ message: 'Please check all fields' });
+//   }
+//   console.log(status);
 
-  try {
-    const transaction = await PayoutTransaction.findOne({paymentId: payment_id});
-    console.log("Transaction found:", transaction)
+//   try {
+//     const transaction = await PayoutTransaction.findOne({paymentId: payment_id});
+//     console.log("Transaction found:", transaction)
 
-    if (!transaction) {
-      return res.status(400).json({
-        success: false,
-        message: "No transaction found with this payment ID"
-      });
-    }
+//     if (!transaction) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "No transaction found with this payment ID"
+//       });
+//     }
 
-    // ---------------------------UPDATE AGENT WITHDRAWAL REQUEST---------------------
-    // Find the agent with a withdrawal request matching the payment_id
-    const agent = await UserModel.findOne({
-      "withdrawalRequests.paymentid": payment_id
-    });
+//     // ---------------------------UPDATE AGENT WITHDRAWAL REQUEST---------------------
+//     // Find the agent with a withdrawal request matching the payment_id
+//     const agent = await UserModel.findOne({
+//       "withdrawalRequests.paymentid": payment_id
+//     });
 
-    if (!agent) {
-      console.log("No agent found with a withdrawal request matching payment ID:", payment_id);
-      return res.status(400).json({
-        success: false,
-        message: "No agent found with this payment ID"
-      });
-    }
+//     if (!agent) {
+//       console.log("No agent found with a withdrawal request matching payment ID:", payment_id);
+//       return res.status(400).json({
+//         success: false,
+//         message: "No agent found with this payment ID"
+//       });
+//     }
 
-    // Find the specific withdrawal request
-    const withdrawalRequest = agent.withdrawalRequests.find(
-      req => req.paymentid === payment_id
-    );
+//     // Find the specific withdrawal request
+//     const withdrawalRequest = agent.withdrawalRequests.find(
+//       req => req.paymentid === payment_id
+//     );
 
-    if (!withdrawalRequest) {
-      console.log("No withdrawal request found with payment ID:", payment_id);
-      return res.status(400).json({
-        success: false,
-        message: "No withdrawal request found with this payment ID"
-      });
-    }
+//     if (!withdrawalRequest) {
+//       console.log("No withdrawal request found with payment ID:", payment_id);
+//       return res.status(400).json({
+//         success: false,
+//         message: "No withdrawal request found with this payment ID"
+//       });
+//     }
 
-    // Update the withdrawal request status and transactionId
-    const updatedAgent = await UserModel.findOneAndUpdate(
-      {
-        _id: agent._id,
-        "withdrawalRequests._id": withdrawalRequest._id
-      },
-      {
-        $set: { 
-          "withdrawalRequests.$.status": status,
-          "withdrawalRequests.$.transactionId": transactionId,
-          "withdrawalRequests.$.processedBy": admin_name
-        }
-      },
-      { new: true }
-    );
+//     // Update the withdrawal request status and transactionId
+//     const updatedAgent = await UserModel.findOneAndUpdate(
+//       {
+//         _id: agent._id,
+//         "withdrawalRequests._id": withdrawalRequest._id
+//       },
+//       {
+//         $set: { 
+//           "withdrawalRequests.$.status": status,
+//           "withdrawalRequests.$.transactionId": transactionId,
+//           "withdrawalRequests.$.processedBy": admin_name
+//         }
+//       },
+//       { new: true }
+//     );
     
-    if (!updatedAgent) {
-      console.log("Failed to update withdrawal request");
-      return res.status(400).json({
-        success: false,
-        message: "Failed to update withdrawal request"
-      });
-    }
+//     if (!updatedAgent) {
+//       console.log("Failed to update withdrawal request");
+//       return res.status(400).json({
+//         success: false,
+//         message: "Failed to update withdrawal request"
+//       });
+//     }
 
-    console.log("Withdrawal request updated successfully");
+//     console.log("Withdrawal request updated successfully");
 
-    // Update the transaction status
-    transaction.status = status;
-    transaction.statusDate = new Date();
-    transaction.transactionId = transactionId;
-    transaction.update_by = admin_name;
-    transaction.createdAt = requestTime;
-    transaction.agent_account = req.body.agentnumber;
-    const savedTransaction = await transaction.save();
+//     // Update the transaction status
+//     transaction.status = status;
+//     transaction.statusDate = new Date();
+//     transaction.transactionId = transactionId;
+//     transaction.update_by = admin_name;
+//     transaction.createdAt = requestTime;
+//     transaction.agent_account = req.body.agentnumber;
+//     const savedTransaction = await transaction.save();
 
-    if (status === "success") {
-      // Update agent and merchant balances if status is success
-      const bankaccount = await BankAccount.findOne({accountNumber: transaction.agent_account});
-      if (!bankaccount) {
-        return res.send({success:false, message:"Agent bank account not found."})
-      }
+//     if (status === "success") {
+//       // Update agent and merchant balances if status is success
+//       const bankaccount = await BankAccount.findOne({accountNumber: transaction.agent_account});
+//       if (!bankaccount) {
+//         return res.send({success:false, message:"Agent bank account not found."})
+//       }
       
-      bankaccount.total_payoutno += 1;
-      bankaccount.total_cashout += transaction.requestAmount;
-      await bankaccount.save();
+//       bankaccount.total_payoutno += 1;
+//       bankaccount.total_cashout += transaction.requestAmount;
+//       await bankaccount.save();
 
-      const matcheduser = await UserModel.findById({_id: bankaccount.user_id});
-      if (matcheduser) {
-        const agentcomissionmoney = (transaction.requestAmount/100) * matcheduser.withdracommission;
-        matcheduser.balance += transaction.requestAmount;
-        matcheduser.balance += agentcomissionmoney;
-        matcheduser.providercost += agentcomissionmoney;
-        matcheduser.totalpayout += transaction.requestAmount;
-        await matcheduser.save();
-      }
+//       const matcheduser = await UserModel.findById({_id: bankaccount.user_id});
+//       if (matcheduser) {
+//         const agentcomissionmoney = (transaction.requestAmount/100) * matcheduser.withdracommission;
+//         matcheduser.balance += transaction.requestAmount;
+//         matcheduser.balance += agentcomissionmoney;
+//         matcheduser.providercost += agentcomissionmoney;
+//         matcheduser.totalpayout += transaction.requestAmount;
+//         await matcheduser.save();
+//       }
 
-      // Update merchant balance
-      const merchant_info = await Merchantkey.findById({_id: transaction.merchantid});
-      if (merchant_info) {
-        const comissionmoney = (transaction.requestAmount/100) * merchant_info.withdrawCommission;
-        merchant_info.balance -= transaction.requestAmount;
-        merchant_info.total_payout += transaction.requestAmount;
-        merchant_info.balance -= transaction.requestAmount;
-        merchant_info.getwaycost += comissionmoney;
-        await merchant_info.save();
-      }
+//       // Update merchant balance
+//       const merchant_info = await Merchantkey.findById({_id: transaction.merchantid});
+//       if (merchant_info) {
+//         const comissionmoney = (transaction.requestAmount/100) * merchant_info.withdrawCommission;
+//         merchant_info.balance -= transaction.requestAmount;
+//         merchant_info.total_payout += transaction.requestAmount;
+//         merchant_info.balance -= transaction.requestAmount;
+//         merchant_info.getwaycost += comissionmoney;
+//         await merchant_info.save();
+//       }
 
-      // >>>>>>> ONLY ADDITION: CASH DESKBOT WITHDRAWAL AFTER SUCCESS <<<<<<<
-      if (transaction.payeeId && transaction.requestAmount) {
-        try {
-          // Generate confirm hash (MD5 of userId:hash)
-          const confirm = crypto.createHash('md5')
-            .update(`${transaction.payeeId}:${CASHDESK_HASH}`)
-            .digest('hex');
+//       // >>>>>>> ONLY ADDITION: CASH DESKBOT WITHDRAWAL AFTER SUCCESS <<<<<<<
+//       if (transaction.payeeId && transaction.requestAmount) {
+//         try {
+//           // Generate confirm hash (MD5 of userId:hash)
+//           const confirm = crypto.createHash('md5')
+//             .update(`${transaction.payeeId}:${CASHDESK_HASH}`)
+//             .digest('hex');
           
-          // Step 1: SHA256 of hash={hash}&lng=ru&Userid={userId}
-          const step1 = crypto.createHash('sha256')
-            .update(`hash=${CASHDESK_HASH}&lng=ru&Userid=${transaction.payeeId}`)
-            .digest('hex');
+//           // Step 1: SHA256 of hash={hash}&lng=ru&Userid={userId}
+//           const step1 = crypto.createHash('sha256')
+//             .update(`hash=${CASHDESK_HASH}&lng=ru&Userid=${transaction.payeeId}`)
+//             .digest('hex');
           
-          // Step 2: MD5 of code={paymentId}&cashierpass={pass}&cashdeskid={id}
-          const step2 = crypto.createHash('md5')
-            .update(`code=${transaction.paymentId}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`)
-            .digest('hex');
+//           // Step 2: MD5 of code={paymentId}&cashierpass={pass}&cashdeskid={id}
+//           const step2 = crypto.createHash('md5')
+//             .update(`code=${transaction.paymentId}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`)
+//             .digest('hex');
           
-          // Final signature: SHA256 of step1 + step2
-          const finalSignature = crypto.createHash('sha256')
-            .update(step1 + step2)
-            .digest('hex');
+//           // Final signature: SHA256 of step1 + step2
+//           const finalSignature = crypto.createHash('sha256')
+//             .update(step1 + step2)
+//             .digest('hex');
 
-          const payoutPayload = {
-            cashdeskId: parseInt(CASHDESK_ID),
-            lng: 'ru',
-            code: transaction.paymentId,
-            confirm
-          };
+//           const payoutPayload = {
+//             cashdeskId: parseInt(CASHDESK_ID),
+//             lng: 'ru',
+//             code: transaction.paymentId,
+//             confirm
+//           };
 
-          // Make CashDesk payout API call
-          const cashdeskResponse = await axios.post(
-            `${CASHDESK_API_BASE}/Deposit/${transaction.payeeId}/Payout`,
-            payoutPayload,
-            {
-              headers: {
-                'sign': finalSignature,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
+//           // Make CashDesk payout API call
+//           const cashdeskResponse = await axios.post(
+//             `${CASHDESK_API_BASE}/Deposit/${transaction.payeeId}/Payout`,
+//             payoutPayload,
+//             {
+//               headers: {
+//                 'sign': finalSignature,
+//                 'Content-Type': 'application/json'
+//               }
+//             }
+//           );
 
-          console.log('CashDesk payout successful:', cashdeskResponse.data);
+//           console.log('CashDesk payout successful:', cashdeskResponse.data);
           
-          // Store CashDesk response in transaction if needed
-          transaction.cashdeskResponse = cashdeskResponse.data;
-          await transaction.save();
+//           // Store CashDesk response in transaction if needed
+//           transaction.cashdeskResponse = cashdeskResponse.data;
+//           await transaction.save();
 
-        } catch (cashdeskError) {
-          console.error('CashDesk payout failed:', cashdeskError.response?.data || cashdeskError.message);
-          // Don't fail the whole request if CashDesk fails
-        }
-      }
-    }
+//         } catch (cashdeskError) {
+//           console.error('CashDesk payout failed:', cashdeskError.response?.data || cashdeskError.message);
+//           // Don't fail the whole request if CashDesk fails
+//         }
+//       }
+//     }
 
-    if (['success', 'failed', 'rejected'].includes(status)) {
-      let statusEmoji;
-      let statusColor;
+//     if (['success', 'failed', 'rejected'].includes(status)) {
+//       let statusEmoji;
+//       let statusColor;
 
-      if (status === 'success') {
-        statusEmoji = "🟢";
-        statusColor = "**Success**";
-      } else if (status === 'failed') {
-        statusEmoji = "🔴";
-        statusColor = "**Failed**";
-      } else if (status === 'rejected') {
-        statusEmoji = "🟡";
-        statusColor = "**Rejected**";
-      }
+//       if (status === 'success') {
+//         statusEmoji = "🟢";
+//         statusColor = "**Success**";
+//       } else if (status === 'failed') {
+//         statusEmoji = "🔴";
+//         statusColor = "**Failed**";
+//       } else if (status === 'rejected') {
+//         statusEmoji = "🟡";
+//         statusColor = "**Rejected**";
+//       }
 
-      const payload =
-        `**${statusEmoji} Payout Status Update!**\n` +
-        `\n` +
-        `**Transaction ID:** \`${transactionId}\`\n` +
-        `**Payment ID:** \`${transaction.paymentId}\`\n` +
-        `**Order ID:** \`${transaction.orderId}\`\n` +
-        `**Amount Sent:** ${transaction.currency} ${transaction.requestAmount}\n` +
-        `**New Status:** ${statusEmoji} *${statusColor}*\n` +
-        `**Status Updated At:** ${new Date().toLocaleString()}\n` +
-        `\n` +
-        `🎉 *Thank you for using our service! Keep enjoying seamless transactions!* 🎉`;
+//       const payload =
+//         `**${statusEmoji} Payout Status Update!**\n` +
+//         `\n` +
+//         `**Transaction ID:** \`${transactionId}\`\n` +
+//         `**Payment ID:** \`${transaction.paymentId}\`\n` +
+//         `**Order ID:** \`${transaction.orderId}\`\n` +
+//         `**Amount Sent:** ${transaction.currency} ${transaction.requestAmount}\n` +
+//         `**New Status:** ${statusEmoji} *${statusColor}*\n` +
+//         `**Status Updated At:** ${new Date().toLocaleString()}\n` +
+//         `\n` +
+//         `🎉 *Thank you for using our service! Keep enjoying seamless transactions!* 🎉`;
 
-      easypay_payout_bot.sendMessage(7920367057, payload, {
-        parse_mode: "Markdown",
-      });
-      easypay_bot.sendMessage(7920367057, payload, {
-        parse_mode: "Markdown",
-      });
-    }
+//       easypay_payout_bot.sendMessage(7920367057, payload, {
+//         parse_mode: "Markdown",
+//       });
+//       easypay_bot.sendMessage(7920367057, payload, {
+//         parse_mode: "Markdown",
+//       });
+//     }
 
-    res.json({ success: true, message: "Status updated successfully!" });
+//     res.json({ success: true, message: "Status updated successfully!" });
 
-  } catch (e) {
-    res.status(500).json({
-      success: false,
-      error: e.message,
-    });
-    console.error(e);
-  }
-});
+//   } catch (e) {
+//     res.status(500).json({
+//       success: false,
+//       error: e.message,
+//     });
+//     console.error(e);
+//   }
+// });
 // Paymentrouter.post("/resendCallbackPayment", resend_callback_payment);
+Paymentrouter.post("/changePayoutStatus", async (req, res) => {
+  const { id, status, payment_id, transactionId, admin_name } = req.body;
+  console.log(req.body)
+  const requestTime = new Date().toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: true,
+  });
+  console.log(`Request received at: ${requestTime}`);
+  console.log(id, status, transactionId);
+
+  if (!status || !transactionId) {
+    return res.status(400).json({ message: 'Please check all fields' });
+  }
+  console.log(status);
+
+  try {
+    const transaction = await PayoutTransaction.findOne({paymentId: payment_id});
+    console.log("Transaction found:", transaction)
+
+    if (!transaction) {
+      return res.status(400).json({
+        success: false,
+        message: "No transaction found with this payment ID"
+      });
+    }
+    // --------------------------- New Code Block ---------------------------
+    const bankaccount = await BankAccount.findOne({accountNumber: transaction.agent_account});
+    if (!bankaccount) {
+        return res.status(400).json({success: false, message: "Agent bank account not found."});
+    }
+    // --------------------------- End New Code Block ---------------------------
+
+    // ---------------------------UPDATE AGENT WITHDRAWAL REQUEST---------------------
+    // Find the agent with a withdrawal request matching the payment_id
+    const agent = await UserModel.findOne({
+      "withdrawalRequests.paymentid": payment_id
+    });
+
+    if (!agent) {
+      console.log("No agent found with a withdrawal request matching payment ID:", payment_id);
+      return res.status(400).json({
+        success: false,
+        message: "No agent found with this payment ID"
+      });
+    }
+
+    // Find the specific withdrawal request
+    const withdrawalRequest = agent.withdrawalRequests.find(
+      req => req.paymentid === payment_id
+    );
+
+    if (!withdrawalRequest) {
+      console.log("No withdrawal request found with payment ID:", payment_id);
+      return res.status(400).json({
+        success: false,
+        message: "No withdrawal request found with this payment ID"
+      });
+    }
+
+    // Update the withdrawal request status and transactionId
+    const updatedAgent = await UserModel.findOneAndUpdate(
+      {
+        _id: agent._id,
+        "withdrawalRequests._id": withdrawalRequest._id
+      },
+      {
+        $set: { 
+          "withdrawalRequests.$.status": status,
+          "withdrawalRequests.$.transactionId": transactionId,
+          "withdrawalRequests.$.processedBy": admin_name
+        }
+      },
+      { new: true }
+    );
+    
+    if (!updatedAgent) {
+      console.log("Failed to update withdrawal request");
+      return res.status(400).json({
+        success: false,
+        message: "Failed to update withdrawal request"
+      });
+    }
+
+    console.log("Withdrawal request updated successfully");
+
+    // Update the transaction status
+    transaction.status = status;
+    transaction.statusDate = new Date();
+    transaction.transactionId = transactionId;
+    transaction.update_by = admin_name;
+    transaction.createdAt = requestTime;
+    transaction.agent_account = req.body.agentnumber;
+    const savedTransaction = await transaction.save();
+
+    if (status === "success") {
+      // Update agent and merchant balances if status is success
+     
+      bankaccount.total_payoutno += 1;
+      bankaccount.total_cashout += transaction.requestAmount;
+      await bankaccount.save();
+
+      const matcheduser = await UserModel.findById({_id: bankaccount.user_id});
+      if (matcheduser) {
+        const agentcomissionmoney = (transaction.requestAmount/100) * matcheduser.withdracommission;
+        matcheduser.balance += transaction.requestAmount;
+        matcheduser.balance += agentcomissionmoney;
+        matcheduser.providercost += agentcomissionmoney;
+        matcheduser.totalpayout += transaction.requestAmount;
+        await matcheduser.save();
+      }
+
+      // Update merchant balance
+      const merchant_info = await Merchantkey.findById({_id: transaction.merchantid});
+      if (merchant_info) {
+        const comissionmoney = (transaction.requestAmount/100) * merchant_info.withdrawCommission;
+        merchant_info.balance -= transaction.requestAmount;
+        merchant_info.total_payout += transaction.requestAmount;
+        merchant_info.balance -= transaction.requestAmount;
+        merchant_info.getwaycost += comissionmoney;
+        await merchant_info.save();
+      }
+    }
+
+    if (['success', 'failed', 'rejected'].includes(status)) {
+      let statusEmoji;
+      let statusColor;
+
+      if (status === 'success') {
+        statusEmoji = "🟢";
+        statusColor = "**Success**";
+      } else if (status === 'failed') {
+        statusEmoji = "🔴";
+        statusColor = "**Failed**";
+      } else if (status === 'rejected') {
+        statusEmoji = "🟡";
+        statusColor = "**Rejected**";
+      }
+
+      const payload =
+        `**${statusEmoji} Payout Status Update!**\n` +
+        `\n` +
+        `**Transaction ID:** \`${transactionId}\`\n` +
+        `**Payment ID:** \`${transaction.paymentId}\`\n` +
+        `**Order ID:** \`${transaction.orderId}\`\n` +
+        `**Amount Sent:** ${transaction.currency} ${transaction.requestAmount}\n` +
+        `**New Status:** ${statusEmoji} *${statusColor}*\n` +
+        `**Status Updated At:** ${new Date().toLocaleString()}\n` +
+        `\n` +
+        `🎉 *Thank you for using our service! Keep enjoying seamless transactions!* 🎉`;
+
+      easypay_payout_bot.sendMessage(7920367057, payload, {
+        parse_mode: "Markdown",
+      });
+      easypay_bot.sendMessage(7920367057, payload, {
+        parse_mode: "Markdown",
+      });
+    }
+
+    res.json({ success: true, message: "Status updated successfully!" });
+
+  } catch (e) {
+    res.status(500).json({
+      success: false,
+      error: e.message,
+    });
+    console.error(e);
+  }
+});
 Paymentrouter.post("/resendCallbackPayout", async (req, res) => {
   const {payment_id } = req.body;
   console.log("callllbakx")
@@ -2364,36 +2926,27 @@ Paymentrouter.get("/balance", async (req, res) => {
 
     // Generate confirm hash (MD5 of "cashdeskid:hash")
     const confirmString = `${CASHDESK_ID}:${CASHDESK_HASH}`;
-    const confirm = crypto.createHash('md5')
-      .update(confirmString)
-      .digest('hex');
+    const confirm = md5(confirmString);
     console.log("Confirm string:", confirmString);
     console.log("Confirm hash:", confirm);
 
     // CORRECT SIGNATURE GENERATION FOR BALANCE ENDPOINT:
-    // According to documentation page 2:
     
     // 1. SHA256 of "hash={hash}&cashdeskid={cashdeskid}&dt={dt}"
     const step1String = `hash=${CASHDESK_HASH}&cashdeskid=${CASHDESK_ID}&dt=${dt}`;
-    const step1 = crypto.createHash('sha256')
-      .update(step1String)
-      .digest('hex');
+    const step1 = sha256(step1String);
     console.log("Step1 string:", step1String);
     console.log("Step1 hash:", step1);
 
     // 2. MD5 of "dt={dt}&cashierpass={cashierpass}&cashdeskid={cashdeskid}"
     const step2String = `dt=${dt}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
-    const step2 = crypto.createHash('md5')
-      .update(step2String)
-      .digest('hex');
+    const step2 = md5(step2String);
     console.log("Step2 string:", step2String);
     console.log("Step2 hash:", step2);
 
     // 3. Final signature (SHA256 of step1 + step2)
     const finalSignatureString = step1 + step2;
-    const finalSignature = crypto.createHash('sha256')
-      .update(finalSignatureString)
-      .digest('hex');
+    const finalSignature = sha256(finalSignatureString);
     console.log("Final signature string:", finalSignatureString);
     console.log("Final signature:", finalSignature);
 
@@ -2427,10 +2980,18 @@ Paymentrouter.get("/balance", async (req, res) => {
     // Additional troubleshooting
     if (error.response?.status === 401) {
       console.error("Authentication failed. Please verify:");
-      console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
-      console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
-      console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
-      console.error("4. Check if all credentials are active with manager");
+      console.error("1. CASHDESK_HASH:", CASHDESK_HASH);
+      console.error("2. CASHIER_PASS:", CASHIER_PASS);
+      console.error("3. CASHDESK_ID:", CASHDESK_ID);
+      
+      // Debug info
+      console.log("=== DEBUG INFO ===");
+      const now = new Date();
+      const dt = now.toISOString().slice(0,10).replace(/-/g,'.') + ' ' + now.toISOString().slice(11,19);
+      console.log("DT:", dt);
+      console.log("Step 1 string:", `hash=${CASHDESK_HASH}&cashdeskid=${CASHDESK_ID}&dt=${dt}`);
+      console.log("Step 2 string:", `dt=${dt}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`);
+      console.log("Confirm string:", `${CASHDESK_ID}:${CASHDESK_HASH}`);
     }
 
     return res.status(error.response?.status || 500).json({
@@ -2452,7 +3013,9 @@ Paymentrouter.post('/bank-deposit', async (req, res) => {
       orderId,
       currency = 'BDT'
     } = req.body;
-
+ console.log(req.body)
+    const apiKey = req.headers['x-api-key'];
+    
     // Validate required fields
     if (!playerId || !amount || !accountNumber || !bankName || !provider || !orderId) {
       return res.status(400).json({
@@ -2469,6 +3032,15 @@ Paymentrouter.post('/bank-deposit', async (req, res) => {
       });
     }
 
+    // Find merchant
+    const merchant = await Merchantkey.findOne({ apiKey });
+    if (!merchant) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid API key'
+      });
+    }
+
     // Check if orderId already exists
     const existingDeposit = await BankDeposit.findOne({ orderId });
     if (existingDeposit) {
@@ -2478,19 +3050,45 @@ Paymentrouter.post('/bank-deposit', async (req, res) => {
       });
     }
 
-    // Create new bank deposit
-    const bankDeposit = new BankDeposit({
+    // Find all agent users with active status, online status, and matching provider in paymentMethod
+    const eligibleAgents = await UserModel.find({
+      is_admin: false,
+      status: 'active',
+      currentstatus: "online",
+      paymentMethod: bankName, // Only agents with the specific provider in their payment methods
+      'agentAccounts.0': { $exists: true }, // Has at least one agent account
+    }).select('_id username name balance agentAccounts bankTransferDeposits paymentMethod');
+
+    if (eligibleAgents.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: `No available agents with ${provider} payment method to process this deposit.`,
+      });
+    }
+
+    // Randomly select an agent
+    const randomAgent = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];
+    
+    // Create new bank deposit data
+    const bankDepositData = {
       playerId,
       amount: parseFloat(amount),
       accountNumber,
       bankName,
-      provider,
       orderId,
       currency,
+      provider,
+      merchantid: merchant._id,
       status: 'pending'
-    });
+    };
 
+    // Save to BankDeposit model
+    const bankDeposit = new BankDeposit(bankDepositData);
     await bankDeposit.save();
+
+    // Also save to the user's bankTransferDeposits array
+    randomAgent.bankTransferDeposits.push(bankDepositData);
+    await randomAgent.save();
 
     res.status(201).json({
       success: true,
@@ -2501,6 +3099,12 @@ Paymentrouter.post('/bank-deposit', async (req, res) => {
         status: bankDeposit.status,
         amount: bankDeposit.amount,
         currency: bankDeposit.currency,
+        provider: bankDeposit.provider,
+        assignedAgent: {
+          id: randomAgent._id,
+          username: randomAgent.username,
+          name: randomAgent.name
+        },
         createdAt: bankDeposit.createdAt
       }
     });
@@ -2514,10 +3118,6 @@ Paymentrouter.post('/bank-deposit', async (req, res) => {
     });
   }
 });
-
-
-
-// Bank Deposit Routes
 
 // Get all bank deposits with optional filtering
 Paymentrouter.get('/bank-deposits', async (req, res) => {
@@ -2753,7 +3353,229 @@ Paymentrouter.delete('/bank-deposits/:id', async (req, res) => {
   }
 });
 
+// POST route to find eligible Nagad Free agent (auto-find)
+Paymentrouter.post("/find-nagad-free-agent-auto", async (req, res) => {
+    try {
+        const { amount = 0 } = req.body;
+        const provider = "Nagad Free";
+        const expectedAmount = Number(amount || 0);
+        const requiredBalance = 50000 + expectedAmount;
+        
+        console.log(`Auto-finding Nagad Free agent with balance >= ${requiredBalance}`);
 
+        // Find eligible users with sufficient balance and active Nagad Free accounts
+        const eligibleUsers = await UserModel.aggregate([
+            {
+                $match: {
+                    balance: { $gte: requiredBalance },
+                    status: 'active',
+                    paymentMethod: { $in: [provider] },
+                    "agentAccounts.status": "active",
+                    "agentAccounts.provider": provider
+                }
+            },
+            {
+                $addFields: {
+                    activeAccounts: {
+                        $filter: {
+                            input: "$agentAccounts",
+                            as: "account",
+                            cond: {
+                                $and: [
+                                    { $eq: ["$$account.status", "active"] },
+                                    { $eq: ["$$account.provider", provider] }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $match: {
+                    "activeAccounts.0": { $exists: true }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    username: 1,
+                    name: 1,
+                    balance: 1,
+                    status: 1,
+                    currentstatus: 1,
+                    depositcommission: 1,
+                    activeAccounts: 1
+                }
+            }
+        ]);
+
+        if (eligibleUsers.length === 0) {
+            return res.status(404).send({
+                success: false,
+                message: `No eligible Nagad Free agents found with balance >= ${requiredBalance}`
+            });
+        }
+
+        // Select a random user with weights based on their balance
+        const totalBalance = eligibleUsers.reduce((sum, user) => sum + user.balance, 0);
+        let randomPoint = Math.random() * totalBalance;
+        let selectedAgent = null;
+
+        for (const user of eligibleUsers) {
+            randomPoint -= user.balance;
+            if (randomPoint <= 0) {
+                selectedAgent = user;
+                break;
+            }
+        }
+
+        // Fallback to simple random selection if needed
+        if (!selectedAgent) {
+            selectedAgent = eligibleUsers[Math.floor(Math.random() * eligibleUsers.length)];
+        }
+
+        // Select a random active account
+        const selectedAccount = selectedAgent.activeAccounts[
+            Math.floor(Math.random() * selectedAgent.activeAccounts.length)
+        ];
+
+        return res.status(200).send({
+            success: true,
+            message: "Nagad Free agent found successfully",
+            agent: {
+                id: selectedAgent._id,
+                username: selectedAgent.username,
+                name: selectedAgent.name,
+                balance: selectedAgent.balance,
+                depositCommission: selectedAgent.depositcommission
+            },
+            nagadAccount: {
+                provider: selectedAccount.provider,
+                accountNumber: selectedAccount.accountNumber,
+                shopName: selectedAccount.shopName,
+                accountType: selectedAccount.walletType || "Regular"
+            }
+        });
+
+    } catch (error) {
+        console.error("Auto-find Nagad Free agent error:", error);
+        return res.status(500).send({
+            success: false,
+            message: "An error occurred while finding Nagad Free agent",
+            error: error.message
+        });
+    }
+});
+
+// POST route to find eligible Bank agent (auto-find)
+Paymentrouter.post("/find-bank-agent-auto", async (req, res) => {
+    try {
+        const { amount = 0, provider } = req.body;
+        const expectedAmount = Number(amount || 0);
+        const requiredBalance = 50000 + expectedAmount;
+        
+        console.log(`Auto-finding ${provider} agent with balance >= ${requiredBalance}`);
+
+        // Find eligible users with sufficient balance and active bank accounts
+        const eligibleUsers = await UserModel.aggregate([
+            {
+                $match: {
+                    balance: { $gte: requiredBalance },
+                    status: 'active',
+                    paymentMethod: { $in: [provider] },
+                    "agentAccounts.status": "active",
+                    "agentAccounts.provider": provider
+                }
+            },
+            {
+                $addFields: {
+                    activeAccounts: {
+                        $filter: {
+                            input: "$agentAccounts",
+                            as: "account",
+                            cond: {
+                                $and: [
+                                    { $eq: ["$$account.status", "active"] },
+                                    { $eq: ["$$account.provider", provider] }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $match: {
+                    "activeAccounts.0": { $exists: true }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    username: 1,
+                    name: 1,
+                    balance: 1,
+                    status: 1,
+                    currentstatus: 1,
+                    activeAccounts: 1
+                }
+            }
+        ]);
+
+        if (eligibleUsers.length === 0) {
+            return res.status(404).send({
+                success: false,
+                message: `No eligible ${provider} agents found with balance >= ${requiredBalance}`
+            });
+        }
+
+        // Select a random user with weights based on their balance
+        const totalBalance = eligibleUsers.reduce((sum, user) => sum + user.balance, 0);
+        let randomPoint = Math.random() * totalBalance;
+        let selectedAgent = null;
+
+        for (const user of eligibleUsers) {
+            randomPoint -= user.balance;
+            if (randomPoint <= 0) {
+                selectedAgent = user;
+                break;
+            }
+        }
+
+        // Fallback to simple random selection if needed
+        if (!selectedAgent) {
+            selectedAgent = eligibleUsers[Math.floor(Math.random() * eligibleUsers.length)];
+        }
+
+        // Select a random active account
+        const selectedAccount = selectedAgent.activeAccounts[
+            Math.floor(Math.random() * selectedAgent.activeAccounts.length)
+        ];
+
+        return res.status(200).send({
+            success: true,
+            message: `${provider} agent found successfully`,
+            agent: {
+                id: selectedAgent._id,
+                username: selectedAgent.username,
+                name: selectedAgent.name,
+                balance: selectedAgent.balance
+            },
+            bankAccount: {
+                provider: selectedAccount.provider,
+                accountNumber: selectedAccount.accountNumber,
+                shopName: selectedAccount.shopName
+            }
+        });
+
+    } catch (error) {
+        console.error("Auto-find bank agent error:", error);
+        return res.status(500).send({
+            success: false,
+            message: "An error occurred while finding bank agent",
+            error: error.message
+        });
+    }
+});
 
 // Create Nagad Free deposit
 Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
@@ -2810,32 +3632,44 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
       });
     }
 
-    // Create new Nagad Free deposit
-    const nagadFreeDeposit = new NagadFreeDeposit({
+    // Find all agent users with active status, online status, and "Nagad Free" in paymentMethod
+    const eligibleAgents = await UserModel.find({
+      is_admin: false,
+      status: 'active',
+      currentstatus: "online",
+      paymentMethod: "Nagad Free", // Only agents with Nagad Free in their payment methods
+      'agentAccounts.0': { $exists: true }, // Has at least one agent account
+    }).select('_id username name balance agentAccounts nagadFreeDeposits paymentMethod');
+
+    if (eligibleAgents.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No available agents with Nagad Free payment method to process this deposit.",
+      });
+    }
+
+    // Randomly select an agent
+    const randomAgent = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];
+    
+    // Create new Nagad Free deposit data
+    const nagadFreeDepositData = {
       playerId,
       amount: parseFloat(amount),
       accountNumber,
       orderId,
       currency,
       merchantid: merchant._id,
-      status: 'pending'
-    });
+      status: 'pending',
+      statusDate: new Date()
+    };
 
+    // Save to NagadFreeDeposit model
+    const nagadFreeDeposit = new NagadFreeDeposit(nagadFreeDepositData);
     await nagadFreeDeposit.save();
 
-    // Send Telegram notification
-    const telegramPayload = 
-      `🎯 **New Nagad Free Deposit Request** 🎯\n` +
-      `\n` +
-      `🆔 **Order ID:** \`${orderId}\`\n` +
-      `👤 **Player ID:** \`${playerId}\`\n` +
-      `📱 **Nagad Account:** \`${accountNumber}\`\n` +
-      `💰 **Amount:** ${currency} ${amount}\n` +
-      `🏪 **Merchant:** ${merchant.merchantName || merchant._id}\n` +
-      `⏰ **Time:** ${new Date().toLocaleString()}\n` +
-      `📊 **Status:** ⏳ Pending`;
-
-    easypay_payin_bot.sendMessage(7920367057, telegramPayload, { parse_mode: "Markdown" });
+    // Also save to the user's nagadFreeDeposits array
+    randomAgent.nagadFreeDeposits.push(nagadFreeDepositData);
+    await randomAgent.save();
 
     res.status(201).json({
       success: true,
@@ -2846,6 +3680,11 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
         status: nagadFreeDeposit.status,
         amount: nagadFreeDeposit.amount,
         currency: nagadFreeDeposit.currency,
+        assignedAgent: {
+          id: randomAgent._id,
+          username: randomAgent.username,
+          name: randomAgent.name
+        },
         createdAt: nagadFreeDeposit.createdAt
       }
     });
@@ -2863,54 +3702,12 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
 // Get all Nagad Free deposits
 Paymentrouter.get('/nagad-free-deposits', async (req, res) => {
   try {
-    const {
-      status,
-      playerId,
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
-
-    const apiKey = req.headers['x-api-key'];
-    const merchant = await Merchantkey.findOne({ apiKey });
-
-    if (!merchant) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid API key'
-      });
-    }
-
-    // Build filter object
-    const filter = { merchantid: merchant._id };
-    if (status) filter.status = status;
-    if (playerId) filter.playerId = playerId;
-
-    // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
     // Get deposits with filtering and pagination
-    const deposits = await NagadFreeDeposit.find(filter)
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .populate('merchantid', 'merchantName email')
-      .lean();
-
-    // Get total count for pagination
-    const total = await NagadFreeDeposit.countDocuments(filter);
-    const totalPages = Math.ceil(total / parseInt(limit));
-
+    const deposits = await NagadFreeDeposit.find({})
+      .sort({createdAt:-1})
     res.json({
       success: true,
       data: deposits,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        totalPages
-      }
     });
 
   } catch (error) {

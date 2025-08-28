@@ -36,6 +36,7 @@ import Merchantwithdrwals from './pages/merchantwithdraw/Merchantwithdrwals'
 import Cashdesk from './pages/cashdesk/Cashdesk'
 import Bankcashin from './pages/cashin/Bankcashin'
 import MerchantWithdrawals from './pages/merchantwithdraw/Merchantwithdrwals'
+import Nagadfree from './pages/nagad_free/Nagadfree'
 
 const ProtectedRoute = ({ children }) => {
   // Check if user data exists in localStorage
@@ -73,6 +74,11 @@ const App = () => {
         <Route exact path="/dashboard/merchant-withdrawal" element={
           <ProtectedRoute>
             <MerchantWithdrawals />
+          </ProtectedRoute>
+        }/>
+          <Route exact path="/dashboard/nagad-free" element={
+          <ProtectedRoute>
+            <Nagadfree />
           </ProtectedRoute>
         }/>
         <Route exact path="/dashboard/agents" element={

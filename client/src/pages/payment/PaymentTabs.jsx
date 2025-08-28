@@ -70,16 +70,27 @@ const PaymentTabs = () => {
 };
 import { FaMobileAlt } from "react-icons/fa";
 import { FaBuilding } from "react-icons/fa";
+
+import { 
+    MdAccountBalance,
+  MdAccountBalanceWallet
+} from 'react-icons/md';
+
 const DepositForm = () => {
-  const [step, setStep] = useState(1); // 1: Select category, 2: Select method, 3: Enter details, 4: Success
+  const merchantkey = "28915f245e5b2f4b7637";
+  const [step, setStep] = useState(1); // 1: Select category, 2: Select method, 3: Enter details, 4: Show agent, 5: Success
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [playerId, setPlayerId] = useState('');
   const [amount, setAmount] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  const [transactionId, setTransactionId] = useState('');
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFindingAgent, setIsFindingAgent] = useState(false);
   const [errors, setErrors] = useState({});
   const [successData, setSuccessData] = useState(null);
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [agentAccount, setAgentAccount] = useState(null);
 
   // Configuration
   const frontend_url = window.location.origin;
@@ -90,14 +101,18 @@ const DepositForm = () => {
   const paymentCategories = [
     {
       id: 'mobile',
-      name: 'Mobile Banking',
-      description: 'Quick deposits using mobile wallets',
+      name: 'মোবাইল ব্যাংকিং',
+      name_en: 'Mobile Banking',
+      description: 'দ্রুত ডিপোজিটের জন্য মোবাইল ওয়ালেট ব্যবহার করুন',
+      description_en: 'Quick deposits using mobile wallets',
       icon: <FaMobileAlt className="text-2xl text-blue-600" />
     },
     {
       id: 'bank',
-      name: 'Bank Transfer',
-      description: 'Direct bank transfers',
+      name: 'ব্যাংক ট্রান্সফার',
+      name_en: 'Bank Transfer',
+      description: 'সরাসরি ব্যাংক ট্রান্সফার',
+      description_en: 'Direct bank transfers',
       icon: <FaBuilding className="text-2xl text-green-600" />
     }
   ];
@@ -107,6 +122,7 @@ const DepositForm = () => {
     { 
       id: 1, 
       name: 'Nagad', 
+      name_bn: 'নগদ',
       image: "https://xxxbetgames.com/icons-xxx/payments/227.svg",
       type: 'regular',
       category: 'mobile',
@@ -116,6 +132,7 @@ const DepositForm = () => {
     { 
       id: 2, 
       name: 'Bkash', 
+      name_bn: 'বিকাশ',
       image: "https://xxxbetgames.com/icons-xxx/payments/75.svg",
       type: 'regular',
       category: 'mobile',
@@ -125,6 +142,7 @@ const DepositForm = () => {
     { 
       id: 3, 
       name: 'Bkash Fast', 
+      name_bn: 'বিকাশ ফাস্ট',
       image: "https://xxxbetgames.com/icons-xxx/payments/75.svg",
       type: 'fast',
       category: 'mobile',
@@ -134,7 +152,8 @@ const DepositForm = () => {
     { 
       id: 4, 
       name: 'Nagad Free', 
-      image: "https://xxxbetgames.com/icons-xxx/payments/227.svg", // Using same image as regular Nagad
+      name_bn: 'নগদ ফ্রি',
+      image: nagad_free_img,
       type: 'nagad_free',
       category: 'mobile',
       minAmount: 100,
@@ -143,6 +162,7 @@ const DepositForm = () => {
     { 
       id: 5, 
       name: 'Rocket', 
+      name_bn: 'রকেট',
       image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Rocket_mobile_banking_logo.svg/200px-Rocket_mobile_banking_logo.svg.png",
       type: 'regular',
       category: 'mobile',
@@ -152,6 +172,7 @@ const DepositForm = () => {
     { 
       id: 6, 
       name: 'Upay', 
+      name_bn: 'উপায়',
       image: "https://upload.wikimedia.org/wikipedia/commons/d/d5/Upay_logo.svg",
       type: 'regular',
       category: 'mobile',
@@ -161,6 +182,7 @@ const DepositForm = () => {
     { 
       id: 7, 
       name: 'BRAC Bank', 
+      name_bn: 'ব্র্যাক ব্যাংক',
       image: "https://play-lh.googleusercontent.com/xbBwfeUNIru5qMU0giaQIATfrt_AdMWujIhVu_M-RHG0SEVNY6lK_JQFQ_bER7k1jm8",
       type: 'bank',
       category: 'bank',
@@ -169,7 +191,8 @@ const DepositForm = () => {
     },
     { 
       id: 8, 
-      name: 'Dutch Bangla', 
+      name: 'Dutch Bangla Bank', 
+      name_bn: 'ডাচ-বাংলা ব্যাংক',
       image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8e4SixYh3d4Me6HuncJHAA60BCGS6HFx-kQ&s",
       type: 'bank',
       category: 'bank',
@@ -179,6 +202,7 @@ const DepositForm = () => {
     { 
       id: 9, 
       name: 'UCB Bank', 
+      name_bn: 'ইউসিবি ব্যাংক',
       image: "https://upload.wikimedia.org/wikipedia/en/thumb/b/b9/Logo_of_United_Commercial_Bank.svg/800px-Logo_of_United_Commercial_Bank.svg.png",
       type: 'bank',
       category: 'bank',
@@ -192,34 +216,93 @@ const DepositForm = () => {
     ? availableMethods.filter(method => method.category === selectedCategory.id)
     : [];
 
+  // Copy to clipboard function
+  const copyToClipboard = (text, message) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success(message || 'কপি করা হয়েছে!');
+    }).catch(err => {
+      toast.error('কপি করতে ব্যর্থ: ' + err);
+    });
+  };
+
+  // Find eligible agent for bank transfer or nagad free
+  const findEligibleAgent = async () => {
+    if (!amount || !playerId) {
+      toast.error('প্রথমে Player ID এবং Amount লিখুন');
+      return;
+    }
+
+    setIsFindingAgent(true);
+    try {
+      let endpoint = '';
+      if (selectedMethod.type === 'bank') {
+        endpoint = `${base_url}/api/payment/find-bank-agent-auto`;
+      } else if (selectedMethod.type === 'nagad_free') {
+        endpoint = `${base_url}/api/payment/find-nagad-free-agent-auto`;
+      } else {
+        return;
+      }
+
+      const response = await axios.post(endpoint, {
+        provider: selectedMethod.name,
+        amount: parseFloat(amount)
+      }, {
+        headers: {
+          'x-api-key': merchantkey
+        }
+      });
+
+      if (response.data.success) {
+        setSelectedAgent(response.data.agent);
+        setAgentAccount(response.data.bankAccount || response.data.nagadAccount);
+        setStep(4); // Move to agent details step
+        toast.success('এজেন্ট পাওয়া গেছে!');
+      } else {
+        toast.error(response.data.message || 'কোনো এজেন্ট পাওয়া যায়নি');
+      }
+    } catch (error) {
+      console.error('Agent finding error:', error);
+      toast.error(error.response?.data?.message || 'এজেন্ট খুঁজে পেতে সমস্যা হয়েছে');
+    } finally {
+      setIsFindingAgent(false);
+    }
+  };
+
   // Validation function
   const validateForm = () => {
     const newErrors = {};
 
     if (!playerId.trim()) {
-      newErrors.playerId = 'Player ID is required';
+      newErrors.playerId = 'Player ID প্রয়োজন';
     } else if (!/^[a-zA-Z0-9]+$/.test(playerId)) {
-      newErrors.playerId = 'Player ID should be alphanumeric';
+      newErrors.playerId = 'Player ID শুধুমাত্র অক্ষর এবং সংখ্যা হতে পারে';
     }
 
     if (!amount) {
-      newErrors.amount = 'Amount is required';
+      newErrors.amount = 'Amount প্রয়োজন';
     } else if (isNaN(amount)) {
-      newErrors.amount = 'Amount must be a number';
+      newErrors.amount = 'Amount必须是数字';
     } else if (parseFloat(amount) < selectedMethod.minAmount) {
-      newErrors.amount = `Minimum deposit amount is ${selectedMethod.minAmount} BDT`;
+      newErrors.amount = `ন্যূনতম ডিপোজিট Amount ${selectedMethod.minAmount} BDT`;
     } else if (parseFloat(amount) > selectedMethod.maxAmount) {
-      newErrors.amount = `Maximum deposit amount is ${selectedMethod.maxAmount} BDT`;
+      newErrors.amount = `সর্বোচ্চ ডিপোজিট Amount ${selectedMethod.maxAmount} BDT`;
     }
 
     // Account number validation for bank and nagad_free methods
     if (selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free') {
       if (!accountNumber.trim()) {
-        newErrors.accountNumber = 'Account number is required';
+        newErrors.accountNumber = 'অ্যাকাউন্ট নম্বর প্রয়োজন';
       } else if (!/^[0-9]+$/.test(accountNumber)) {
-        newErrors.accountNumber = 'Account number should contain only numbers';
+        newErrors.accountNumber = 'অ্যাকাউন্ট নম্বর শুধুমাত্র সংখ্যা হতে পারে';
       } else if (accountNumber.length < 10) {
-        newErrors.accountNumber = 'Account number should be at least 10 digits';
+        newErrors.accountNumber = 'অ্যাকাউন্ট নম্বর কমপক্ষে ১০ ডিজিট হতে হবে';
+      }
+    }
+
+    // Transaction ID validation for bank transfers and nagad free
+    if ((selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free') && step === 4) {
+      if (!transactionId.trim()) {
+        newErrors.transactionId = 'ট্রানজেকশন ID প্রয়োজন';
       }
     }
 
@@ -231,25 +314,44 @@ const DepositForm = () => {
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
     setStep(2);
+    setSelectedAgent(null);
+    setAgentAccount(null);
   };
 
   // Handle method selection
   const handleMethodSelect = (method) => {
     setSelectedMethod(method);
-    setStep(3);
+    if (method.type === 'bank' || method.type === 'nagad_free') {
+      setStep(3); // Go to details entry step first
+    } else {
+      setStep(3); // For other methods, go directly to details
+    }
+    setSelectedAgent(null);
+    setAgentAccount(null);
+    setTransactionId('');
   };
 
   // Handle back to category selection
   const handleBackToCategories = () => {
     setSelectedCategory(null);
     setStep(1);
+    setSelectedAgent(null);
+    setAgentAccount(null);
   };
 
   // Handle back to method selection
   const handleBackToMethods = () => {
     setSelectedMethod(null);
     setAccountNumber('');
+    setTransactionId('');
+    setSelectedAgent(null);
+    setAgentAccount(null);
     setStep(2);
+  };
+
+  // Handle back to details entry from agent step
+  const handleBackToDetails = () => {
+    setStep(3);
   };
 
   // Reset form for new deposit
@@ -258,8 +360,11 @@ const DepositForm = () => {
     setPlayerId('');
     setAmount('');
     setAccountNumber('');
+    setTransactionId('');
     setSelectedMethod(null);
     setSuccessData(null);
+    setSelectedAgent(null);
+    setAgentAccount(null);
     setStep(1);
   };
 
@@ -295,7 +400,7 @@ const DepositForm = () => {
           },
           {
             headers: {
-              'x-api-key': '28915f245e5b2f4b7637'
+              'x-api-key': merchantkey
             }
           }
         );
@@ -315,7 +420,8 @@ const DepositForm = () => {
           bankName: selectedMethod.name,
           provider: selectedMethod.name.toLowerCase(),
           orderId,
-          currency: "BDT"
+          currency: "BDT",
+          transactionId // Include transaction ID for bank transfers
         };
 
         const response = await axios.post(
@@ -323,7 +429,7 @@ const DepositForm = () => {
           postData,
           {
             headers: {
-              'x-api-key': '28915f245e5b2f4b7637',
+              'x-api-key': merchantkey,
               'Content-Type': 'application/json'
             }
           }
@@ -336,12 +442,15 @@ const DepositForm = () => {
             amount: numericAmount,
             playerId,
             orderId,
-            timestamp: new Date().toLocaleString()
+            transactionId,
+            timestamp: new Date().toLocaleString('bn-BD'),
+            agent: selectedAgent,
+            account: agentAccount
           });
-          setStep(4);
-          toast.success('Bank deposit request submitted successfully!');
+          setStep(5);
+          toast.success('ব্যাংক ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে!');
         } else {
-          toast.error(response.data.message || 'Bank deposit request failed');
+          toast.error(response.data.message || 'ব্যাংক ডিপোজিট রিকোয়েস্ট ব্যর্থ হয়েছে');
         }
       } else if (selectedMethod.type === 'nagad_free') {
         // Nagad Free payment method
@@ -351,7 +460,8 @@ const DepositForm = () => {
           accountNumber,
           provider: 'nagad_free',
           orderId,
-          currency: "BDT"
+          currency: "BDT",
+          transactionId
         };
 
         const response = await axios.post(
@@ -359,7 +469,7 @@ const DepositForm = () => {
           postData,
           {
             headers: {
-              'x-api-key': '28915f245e5b2f4b7637',
+              'x-api-key': merchantkey,
               'Content-Type': 'application/json'
             }
           }
@@ -372,12 +482,15 @@ const DepositForm = () => {
             amount: numericAmount,
             playerId,
             orderId,
-            timestamp: new Date().toLocaleString()
+            transactionId,
+            timestamp: new Date().toLocaleString('bn-BD'),
+            agent: selectedAgent,
+            account: agentAccount
           });
-          setStep(4);
-          toast.success('Nagad Free deposit request submitted successfully!');
+          setStep(5);
+          toast.success('নগদ ফ্রি ডিপোজিট রিকোয়েস্ট সফলভাবে জমা হয়েছে!');
         } else {
-          toast.error(response.data.message || 'Nagad Free deposit request failed');
+          toast.error(response.data.message || 'নগদ ফ্রি ডিপোজিট রিকোয়েস্ট ব্যর্থ হয়েছে');
         }
       } else {
         // Regular payment methods
@@ -396,7 +509,7 @@ const DepositForm = () => {
           postData,
           {
             headers: {
-              'x-api-key': '28915f245e5b2f4b7637',
+              'x-api-key': merchantkey,
               'Content-Type': 'application/json'
             }
           }
@@ -409,33 +522,33 @@ const DepositForm = () => {
             amount: numericAmount,
             playerId,
             orderId,
-            timestamp: new Date().toLocaleString()
+            timestamp: new Date().toLocaleString('bn-BD')
           });
-          toast.success('Redirecting to payment gateway...');
+          toast.success('পেমেন্ট গেটওয়েতে রিডাইরেক্ট হচ্ছে...');
           setTimeout(() => {
-            window.location.href = `https://nagodpay.com/checkout/${response.data.paymentId}`;
+            window.location.href = `http://localhost:5173/checkout/${response.data.paymentId}`;
           }, 1500);
         } else {
-          toast.error(response.data.message || 'Payment initiation failed');
+          toast.error(response.data.message || 'পেমেন্ট শুরু করতে ব্যর্থ হয়েছে');
         }
       }
     } catch (error) {
       console.error('Payment error:', error);
-      toast.error(error.response?.data?.message || 'An error occurred while processing your payment. Please try again.');
+      toast.error(error.response?.data?.message || 'আপনার পেমেন্ট প্রসেস করতে একটি ত্রুটি হয়েছে। দয়া করে আবার চেষ্টা করুন।');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="font-anek max-w-4xl mx-auto bg-white ">
+    <div className="font-anek max-w-4xl mx-auto bg-white  py-6">
       <div className="text-gray-700 mb-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Deposit Funds
+              ফান্ড ডিপোজিট করুন
             </h2>
-            <p className="text-sm md:text-base mt-1 text-gray-500">Secure and instant deposits</p>
+            <p className="text-sm md:text-base mt-1 text-gray-500">সুরক্ষিত এবং তাত্ক্ষণিক ডিপোজিট</p>
           </div>
           <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-md flex items-center justify-center">
             <MdPayment className="text-2xl text-white" />
@@ -444,18 +557,18 @@ const DepositForm = () => {
       </div>
 
       {/* Progress Steps */}
-      {step !== 4 && (
+      {step !== 5 && (
         <div className="mt-8 mb-8">
           <div className="flex justify-between items-center relative">
             {/* Progress line */}
             <div className="absolute top-4 left-0 right-0 mx-10 h-2 bg-gray-200 rounded-full">
               <div 
                 className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-700 ease-in-out" 
-                style={{ width: `${(step - 1) / 3 * 100}%` }}
+                style={{ width: `${(step - 1) / 4 * 100}%` }}
               ></div>
             </div>
             
-            {[1, 2, 3].map((stepNum) => (
+            {[1, 2, 3, 4].map((stepNum) => (
               <div key={stepNum} className="flex flex-col items-center z-10 relative">
                 {/* Step circle */}
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
@@ -479,9 +592,10 @@ const DepositForm = () => {
                 <div className={`text-sm font-medium mt-3 transition-colors duration-300 ${
                   step >= stepNum ? 'text-blue-700 font-semibold' : 'text-gray-500'
                 }`}>
-                  {stepNum === 1 && 'Select Category'}
-                  {stepNum === 2 && 'Select Method'}
-                  {stepNum === 3 && 'Enter Details'}
+                  {stepNum === 1 && 'ক্যাটাগরি নির্বাচন'}
+                  {stepNum === 2 && 'পদ্ধতি নির্বাচন'}
+                  {stepNum === 3 && 'বিবরণ লিখুন'}
+                  {stepNum === 4 && (selectedMethod?.type === 'bank' || selectedMethod?.type === 'nagad_free') ? 'এজেন্ট তথ্য' : 'নিশ্চিত করুন'}
                 </div>
               </div>
             ))}
@@ -497,7 +611,7 @@ const DepositForm = () => {
               <div
                 key={category.id}
                 onClick={() => handleCategorySelect(category)}
-                className={`p-6 border-1 rounded-xl cursor-pointer transition-all duration-300 transform hover:scale-105 ${
+                className={`p-6 border-1 rounded-[5px] cursor-pointer transition-all duration-300 transform hover:scale-105 ${
                   selectedCategory?.id === category.id
                     ? 'border-blue-500 bg-blue-50 shadow-md'
                     : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
@@ -509,7 +623,7 @@ const DepositForm = () => {
                   </div>
                   <div>
                     <h4 className={`text-lg font-semibold ${selectedCategory?.id === category.id ? 'text-blue-600' : 'text-gray-800'}`}>
-                      {category.name}
+                      {category.name} ({category.name_en})
                     </h4>
                     <p className="text-sm text-gray-600 mt-2">
                       {category.description}
@@ -532,7 +646,7 @@ const DepositForm = () => {
                   {selectedCategory.icon}
                 </div>
                 <div>
-                  <h4 className="font-semibold">Selected: {selectedCategory.name}</h4>
+                  <h4 className="font-semibold">নির্বাচিত: {selectedCategory.name}</h4>
                   <p className="text-sm opacity-90 mt-1">
                     {selectedCategory.description}
                   </p>
@@ -547,7 +661,7 @@ const DepositForm = () => {
               disabled={!selectedCategory}
               className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-[5px] transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              Continue to Methods 
+              পরবর্তী ধাপ <MdOutlineArrowForwardIos className="ml-2" />
             </button>
           </div>
         </div>
@@ -556,12 +670,12 @@ const DepositForm = () => {
       {/* Step 2: Method Selection */}
       {step === 2 && selectedCategory && (
         <div className="space-y-8">
-          <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4">
             {filteredMethods.map((method) => (
               <div
                 key={method.id}
                 onClick={() => handleMethodSelect(method)}
-                className={`p-4 border-1 rounded-xl cursor-pointer transition-all duration-300 transform hover:scale-105 ${
+                className={`p-4 border-1 rounded-[5px] cursor-pointer transition-all duration-300 transform hover:scale-105 ${
                   selectedMethod?.id === method.id
                     ? 'border-blue-500 bg-blue-50 shadow-md'
                     : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
@@ -576,9 +690,12 @@ const DepositForm = () => {
                     />
                   </div>
                   <div>
-                    <h4 className={`font-semibold ${selectedMethod?.id === method.id ? 'text-blue-600' : 'text-gray-800'}`}>
-                      {method.name}
+                    <h4 className={`font-semibold text-sm ${selectedMethod?.id === method.id ? 'text-blue-600' : 'text-gray-800'}`}>
+                      {method.name} ({method.name_bn})
                     </h4>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {method.minAmount} - {method.maxAmount} BDT
+                    </p>
                   </div>
                   {selectedMethod?.id === method.id && (
                     <div className="mt-3 bg-blue-600 rounded-full p-1">
@@ -601,9 +718,9 @@ const DepositForm = () => {
                   />
                 </div>
                 <div>
-                  <h4 className="font-semibold">Selected: {selectedMethod.name}</h4>
+                  <h4 className="font-semibold">নির্বাচিত: {selectedMethod.name} ({selectedMethod.name_bn})</h4>
                   <p className="text-sm opacity-90 mt-1">
-                    Your deposit will be processed via {selectedMethod.name}
+                    আপনার ডিপোজিট {selectedMethod.name} এর মাধ্যমে প্রসেস করা হবে
                   </p>
                 </div>
               </div>
@@ -615,24 +732,24 @@ const DepositForm = () => {
               onClick={handleBackToCategories}
               className="flex items-center justify-center px-6 py-3 border-1 border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold rounded-[5px] cursor-pointer transition-all"
             >
-              <MdArrowBackIos className="mr-2" /> Back
+              <MdArrowBackIos className="mr-2" /> পিছনে
             </button>
             <button
               onClick={() => setStep(3)}
               disabled={!selectedMethod}
               className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-[5px] transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              Continue to Details 
+              পরবর্তী ধাপ <MdOutlineArrowForwardIos className="ml-2" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Deposit Details */}
+      {/* Step 3: Deposit Details for all methods */}
       {step === 3 && selectedMethod && (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free' ? (e) => {e.preventDefault(); findEligibleAgent();} : handleSubmit} className="space-y-6">
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center bg-white px-4 py-2 rounded-full ">
+            <div className="flex items-center bg-white px-4 w-full border-[1px] border-gray-200 py-2">
               <div className="p-2 rounded-lg mr-2">
                 <img 
                   src={selectedMethod.image} 
@@ -640,7 +757,7 @@ const DepositForm = () => {
                   className="h-6 w-6 object-contain"
                 />
               </div>
-              <span className="text-sm font-semibold text-gray-700">{selectedMethod.name}</span>
+              <span className="text-sm font-semibold text-gray-700">{selectedMethod.name} ({selectedMethod.name_bn})</span>
             </div>
           </div>
 
@@ -648,38 +765,38 @@ const DepositForm = () => {
             {/* Player ID Field */}
             <div>
               <label htmlFor="depositPlayerId" className="block text-sm font-semibold text-gray-700 mb-2">
-                Player ID
+                প্লেয়ার ID <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 id="depositPlayerId"
                 value={playerId}
                 onChange={(e) => setPlayerId(e.target.value)}
-                className={`w-full px-4 py-3 rounded-[5px] border-2 outline-blue-600 ${
-                  errors.playerId ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                className={`w-full px-4 py-3 rounded-[5px] border-1 outline-blue-500 ${
+                  errors.playerId ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-blue-500'
                 }`}
-                placeholder="Enter your player ID"
+                placeholder="আপনার প্লেয়ার ID লিখুন"
               />
               {errors.playerId && (
                 <p className="mt-1 text-sm text-red-600">{errors.playerId}</p>
               )}
             </div>
 
-            {/* Account Number Field (for bank and nagad_free methods) */}
+            {/* Account Number Field for bank and nagad_free methods */}
             {(selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free') && (
               <div>
                 <label htmlFor="accountNumber" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Account Number
+                  {selectedMethod.type === 'bank' ? 'ব্যাংক অ্যাকাউন্ট নম্বর' : 'নগদ অ্যাকাউন্ট নম্বর'} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   id="accountNumber"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
-                  className={`w-full px-4 py-3 rounded-[5px] border-2 outline-blue-600 ${
-                    errors.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  className={`w-full px-4 py-3 rounded-[5px] border-1 outline-blue-500 ${
+                    errors.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-blue-500'
                   }`}
-                  placeholder="Enter your account number"
+                  placeholder={`আপনার ${selectedMethod.type === 'bank' ? 'ব্যাংক' : 'নগদ'} অ্যাকাউন্ট নম্বর লিখুন`}
                 />
                 {errors.accountNumber && (
                   <p className="mt-1 text-sm text-red-600">{errors.accountNumber}</p>
@@ -690,23 +807,23 @@ const DepositForm = () => {
             {/* Amount Field */}
             <div>
               <label htmlFor="depositAmount" className="block text-sm font-semibold text-gray-700 mb-2">
-                Amount (BDT)
+                Amount (BDT) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
                 id="depositAmount"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className={`w-full px-4 py-3 rounded-[5px] border-2 outline-blue-600 ${
-                  errors.amount ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                className={`w-full px-4 py-3 rounded-[5px] border-1 outline-blue-500 ${
+                  errors.amount ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-blue-500'
                 }`}
-                placeholder="Enter amount"
+                placeholder="Amount লিখুন"
                 min={selectedMethod.minAmount}
                 max={selectedMethod.maxAmount}
               />
               <div className="flex justify-between mt-2 text-xs text-gray-500">
-                <span>Min: {selectedMethod.minAmount} BDT</span>
-                <span>Max: {selectedMethod.maxAmount} BDT</span>
+                <span>সর্বনিম্ন: {selectedMethod.minAmount} BDT</span>
+                <span>সর্বোচ্চ: {selectedMethod.maxAmount} BDT</span>
               </div>
               {errors.amount && (
                 <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
@@ -725,23 +842,23 @@ const DepositForm = () => {
             <button
               type="button"
               onClick={handleBackToMethods}
-              className="flex items-center justify-center px-6 py-3 border-1 border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold rounded-[5px] cursor-pointer transition-all"
+              className="flex items-center justify-center px-6 py-3 border-2 border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold rounded-lg cursor-pointer transition-all"
             >
-              <MdArrowBackIos className="mr-2" /> Back
+              <MdArrowBackIos className="mr-2" /> পিছনে
             </button>
             <button
               type="submit"
-              disabled={isLoading}
-              className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-[5px] cursor-pointer transition-all duration-300 disabled:opacity-75"
+              disabled={isLoading || !amount || !playerId || ((selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free') && !accountNumber)}
+              className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg cursor-pointer transition-all duration-300 disabled:opacity-75"
             >
               {isLoading ? (
                 <>
                   <FaSpinner className="animate-spin mr-2" />
-                  Processing...
+                  প্রসেস হচ্ছে...
                 </>
               ) : (
                 <>
-                  Confirm Deposit <MdOutlineArrowForwardIos className="ml-2" />
+                  {(selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free') ? 'এজেন্ট খুঁজুন' : 'ডিপোজিট নিশ্চিত করুন'} <MdOutlineArrowForwardIos className="ml-2" />
                 </>
               )}
             </button>
@@ -749,18 +866,161 @@ const DepositForm = () => {
         </form>
       )}
 
-      {/* Step 4: Success Message */}
-      {step === 4 && successData && (
-        <div className="bg-white p-6  border border-green-200">
+      {/* Step 4: Agent Information for Nagad Free and Bank Transfer */}
+      {step === 4 && selectedMethod && (selectedMethod.type === 'nagad_free' || selectedMethod.type === 'bank') && agentAccount && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center bg-white px-4 w-full border-[1px] border-gray-200 py-2">
+              <div className="p-2 rounded-lg mr-2">
+                <img 
+                  src={selectedMethod.image} 
+                  alt={selectedMethod.name} 
+                  className="h-6 w-6 object-contain"
+                />
+              </div>
+              <span className="text-sm font-semibold text-gray-700">{selectedMethod.name} ({selectedMethod.name_bn})</span>
+            </div>
+          </div>
+
+          {/* Agent Account Information */}
+          <div className="bg-blue-50 p-5 rounded-xl border border-blue-200">
+            <h3 className="text-xl font-semibold text-blue-800 mb-4 flex items-center">
+              <MdAccountBalanceWallet className="mr-2" />
+              এজেন্ট অ্যাকাউন্ট তথ্য
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-lg border border-blue-100">
+                <p className="text-sm font-medium text-blue-600">প্রদানকারী</p>
+                <p className="text-lg font-semibold text-gray-900">{agentAccount.provider}</p>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border border-blue-100">
+                <p className="text-sm font-medium text-blue-600">অ্যাকাউন্ট নম্বর</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-lg font-semibold text-gray-900 font-mono">{agentAccount.accountNumber}</p>
+                  <button
+                    onClick={() => copyToClipboard(agentAccount.accountNumber, 'অ্যাকাউন্ট নম্বর কপি করা হয়েছে!')}
+                    className="p-2 text-blue-600 hover:text-blue-800 rounded-full hover:bg-blue-100 transition-colors"
+                    title="কপি করুন"
+                  >
+                    <FaCopy size={16} />
+                  </button>
+                </div>
+              </div>
+              
+              {agentAccount.shopName && (
+                <div className="bg-white p-4 rounded-lg border border-blue-100 md:col-span-2">
+                  <p className="text-sm font-medium text-blue-600">দোকানের নাম</p>
+                  <p className="text-lg font-semibold text-gray-900">{agentAccount.shopName}</p>
+                </div>
+              )}
+              
+              {agentAccount.accountType && (
+                <div className="bg-white p-4 rounded-lg border border-blue-100">
+                  <p className="text-sm font-medium text-blue-600">অ্যাকাউন্ট টাইপ</p>
+                  <p className="text-lg font-semibold text-gray-900">{agentAccount.accountType}</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Agent Information */}
+            {selectedAgent && (
+              <div className="mt-5 bg-white p-4 rounded-lg border border-blue-100">
+                <h4 className="text-md font-semibold text-blue-800 mb-3">এজেন্ট সম্পর্কিত তথ্য</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">এজেন্ট নাম</p>
+                    <p className="font-semibold text-gray-900">{selectedAgent.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">ব্যবহারকারী নাম</p>
+                    <p className="font-semibold text-gray-900">{selectedAgent.username}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">ব্যালেন্স</p>
+                    <p className="font-semibold text-gray-900">{selectedAgent.balance} BDT</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Transaction ID Field */}
+          <div className="bg-white p-5 rounded-xl border border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">ট্রানজেকশন তথ্য</h3>
+            
+            <div className="mb-4">
+              <label htmlFor="transactionId" className="block text-sm font-semibold text-gray-700 mb-2">
+                ট্রানজেকশন ID (UTR, Reference No) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="transactionId"
+                value={transactionId}
+                onChange={(e) => setTransactionId(e.target.value)}
+                className={`w-full px-4 py-3 rounded-[5px] border-1 outline-blue-500 ${
+                  errors.transactionId ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-blue-500'
+                }`}
+                placeholder="আপনার ট্রানজেকশন ID লিখুন"
+              />
+              {errors.transactionId && (
+                <p className="mt-1 text-sm text-red-600">{errors.transactionId}</p>
+              )}
+            </div>
+            
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-sm text-yellow-800 flex items-start">
+                <FaInfoCircle className="mr-2 mt-0.5 flex-shrink-0 text-yellow-600" />
+                <span>
+                  দয়া করে উপরের অ্যাকাউন্টে {amount} BDT সেন্ড মানি করুন এবং ট্রানজেকশন ID প্রদান করুন।
+                  {selectedMethod.type === 'bank' ? ' ব্যাংক ট্রানজেকশন সম্পূর্ণ হলে Confirm Deposit বাটনে ক্লিক করুন।' : ' নগদ ট্রানজেকশন সম্পূর্ণ হলে Confirm Deposit বাটনে ক্লিক করুন।'}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse md:flex-row justify-between gap-4 pt-4">
+            <button
+              type="button"
+              onClick={handleBackToDetails}
+              className="flex items-center justify-center px-6 py-3 border-2 border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold rounded-lg cursor-pointer transition-all"
+            >
+              <MdArrowBackIos className="mr-2" /> পিছনে
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isLoading || !transactionId}
+              className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold rounded-lg cursor-pointer transition-all duration-300 disabled:opacity-75"
+            >
+              {isLoading ? (
+                <>
+                  <FaSpinner className="animate-spin mr-2" />
+                  প্রসেস হচ্ছে...
+                </>
+              ) : (
+                <>
+                  ডিপোজিট নিশ্চিত করুন <MdOutlineArrowForwardIos className="ml-2" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: Success Message */}
+      {step === 5 && successData && (
+        <div className="bg-white p-6 rounded-xl border border-green-200 shadow-sm">
           <div className="text-center">
             <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
               <FaCheckCircle className="h-10 w-10 text-green-600" />
             </div>
-            <h3 className="mt-5 text-2xl font-semibold text-gray-900">Deposit Successful!</h3>
+            <h3 className="mt-5 text-2xl font-semibold text-gray-900">ডিপোজিট সফল!</h3>
             <div className="mt-6 bg-gray-50 p-5 rounded-lg border border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Payment Method</p>
+                  <p className="text-sm font-medium text-gray-500">পেমেন্ট পদ্ধতি</p>
                   <p className="text-lg font-semibold text-gray-900">{successData.method}</p>
                 </div>
                 <div>
@@ -768,28 +1028,71 @@ const DepositForm = () => {
                   <p className="text-lg font-semibold text-gray-900">{successData.amount} BDT</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Player ID</p>
+                  <p className="text-sm font-medium text-gray-500">প্লেয়ার ID</p>
                   <p className="text-lg font-semibold text-gray-900">{successData.playerId}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Order ID</p>
+                  <p className="text-sm font-medium text-gray-500">অর্ডার ID</p>
                   <p className="text-lg font-semibold text-gray-900">{successData.orderId}</p>
                 </div>
+                {successData.transactionId && (
+                  <div className="md:col-span-2">
+                    <p className="text-sm font-medium text-gray-500">ট্রানজেকশন ID</p>
+                    <p className="text-lg font-semibold text-gray-900">{successData.transactionId}</p>
+                  </div>
+                )}
                 <div className="md:col-span-2">
-                  <p className="text-sm font-medium text-gray-500">Transaction Time</p>
+                  <p className="text-sm font-medium text-gray-500">ট্রানজেকশন সময়</p>
                   <p className="text-lg font-semibold text-gray-900">{successData.timestamp}</p>
                 </div>
               </div>
             </div>
+
+            {/* Agent Information for Bank/Nagad Free */}
+            {successData.agent && successData.account && (
+              <div className="mt-6 bg-blue-50 p-5 rounded-lg border border-blue-200">
+                <h4 className="text-lg font-semibold text-blue-800 mb-3">এজেন্ট তথ্য</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">এজেন্ট নাম</p>
+                    <p className="font-semibold text-gray-900">{successData.agent.username}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">অ্যাকাউন্ট নম্বর</p>
+                    <div className="flex items-center">
+                      <p className="font-semibold text-gray-900 font-mono mr-2">{successData.account.accountNumber}</p>
+                      <button
+                        onClick={() => copyToClipboard(successData.account.accountNumber, 'অ্যাকাউন্ট নম্বর কপি করা হয়েছে!')}
+                        className="p-1 text-blue-600 hover:text-blue-800"
+                        title="কপি করুন"
+                      >
+                        <FaCopy size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">প্রদানকারী</p>
+                    <p className="font-semibold text-gray-900">{successData.account.provider}</p>
+                  </div>
+                  {successData.account.shopName && (
+                    <div>
+                      <p className="text-sm font-medium text-blue-600">দোকানের নাম</p>
+                      <p className="font-semibold text-gray-900">{successData.account.shopName}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <p className="mt-6 text-sm text-gray-600">
-              Your deposit has been processed successfully. The amount will be credited to your account after reviewing shortly.
+              আপনার ডিপোজিট সফলভাবে প্রসেস করা হয়েছে। Amount শীঘ্রই রিভিউ করার পরে আপনার অ্যাকাউন্টে জমা করা হবে।
             </p>
             <div className="mt-8">
               <button
                 onClick={handleNewDeposit}
-                className="inline-flex items-center cursor-pointer justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex items-center cursor-pointer justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
               >
-               Make Another Deposit
+                আরেকটি ডিপোজিট করুন
               </button>
             </div>
           </div>
@@ -803,6 +1106,7 @@ const DepositForm = () => {
 
 import { MdOutlineArrowBackIos } from "react-icons/md";
 import { MdOutlineArrowForwardIos } from "react-icons/md";
+import { FaTimesCircle } from "react-icons/fa";
 const WithdrawForm = () => {
   const [activeTab, setActiveTab] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -815,6 +1119,7 @@ const WithdrawForm = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [withdrawalResult, setWithdrawalResult] = useState(null);
 
   // Configuration
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
@@ -823,14 +1128,18 @@ const WithdrawForm = () => {
   const paymentCategories = [
     {
       id: 'mobile',
-      name: 'Mobile Banking',
-      description: 'Quick withdrawals to mobile wallets',
+      name: 'মোবাইল ব্যাংকিং',
+      name_en: 'Mobile Banking',
+      description: 'দ্রুত উত্তোলনের জন্য মোবাইল ওয়ালেট ব্যবহার করুন',
+      description_en: 'Quick withdrawals to mobile wallets',
       icon: <FaMobileAlt className="text-2xl text-blue-600" />
     },
     {
       id: 'bank',
-      name: 'Bank Transfer',
-      description: 'Direct bank transfers',
+      name: 'ব্যাংক ট্রান্সফার',
+      name_en: 'Bank Transfer',
+      description: 'সরাসরি ব্যাংক ট্রান্সফার',
+      description_en: 'Direct bank transfers',
       icon: <FaBuilding className="text-2xl text-green-600" />
     }
   ];
@@ -840,6 +1149,7 @@ const WithdrawForm = () => {
     { 
       id: 1, 
       name: 'Nagad', 
+      name_bn: 'নগদ',
       image: "https://xxxbetgames.com/icons-xxx/payments/227.svg",
       category: 'mobile',
       minAmount: 200,
@@ -848,23 +1158,8 @@ const WithdrawForm = () => {
     { 
       id: 2, 
       name: 'Bkash', 
+      name_bn: 'বিকাশ',
       image: "https://xxxbetgames.com/icons-xxx/payments/75.svg",
-      category: 'mobile',
-      minAmount: 200,
-      maxAmount: 50000
-    },
-    { 
-      id: 3, 
-      name: 'Bkash Fast', 
-      image: "https://xxxbetgames.com/icons-xxx/payments/75.svg",
-      category: 'mobile',
-      minAmount: 200,
-      maxAmount: 50000
-    },
-    { 
-      id: 4, 
-      name: 'Nagad Free', 
-      image: nagad_free_img, // Placeholder image
       category: 'mobile',
       minAmount: 200,
       maxAmount: 50000
@@ -872,6 +1167,7 @@ const WithdrawForm = () => {
     { 
       id: 5, 
       name: 'Rocket', 
+      name_bn: 'রকেট',
       image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Rocket_mobile_banking_logo.svg/200px-Rocket_mobile_banking_logo.svg.png",
       category: 'mobile',
       minAmount: 200,
@@ -880,6 +1176,7 @@ const WithdrawForm = () => {
     { 
       id: 6, 
       name: 'Upay', 
+      name_bn: 'উপায়',
       image: "https://upload.wikimedia.org/wikipedia/commons/d/d5/Upay_logo.svg",
       category: 'mobile',
       minAmount: 200,
@@ -888,6 +1185,7 @@ const WithdrawForm = () => {
     { 
       id: 7, 
       name: 'BRAC Bank', 
+      name_bn: 'ব্র্যাক ব্যাংক',
       image: "https://play-lh.googleusercontent.com/xbBwfeUNIru5qMU0giaQIATfrt_AdMWujIhVu_M-RHG0SEVNY6lK_JQFQ_bER7k1jm8",
       category: 'bank',
       minAmount: 200,
@@ -896,6 +1194,7 @@ const WithdrawForm = () => {
     { 
       id: 8, 
       name: 'Dutch Bangla', 
+      name_bn: 'ডাচ-বাংলা ব্যাংক',
       image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8e4SixYh3d4Me6HuncJHAA60BCGS6HFx-kQ&s",
       category: 'bank',
       minAmount: 200,
@@ -904,6 +1203,7 @@ const WithdrawForm = () => {
     { 
       id: 9, 
       name: 'UCB Bank', 
+      name_bn: 'ইউসিবি ব্যাংক',
       image: "https://upload.wikimedia.org/wikipedia/en/thumb/b/b9/Logo_of_United_Commercial_Bank.svg/800px-Logo_of_United_Commercial_Bank.svg.png",
       category: 'bank',
       minAmount: 200,
@@ -915,6 +1215,15 @@ const WithdrawForm = () => {
   const filteredMethods = selectedCategory 
     ? availableMethods.filter(method => method.category === selectedCategory.id)
     : [];
+
+  // Copy to clipboard function
+  const copyToClipboard = (text, message) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success(message || 'কপি করা হয়েছে!');
+    }).catch(err => {
+      toast.error('কপি করতে ব্যর্থ: ' + err);
+    });
+  };
 
   // Handle input changes
   const handleInputChange = (field, value) => {
@@ -964,33 +1273,33 @@ const WithdrawForm = () => {
     
     if (tabNumber === 2) {
       if (!formData.playerId.trim()) {
-        newErrors.playerId = 'Player ID is required';
+        newErrors.playerId = 'প্লেয়ার ID প্রয়োজন';
       }
       
       if (!formData.code.trim()) {
-        newErrors.code = 'Code is required';
+        newErrors.code = 'কোড প্রয়োজন';
       } else if (!/^[a-zA-Z0-9]+$/.test(formData.code)) {
-        newErrors.code = 'Code should be alphanumeric';
+        newErrors.code = 'কোড শুধুমাত্র অক্ষর এবং সংখ্যা হতে পারে';
       }
     }
     
     if (tabNumber === 3) {
       if (!formData.amount) {
-        newErrors.amount = 'Amount is required';
+        newErrors.amount = 'Amount প্রয়োজন';
       } else if (isNaN(formData.amount)) {
-        newErrors.amount = 'Amount must be a number';
+        newErrors.amount = 'Amount必须是数字';
       } else if (parseFloat(formData.amount) < formData.selectedMethod.minAmount) {
-        newErrors.amount = `Minimum withdrawal amount is ${formData.selectedMethod.minAmount} BDT`;
+        newErrors.amount = `ন্যূনতম উত্তোলন Amount ${formData.selectedMethod.minAmount} BDT`;
       } else if (parseFloat(formData.amount) > formData.selectedMethod.maxAmount) {
-        newErrors.amount = `Maximum withdrawal amount is ${formData.selectedMethod.maxAmount} BDT`;
+        newErrors.amount = `সর্বোচ্চ উত্তোলন Amount ${formData.selectedMethod.maxAmount} BDT`;
       }
       
       if (!formData.accountNumber.trim()) {
-        newErrors.accountNumber = 'Account number is required';
+        newErrors.accountNumber = 'অ্যাকাউন্ট নম্বর প্রয়োজন';
       } else if (!/^[0-9]+$/.test(formData.accountNumber)) {
-        newErrors.accountNumber = 'Account number should contain only numbers';
+        newErrors.accountNumber = 'অ্যাকাউন্ট নম্বর শুধুমাত্র সংখ্যা হতে পারে';
       } else if (formData.accountNumber.length < 10 || formData.accountNumber.length > 15) {
-        newErrors.accountNumber = 'Account number should be 10-15 digits';
+        newErrors.accountNumber = 'অ্যাকাউন্ট নম্বর ১০-১৫ ডিজিট হতে হবে';
       }
     }
     
@@ -1001,14 +1310,14 @@ const WithdrawForm = () => {
   // Navigate to next tab
   const goToNextTab = () => {
     if (activeTab === 1 && !selectedCategory) {
-      setErrors({ category: 'Please select a category' });
-      toast.error('Please select a category');
+      setErrors({ category: 'দয়া করে একটি ক্যাটাগরি নির্বাচন করুন' });
+      toast.error('দয়া করে একটি ক্যাটাগরি নির্বাচন করুন');
       return;
     }
     
     if (activeTab === 1 && !formData.selectedMethod) {
-      setErrors({ method: 'Please select a payment method' });
-      toast.error('Please select a payment method');
+      setErrors({ method: 'দয়া করে একটি পেমেন্ট পদ্ধতি নির্বাচন করুন' });
+      toast.error('দয়া করে একটি পেমেন্ট পদ্ধতি নির্বাচন করুন');
       return;
     }
     
@@ -1049,7 +1358,7 @@ const WithdrawForm = () => {
       orderId: orderId,
       playerId: formData.playerId,
       code: formData.code,
-      accountNumber: formData.accountNumber,
+      payeeAccount: formData.accountNumber,
       callbackUrl: `${base_url}/api/payment/payout/callback`,
       currency: "BDT",
       payeeId: formData.playerId,
@@ -1069,12 +1378,21 @@ const WithdrawForm = () => {
       );
       
       if (response.data) {
-        toast.success('Withdrawal request submitted successfully!');
+        setWithdrawalResult({
+          success: true,
+          message: 'উত্তোলন রিকোয়েস্ট সফলভাবে জমা হয়েছে!',
+          transactionId: orderId
+        });
         setActiveTab(4); // Success tab
       }
     } catch (error) {
-      console.error('Player di not find!');
-      toast.error('Player di not find!');
+      console.error('Player not found!');
+      setWithdrawalResult({
+        success: false,
+        message: 'প্লেয়ার খুঁজে পাওয়া যায়নি!',
+        details: 'দয়া করে আপনার প্লেয়ার ID এবং উত্তোলন কোড পরীক্ষা করে আবার চেষ্টা করুন।'
+      });
+      setActiveTab(4); // Show result tab even for failure
     } finally {
       setIsLoading(false);
     }
@@ -1092,6 +1410,7 @@ const WithdrawForm = () => {
     });
     setActiveTab(1);
     setErrors({});
+    setWithdrawalResult(null);
   };
 
   return (
@@ -1105,62 +1424,68 @@ const WithdrawForm = () => {
         <div className="relative">
           <div className="flex items-center justify-between">
             <div className='flex justify-between items-center w-full'>
-              <h2 className="text-2xl font-bold">Withdraw Funds</h2>
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">
+                  ফান্ড উত্তোলন করুন
+                </h2>
+                <p className="text-sm md:text-base mt-1 text-gray-500">সুরক্ষিত এবং দ্রুত উত্তোলন</p>
+              </div>
               <div className="bg-green-600 p-3 text-white rounded-[5px] flex items-center justify-center">
                 <GiWallet className="text-2xl" />
               </div>
             </div>
           </div>
           
-          {/* Progress Steps */}
-          <div className="mt-8 mb-6 px-4">
-            <div className="flex justify-between items-center relative">
-              {/* Progress line */}
-              <div className="absolute top-4 left-10 right-10 h-1.5 bg-gray-200 rounded-full">
-                <div 
-                  className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all duration-700 ease-in-out" 
-                  style={{ width: `${(activeTab - 1) / 3 * 100}%` }}
-                ></div>
-              </div>
-              
-              {[1, 2, 3, 4].map((step) => (
-                <div key={step} className="flex flex-col items-center z-10 relative">
-                  {/* Step circle */}
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
-                    activeTab >= step 
-                      ? 'bg-gradient-to-br from-green-600 to-green-600 text-white shadow-lg scale-110' 
-                      : 'bg-white border-2 border-gray-300 text-gray-400'
-                  } font-bold relative`}>
-                    {activeTab > step ? (
-                      <FaCheckCircle className="text-lg" />
-                    ) : (
-                      step
-                    )}
-                    
-                    {/* Pulse animation for current step */}
-                    {activeTab === step && (
-                      <span className="absolute -inset-2 bg-green-400 rounded-full opacity-0 animate-ping"></span>
-                    )}
-                  </div>
-                  
-                  {/* Step label */}
-                  <div className={`text-xs font-medium mt-3 transition-colors duration-300 ${
-                    activeTab >= step ? 'text-green-700 font-semibold' : 'text-gray-500'
-                  }`}>
-                    {step === 1 && 'Method'}
-                    {step === 2 && 'Account'}
-                    {step === 3 && 'Amount'}
-                    {step === 4 && 'Complete'}
-                  </div>
-                  
-                  {/* Connector lines between steps */}
-                  {step < 4 && (
-                    <div className="absolute top-6 left-16 w-10 h-0.5 bg-transparent"></div>
-                  )}
+          {/* Progress Steps - Only show for tabs 1-3 */}
+          {activeTab < 4 && (
+            <div className="mt-8 mb-6 px-4">
+              <div className="flex justify-between items-center relative">
+                {/* Progress line */}
+                <div className="absolute top-4 left-10 right-10 h-1.5 bg-gray-200 rounded-full">
+                  <div 
+                    className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all duration-700 ease-in-out" 
+                    style={{ width: `${(activeTab - 1) / 3 * 100}%` }}
+                  ></div>
                 </div>
-              ))}
+                
+                {[1, 2, 3].map((step) => (
+                  <div key={step} className="flex flex-col items-center z-10 relative">
+                    {/* Step circle */}
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
+                      activeTab >= step 
+                        ? 'bg-gradient-to-br from-green-600 to-green-600 text-white shadow-lg scale-110' 
+                        : 'bg-white border-2 border-gray-300 text-gray-400'
+                    } font-bold relative`}>
+                      {activeTab > step ? (
+                        <FaCheckCircle className="text-lg" />
+                      ) : (
+                        step
+                      )}
+                      
+                      {/* Pulse animation for current step */}
+                      {activeTab === step && (
+                        <span className="absolute -inset-2 bg-green-400 rounded-full opacity-0 animate-ping"></span>
+                      )}
+                    </div>
+                    
+                    {/* Step label */}
+                    <div className={`text-xs font-medium mt-3 transition-colors duration-300 ${
+                      activeTab >= step ? 'text-green-700 font-semibold' : 'text-gray-500'
+                    }`}>
+                      {step === 1 && 'পদ্ধতি'}
+                      {step === 2 && 'অ্যাকাউন্ট'}
+                      {step === 3 && 'Amount'}
+                    </div>
+                    
+                    {/* Connector lines between steps */}
+                    {step < 3 && (
+                      <div className="absolute top-6 left-16 w-10 h-0.5 bg-transparent"></div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Form container */}
@@ -1191,7 +1516,7 @@ const WithdrawForm = () => {
                             {category.icon}
                           </div>
                           <div>
-                            <h4 className="font-medium text-gray-800">{category.name}</h4>
+                            <h4 className="font-medium text-gray-800">{category.name} ({category.name_en})</h4>
                             <p className="text-xs text-gray-600 mt-1">{category.description}</p>
                           </div>
                           {selectedCategory?.id === category.id && (
@@ -1211,11 +1536,6 @@ const WithdrawForm = () => {
               ) : (
                 // Method selection
                 <>
-                  <div className="text-center mb-2">
-                    <h3 className="text-xl font-semibold text-gray-800">Select {selectedCategory.name}</h3>
-                    <p className="text-gray-600">Choose your preferred withdrawal method</p>
-                  </div>
-
                   <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3 gap-4">
                     {filteredMethods.map((method) => (
                       <div
@@ -1236,7 +1556,10 @@ const WithdrawForm = () => {
                             />
                           </div>
                           <div>
-                            <h4 className="font-medium text-gray-800">{method.name}</h4>
+                            <h4 className="font-medium text-gray-800 text-sm">{method.name} ({method.name_bn})</h4>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {method.minAmount} - {method.maxAmount} BDT
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -1244,7 +1567,7 @@ const WithdrawForm = () => {
                   </div>
 
                   {formData.selectedMethod && (
-                    <div className="p-4 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 shadow-sm">
+                    <div className="p-4 rounded-[2px] text-blue-800 border border-blue-200 ">
                       <div className="flex items-center">
                         <div className="bg-white p-2 rounded-lg mr-3 border border-blue-200">
                           <img 
@@ -1254,9 +1577,9 @@ const WithdrawForm = () => {
                           />
                         </div>
                         <div>
-                          <h4 className="font-semibold">Selected: {formData.selectedMethod.name}</h4>
+                          <h4 className="font-semibold">নির্বাচিত: {formData.selectedMethod.name} ({formData.selectedMethod.name_bn})</h4>
                           <p className="text-sm opacity-90 mt-1">
-                            Your withdrawal will be processed via {formData.selectedMethod.name}
+                            আপনার উত্তোলন {formData.selectedMethod.name} এর মাধ্যমে প্রসেস করা হবে
                           </p>
                         </div>
                       </div>
@@ -1275,7 +1598,7 @@ const WithdrawForm = () => {
                     onClick={handleBackToCategories}
                     className="flex items-center justify-center cursor-pointer px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-[5px] border-[1px] border-gray-200 transition-all"
                   >
-                    <MdOutlineArrowBackIos className="mr-2" /> Back to Categories
+                    <MdOutlineArrowBackIos className="mr-2" /> পিছনে
                   </button>
                 ) : (
                   <div></div> // Empty div to maintain flex spacing
@@ -1286,7 +1609,7 @@ const WithdrawForm = () => {
                   disabled={!formData.selectedMethod}
                   className="flex items-center justify-center cursor-pointer px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-medium rounded-[5px] transition-all shadow hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Next <MdOutlineArrowForwardIos className="ml-2" />
+                  পরবর্তী <MdOutlineArrowForwardIos className="ml-2" />
                 </button>
               </div>
             </div>
@@ -1295,23 +1618,21 @@ const WithdrawForm = () => {
           {/* Tab 2: Player ID and Withdrawal Code */}
           {activeTab === 2 && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center bg-white px-4 py-2 rounded-full ">
-                  <div className="p-2 rounded-lg mr-2">
-                    <img 
-                      src={formData.selectedMethod.image} 
-                      alt={formData.selectedMethod.name} 
-                      className="h-6 w-6 object-contain"
-                    />
-                  </div>
-                  <span className="text-sm font-semibold text-gray-700">{formData.selectedMethod.name}</span>
+              <div className="flex items-center  px-5 py-3 border border-gray-200">
+                <div className="p-2  mr-3 ">
+                  <img 
+                    src={formData.selectedMethod.image} 
+                    alt={formData.selectedMethod.name} 
+                    className="h-7 w-7 object-contain"
+                  />
                 </div>
+                <span className="text-md font-semibold text-gray-800">{formData.selectedMethod.name} ({formData.selectedMethod.name_bn})</span>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label htmlFor="playerId" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
-                    Player ID
+                    প্লেয়ার ID <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -1321,7 +1642,7 @@ const WithdrawForm = () => {
                     className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200 outline-blue-600 transition ${
                       errors.playerId ? 'border-red-500 bg-red-50' : 'border-gray-300'
                     }`}
-                    placeholder="Enter your player ID"
+                    placeholder="আপনার প্লেয়ার ID লিখুন"
                   />
                   {errors.playerId && (
                     <p className="mt-1 text-sm text-red-600">{errors.playerId}</p>
@@ -1330,7 +1651,7 @@ const WithdrawForm = () => {
 
                 <div>
                   <label htmlFor="code" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
-                    Withdrawal Code
+                    উত্তোলন কোড <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -1340,7 +1661,7 @@ const WithdrawForm = () => {
                     className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200 transition ${
                       errors.code ? 'border-red-500 bg-red-50' : 'border-gray-300 outline-blue-600'
                     }`}
-                    placeholder="Enter your security code"
+                    placeholder="আপনার সিকিউরিটি কোড লিখুন"
                   />
                   {errors.code && (
                     <p className="mt-1 text-sm text-red-600">{errors.code}</p>
@@ -1353,13 +1674,13 @@ const WithdrawForm = () => {
                   onClick={goToPrevTab}
                   className="flex items-center cursor-pointer justify-center px-6 py-3 border-[1px] border-gray-200 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-[5px] transition-all"
                 >
-                  <MdOutlineArrowBackIos className="mr-2" /> Back
+                  <MdOutlineArrowBackIos className="mr-2" /> পিছনে
                 </button>
                 <button
                   onClick={goToNextTab}
                   className="flex items-center justify-center cursor-pointer px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-medium rounded-[5px] transition-all shadow hover:shadow-lg"
                 >
-                  Next <MdOutlineArrowForwardIos className="ml-2" />
+                  পরবর্তী <MdOutlineArrowForwardIos className="ml-2" />
                 </button>
               </div>
             </div>
@@ -1377,14 +1698,14 @@ const WithdrawForm = () => {
                       className="h-6 w-6 object-contain"
                     />
                   </div>
-                  <span className="text-sm font-semibold text-gray-700">{formData.selectedMethod.name}</span>
+                  <span className="text-sm font-semibold text-gray-700">{formData.selectedMethod.name} ({formData.selectedMethod.name_bn})</span>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label htmlFor="amount" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
-                    Amount (BDT)
+                    Amount (BDT) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -1394,13 +1715,13 @@ const WithdrawForm = () => {
                     className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200 outline-blue-600 transition ${
                       errors.amount ? 'border-red-500 bg-red-50' : 'border-gray-300'
                     }`}
-                    placeholder="Enter amount"
+                    placeholder="Amount লিখুন"
                     min={formData.selectedMethod.minAmount}
                     max={formData.selectedMethod.maxAmount}
                   />
                   <div className="flex justify-between mt-2 text-xs text-gray-500">
-                    <span>Min: {formData.selectedMethod.minAmount} BDT</span>
-                    <span>Max: {formData.selectedMethod.maxAmount} BDT</span>
+                    <span>ন্যূনতম: {formData.selectedMethod.minAmount} BDT</span>
+                    <span>সর্বোচ্চ: {formData.selectedMethod.maxAmount} BDT</span>
                   </div>
                   {errors.amount && (
                     <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
@@ -1409,7 +1730,7 @@ const WithdrawForm = () => {
 
                 <div>
                   <label htmlFor="accountNumber" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
-                    Account Number
+                    অ্যাকাউন্ট নম্বর <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -1419,7 +1740,7 @@ const WithdrawForm = () => {
                     className={`w-full px-4 py-3 rounded-[3px] border-[1px] border-gray-200 transition outline-blue-600 ${
                       errors.accountNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'
                     }`}
-                    placeholder="Enter your account number"
+                    placeholder="আপনার অ্যাকাউন্ট নম্বর লিখুন"
                   />
                   {errors.accountNumber && (
                     <p className="mt-1 text-sm text-red-600">{errors.accountNumber}</p>
@@ -1439,7 +1760,7 @@ const WithdrawForm = () => {
                   onClick={goToPrevTab}
                   className="flex items-center cursor-pointer justify-center px-6 py-3 border-[1px] border-gray-200 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-[5px] transition-all"
                 >
-                  <MdOutlineArrowBackIos className="mr-2" /> Back
+                  <MdOutlineArrowBackIos className="mr-2" /> পিছনে
                 </button>
                 <button
                   onClick={handleSubmit}
@@ -1449,60 +1770,80 @@ const WithdrawForm = () => {
                   {isLoading ? (
                     <>
                       <FaSpinner className="animate-spin mr-2" />
-                      Processing...
+                      প্রসেস হচ্ছে...
                     </>
                   ) : (
-                    'Confirm Withdrawal'
+                    'উত্তোলন নিশ্চিত করুন'
                   )}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Tab 4: Success */}
+          {/* Tab 4: Result (Success or Failure) */}
           {activeTab === 4 && (
             <div className="text-center py-8">
-              <div className="bg-gradient-to-r from-green-100 to-teal-100 inline-flex p-4 rounded-full mb-6">
-                <div className="bg-green-500 p-4 rounded-full">
-                  <FaCheckCircle className="text-white text-4xl" />
-                </div>
-              </div>
-              
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">Withdrawal Request Submitted!</h3>
-              <p className="text-gray-600 mb-6">Your withdrawal request has been successfully submitted and is being processed.</p>
-              
-              <div className="bg-gray-50 rounded-lg p-6 mb-6 text-left">
-                <h4 className="font-medium text-gray-700 mb-4">Transaction Details</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Transaction ID:</span>
-                    <span className="font-medium">WDR-{Date.now()}</span>
+              {withdrawalResult?.success ? (
+                // Success case
+                <>
+                  <div className="bg-gradient-to-r from-green-100 to-teal-100 inline-flex p-4 rounded-full mb-6">
+                    <div className="bg-green-500 p-4 rounded-full">
+                      <FaCheckCircle className="text-white text-4xl" />
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Amount:</span>
-                    <span className="font-medium">{formData.amount} BDT</span>
+                  
+                  <h3 className="text-2xl font-bold text-gray-800 mb-2">উত্তোলন রিকোয়েস্ট জমা হয়েছে!</h3>
+                  <p className="text-gray-600 mb-6">{withdrawalResult.message}</p>
+                  
+                  <div className="bg-gray-50 rounded-lg p-6 mb-6 text-left">
+                    <h4 className="font-medium text-gray-700 mb-4">ট্রানজেকশন বিবরণ</h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">ট্রানজেকশন ID:</span>
+                        <span className="font-medium">{withdrawalResult.transactionId}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Amount:</span>
+                        <span className="font-medium">{formData.amount} BDT</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">পেমেন্ট পদ্ধতি:</span>
+                        <span className="font-medium">{formData.selectedMethod?.name} ({formData.selectedMethod?.name_bn})</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">অ্যাকাউন্ট নম্বর:</span>
+                        <span className="font-medium">{formData.accountNumber}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">আনুমানিক প্রসেসিং সময়:</span>
+                        <span className="font-medium">২-২৪ ঘন্টা</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Payment Method:</span>
-                    <span className="font-medium">{formData.selectedMethod?.name}</span>
+                </>
+              ) : (
+                // Failure case
+                <>
+                  <div className="bg-gradient-to-r from-red-100 to-pink-100 inline-flex p-4 rounded-full mb-6">
+                    <div className="bg-red-500 p-4 rounded-full">
+                      <FaTimesCircle className="text-white text-4xl" />
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Account Number:</span>
-                    <span className="font-medium">{formData.accountNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Estimated Processing Time:</span>
-                    <span className="font-medium">2-24 hours</span>
-                  </div>
-                </div>
-              </div>
+                  
+                  <h3 className="text-2xl font-bold text-gray-800 mb-2">উত্তোলন ব্যর্থ হয়েছে</h3>
+                  <p className="text-gray-600 mb-4">{withdrawalResult?.message}</p>
+                  {withdrawalResult?.details && (
+                    <p className="text-gray-500 mb-6">{withdrawalResult.details}</p>
+                  )}
+                </>
+              )}
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
                   onClick={resetForm}
                   className="px-6 py-3 bg-gradient-to-r from-blue-600 cursor-pointer to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg transition-all"
                 >
-                  New Withdrawal
+                  আবার উত্তোলন করুন
                 </button>
               </div>
             </div>

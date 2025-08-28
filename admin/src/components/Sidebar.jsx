@@ -15,6 +15,7 @@ import { MdOutlinePayment } from "react-icons/md";
 import { MdOutlineSupervisorAccount } from "react-icons/md";
 import { PiDesktopTower } from "react-icons/pi";
 import { BsBank } from "react-icons/bs";
+import { LiaCashRegisterSolid } from "react-icons/lia";
 const Sidebar = ({ isOpen }) => {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState(null);
@@ -136,6 +137,19 @@ const Sidebar = ({ isOpen }) => {
           <span className="flex items-center gap-2 text-gray-100">
             <BsBank className="text-[18px]" />
           Bank Pay In
+          </span>
+        </NavLink>
+      </div>
+                  <div className="mb-3">
+        <NavLink
+          to="/dashboard/nagad-free"
+          className={({ isActive }) =>
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+          }
+        >
+          <span className="flex items-center gap-2 text-gray-100">
+            <LiaCashRegisterSolid className="text-[18px]" />
+          Nagad Free
           </span>
         </NavLink>
       </div>

@@ -64,7 +64,7 @@ exports.getInactiveUsers = async (req, res) => {
 exports.updateUserStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    
+     console.log(status)
     // Validate status
     if (!['active', 'inactive'].includes(status)) {
       return res.status(400).json({

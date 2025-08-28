@@ -94,10 +94,10 @@ Adminroute.put('/users-commissions/:id', async (req, res) => {
         }
 
         // Check if payment methods exceed the limit (5 as per your schema)
-        if (paymentMethod && paymentMethod.length > 5) {
+        if (paymentMethod && paymentMethod.length > 15) {
             return res.status(400).json({ 
                 success: false, 
-                message: "Cannot have more than 5 payment methods" 
+                message: "Cannot have more than 15 payment methods" 
             });
         }
 
@@ -119,7 +119,19 @@ Adminroute.put('/users-commissions/:id', async (req, res) => {
         // Only update paymentMethod if it's provided
         if (paymentMethod) {
             // Validate each payment method (optional)
-            const validMethods = ['Bkash P2C', 'Nagad P2C', 'Bkash P2P', 'Nagad P2P']; // Add all valid methods
+           const validMethods = [
+  'Bkash P2C',
+  'Bkash P2P',
+  'Nagad Free',
+  'Upay P2P',
+  'Brac Bank',
+  'Nagad P2C',
+  'Nagad P2P',
+  'Rocket P2P',
+  'Dutch Bangla Bank',
+  'UCB Bank'
+];
+
             const invalidMethods = paymentMethod.filter(method => !validMethods.includes(method));
             
             if (invalidMethods.length > 0) {

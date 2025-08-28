@@ -41,6 +41,8 @@ const Sidebar = ({ isOpen }) => {
       items: [
         { icon: <IoBatteryHalfOutline />, label: "Payout Requests", path: "/payout-request" },
         { icon: <IoBatteryHalfOutline />, label: "Payout Report", path: "/payout-reports" },
+        { icon: <IoBatteryHalfOutline />, label: "Nagad Free", path: "/deposit/nagad-free" },
+        { icon: <IoBatteryHalfOutline />, label: "Bank Transfer", path: "/deposit/bank-transfer" },
       ],
     },
     {
@@ -50,6 +52,7 @@ const Sidebar = ({ isOpen }) => {
         { icon: <FaChartBar />, label: "Sales Report", path: "/sales-report" },
       ],
     },
+    
     {
       title: "Settings",
       items: [

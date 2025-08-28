@@ -9,7 +9,6 @@ const bankAccountSchema = new mongoose.Schema({
   provider: {
     type: String,
     required: true,
-    enum: ['Bkash P2C', 'Nagad P2C', 'Bkash P2P', 'Nagad P2P']
   },
   accountNumber: {
     type: String,

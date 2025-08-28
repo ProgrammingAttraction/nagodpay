@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FaRegCopy } from "react-icons/fa";
+import { FaRegCopy, FaCheckCircle } from "react-icons/fa";
 import { useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import axios from "axios";
@@ -155,8 +155,8 @@ const Checkout = () => {
     });
   };
 
-  const goToWebsite = () => {
-    window.location.href = transactiondata.redirectUrl || websiteUrl;
+  const goToPaymentMethods = () => {
+    navigate('/payment-methods');
   };
 
   return (
@@ -177,7 +177,7 @@ const Checkout = () => {
       {showLoader && <LoadingAnimation />}
       
       {showContent && (
-        <div className="bg-white rounded-xl shadow-md w-full sm:w-[80%] lg:w-[70%] xl:w-[60%] overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm w-full sm:w-[80%] lg:w-[70%] xl:w-[60%] overflow-hidden">
           {/* Header with Logo */}
           <div className="bg-gradient-to-r from-theme to-blue-600 text-white p-6 text-center relative">
             <div className="absolute top-4 left-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
@@ -189,40 +189,97 @@ const Checkout = () => {
 
           <div className="flex flex-col md:flex-row">
             {/* Left Section - Form */}
-            <div className="w-full md:w-2/3 p-8">
-              {/* Payment Summary Card */}
-              <div className="bg-gradient-to-r from-theme/10 to-blue-100 border border-theme/20 rounded-xl p-4 mb-6 flex items-center">
-                <div className="bg-theme text-white p-3 rounded-lg mr-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-700">Payment Amount</h3>
-                  <p className="text-2xl font-bold text-theme">{amount} {currency}</p>
-                </div>
-              </div>
-
+            <div className={`w-full ${paidStatus !== 1 ? 'md:w-full' : ''} p-8`}>
               {paidStatus === 1 ? (
+                // Success State
                 <div className="text-center py-8">
-                  <div className="mb-6">
-                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
+                  <div className="mx-auto">
+                    {/* Animated Checkmark */}
+                    <div className="relative mb-6">
+                      <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                        <div className="success-checkmark">
+                          <div className="check-icon">
+                            <span className="icon-line line-tip"></span>
+                            <span className="icon-line line-long"></span>
+                            <div className="icon-circle"></div>
+                            <div className="icon-fix"></div>
+                          </div>
+                        </div>
+                      </div>
+                      {/* <div className="absolute -top-2 -right-2">
+                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                          <FaCheckCircle className="text-white text-xl" />
+                        </div>
+                      </div> */}
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-800 mt-4">Payment Successful!</h3>
-                    <p className="text-gray-600 mt-2">Your payment of {amount} {currency} has been processed successfully.</p>
+
+                    {/* Success Message */}
+                    <h3 className="text-3xl font-bold text-gray-800 mt-6">Payment Successful!</h3>
+                    <p className="text-gray-600 mt-3">Your payment of <span className="font-semibold text-theme">{amount} {currency}</span> has been processed successfully.</p>
+                    
+                    {/* Transaction Details */}
+                    <div className="border-[1px] border-gray-200 rounded-xl p-5 mt-8 text-left">
+                      <h4 className="font-semibold text-gray-700 mb-4  pb-2">Transaction Details</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Amount:</span>
+                          <span className="font-medium">{amount} {currency}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Payment Method:</span>
+                          <span className="font-medium">{provider}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Transaction ID:</span>
+                          <span className="font-medium text-theme">{transactionId}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Status:</span>
+                          <span className="font-medium text-green-600">Completed</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Confetti Animation Elements */}
+                    <div className="confetti">
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                      <div className="confetti-piece"></div>
+                    </div>
+
+                    {/* Action Button */}
+                    <button
+                      onClick={goToPaymentMethods}
+                      className="px-8 py-4 mt-8 cursor-pointer bg-gradient-to-r from-theme to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-theme transition-all font-bold w-full shadow-md hover:shadow-lg transform hover:-translate-y-1 transition-transform duration-300"
+                    >
+                      AGAIN DEPOSIT
+                    </button>
                   </div>
-                  <button
-                    onClick={goToWebsite}
-                    className="px-6 py-3 cursor-pointer bg-gradient-to-r from-theme to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-theme transition-all font-bold w-full shadow-md"
-                  >
-                    CONTINUE TO WEBSITE
-                  </button>
                 </div>
               ) : (
                 <>
+                  {/* Payment Summary Card */}
+                  <div className="bg-gradient-to-r from-theme/10 to-blue-100 border border-theme/20 rounded-xl p-4 mb-6 flex items-center">
+                    <div className="bg-theme text-white p-3 rounded-lg mr-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-700">Payment Amount</h3>
+                      <p className="text-2xl font-bold text-theme">{amount} {currency}</p>
+                    </div>
+                  </div>
+
                   {/* Wallet Info */}
                   <div className="space-y-6">
                     <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
@@ -330,69 +387,8 @@ const Checkout = () => {
               )}
             </div>
 
-            {/* Right Section - Information */}
-            <div className="w-full md:w-1/3 bg-gradient-to-b from-blue-50 to-indigo-50 p-6 border-t md:border-t-0 md:border-l border-gray-200">
-              <div className="sticky top-6">
-                <div className="flex items-center mb-6">
-                  <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm mr-3">
-                    <img src={logo} alt="Logo" className="w-6" />
-                  </div>
-                  <h3 className="text-lg font-bold text-theme">Secure Payment</h3>
-                </div>
-                
-                <div className="space-y-5">
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-blue-100">
-                    <div className="flex items-start">
-                      <div className="bg-blue-100 p-2 rounded-full mr-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-800">Payment Amount</h4>
-                        <p className="text-sm text-gray-600">Please ensure you send exactly <strong>{amount} {currency}</strong></p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-100">
-                    <div className="flex items-start">
-                      <div className="bg-yellow-100 p-2 rounded-full mr-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-800">Important Notice</h4>
-                        <p className="text-sm text-gray-600">Send payment from your {provider} account only</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-green-100">
-                    <div className="flex items-start">
-                      <div className="bg-green-100 p-2 rounded-full mr-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-800">Secure Transaction</h4>
-                        <p className="text-sm text-gray-600">Your payment is processed securely</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 bg-white/80 p-4 rounded-lg border border-gray-200">
-                  <h4 className="font-medium text-gray-800 mb-2">Need help?</h4>
-                  <p className="text-sm text-gray-600">Contact our support team if you encounter any issues with your payment.</p>
-                  <button className="mt-3 text-sm text-theme font-medium hover:underline">
-                    Contact Support
-                  </button>
-                </div>
-              </div>
-            </div>
+            {/* Right Section - Information (Only show when not in success state) */}
+      
           </div>
         </div>
       )}
@@ -431,6 +427,235 @@ const Checkout = () => {
 
         .to-blue-600 {
           --tw-gradient-to: #2563eb;
+        }
+
+        /* Success Checkmark Animation */
+        .success-checkmark {
+          width: 80px;
+          height: 80px;
+          margin: 0 auto;
+        }
+        
+        .check-icon {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            border-radius: 50%;
+            box-sizing: content-box;
+            border: 4px solid #4CAF50;
+        }
+        
+        .check-icon::before {
+            top: 3px;
+            left: -2px;
+            transform: rotate(45deg);
+            transform-origin: 100% 50%;
+            border-radius: 100px 0 0 100px;
+        }
+        
+        .check-icon::after {
+            top: 0;
+            left: 30px;
+            transform: rotate(-45deg);
+            transform-origin: 0 50%;
+            border-radius: 0 100px 100px 0;
+            animation: rotate-circle 4.25s ease-in;
+        }
+        
+        .check-icon::before, .check-icon::after {
+            content: '';
+            height: 100px;
+            position: absolute;
+            background: #FFFFFF;
+            transform: rotate(-45deg);
+        }
+        
+        .icon-line {
+            height: 5px;
+            background-color: #4CAF50;
+            display: block;
+            border-radius: 2px;
+            position: absolute;
+            z-index: 10;
+        }
+        
+        .icon-line.line-tip {
+            top: 46px;
+            left: 14px;
+            width: 25px;
+            transform: rotate(45deg);
+            animation: icon-line-tip 0.75s;
+        }
+        
+        .icon-line.line-long {
+            top: 38px;
+            right: 8px;
+            width: 47px;
+            transform: rotate(-45deg);
+            animation: icon-line-long 0.75s;
+        }
+        
+        .icon-circle {
+            top: -4px;
+            left: -4px;
+            z-index: 10;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            position: absolute;
+            box-sizing: content-box;
+            border: 4px solid rgba(76, 175, 80, .5);
+        }
+        
+        .icon-fix {
+            top: 8px;
+            width: 5px;
+            left: 26px;
+            z-index: 1;
+            height: 85px;
+            position: absolute;
+            transform: rotate(-45deg);
+            background-color: #FFFFFF;
+        }
+        
+        @keyframes rotate-circle {
+            0% { transform: rotate(-45deg); }
+            5% { transform: rotate(-45deg); }
+            12% { transform: rotate(-405deg); }
+            100% { transform: rotate(-405deg); }
+        }
+        
+        @keyframes icon-line-tip {
+            0% { width: 0; left: 1px; top: 19px; }
+            54% { width: 0; left: 1px; top: 19px; }
+            70% { width: 50px; left: -8px; top: 37px; }
+            84% { width: 17px; left: 21px; top: 48px; }
+            100% { width: 25px; left: 14px; top: 45px; }
+        }
+        
+        @keyframes icon-line-long {
+            0% { width: 0; right: 46px; top: 54px; }
+            65% { width: 0; right: 46px; top: 54px; }
+            84% { width: 55px; right: 0px; top: 35px; }
+            100% { width: 47px; right: 8px; top: 38px; }
+        }
+
+        /* Confetti Animation */
+        .confetti {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          top: 0;
+          left: 0;
+          pointer-events: none;
+          z-index: 1;
+        }
+        
+        .confetti-piece {
+          position: absolute;
+          width: 10px;
+          height: 16px;
+          background: #ffd300;
+          top: 0;
+          opacity: 0;
+          animation: makeItRain 1000ms infinite linear;
+        }
+        
+        .confetti-piece:nth-child(1) {
+          left: 7%;
+          transform: rotate(-86deg);
+          animation-delay: 182ms;
+          background: #1946c4;
+        }
+        
+        .confetti-piece:nth-child(2) {
+          left: 14%;
+          transform: rotate(0deg);
+          animation-delay: 161ms;
+          background: #ffd300;
+        }
+        
+        .confetti-piece:nth-child(3) {
+          left: 21%;
+          transform: rotate(80deg);
+          animation-delay: 481ms;
+          background: #4CAF50;
+        }
+        
+        .confetti-piece:nth-child(4) {
+          left: 28%;
+          transform: rotate(145deg);
+          animation-delay: 334ms;
+          background: #1946c4;
+        }
+        
+        .confetti-piece:nth-child(5) {
+          left: 35%;
+          transform: rotate(30deg);
+          animation-delay: 102ms;
+          background: #ffd300;
+        }
+        
+        .confetti-piece:nth-child(6) {
+          left: 42%;
+          transform: rotate(105deg);
+          animation-delay: 329ms;
+          background: #4CAF50;
+        }
+        
+        .confetti-piece:nth-child(7) {
+          left: 49%;
+          transform: rotate(60deg);
+          animation-delay: 117ms;
+          background: #1946c4;
+        }
+        
+        .confetti-piece:nth-child(8) {
+          left: 56%;
+          transform: rotate(165deg);
+          animation-delay: 334ms;
+          background: #ffd300;
+        }
+        
+        .confetti-piece:nth-child(9) {
+          left: 63%;
+          transform: rotate(30deg);
+          animation-delay: 493ms;
+          background: #4CAF50;
+        }
+        
+        .confetti-piece:nth-child(10) {
+          left: 70%;
+          transform: rotate(155deg);
+          animation-delay: 491ms;
+          background: #1946c4;
+        }
+        
+        .confetti-piece:nth-child(11) {
+          left: 77%;
+          transform: rotate(40deg);
+          animation-delay: 106ms;
+          background: #ffd300;
+        }
+        
+        .confetti-piece:nth-child(12) {
+          left: 84%;
+          transform: rotate(95deg);
+          animation-delay: 424ms;
+          background: #4CAF50;
+        }
+        
+        @keyframes makeItRain {
+          from {
+            opacity: 0;
+          }
+          50% {
+            opacity: 1;
+          }
+          to {
+            transform: translateY(200px);
+            opacity: 0;
+          }
         }
       `}</style>
     </div>

@@ -2,6 +2,202 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const bcrypt = require('bcrypt');
 
+// Nagad Free Deposit Schema
+const NagadFreeDepositSchema = new Schema({
+  playerId: {
+    type: String,
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  accountNumber: {
+    type: String,
+    required: true
+  },
+  orderId: {
+    type: String,
+    required: true
+  },
+  currency: {
+    type: String,
+    default: 'BDT'
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending'
+  },
+  provider: {
+    type: String,
+    default: 'nagad_free'
+  },
+  merchantid: {
+    type: Schema.Types.ObjectId,
+    required: true
+  },
+  cashdeskProcessed: {
+    type: Boolean,
+    default: false
+  },
+  statusDate: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+// Nagad Free Withdraw Schema
+const NagadFreeWithdrawSchema = new Schema({
+  playerId: {
+    type: String,
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  accountNumber: {
+    type: String,
+    required: true
+  },
+  orderId: {
+    type: String,
+    required: true
+  },
+  currency: {
+    type: String,
+    default: 'BDT'
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending'
+  },
+  provider: {
+    type: String,
+    default: 'nagad_free'
+  },
+  merchantid: {
+    type: Schema.Types.ObjectId,
+    required: true
+  },
+  cashdeskProcessed: {
+    type: Boolean,
+    default: false
+  },
+  statusDate: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+// Bank Transfer Deposit Schema
+const BankTransferDepositSchema = new Schema({
+  playerId: {
+    type: String,
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  accountNumber: {
+    type: String,
+    required: true
+  },
+  bankName: {
+    type: String,
+    required: true
+  },
+  orderId: {
+    type: String,
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending'
+  },
+  transactionId: {
+    type: String,
+    default: ''
+  },
+  referenceNumber: {
+    type: String,
+    default: null
+  },
+  currency: {
+    type: String,
+    default: 'BDT'
+  },
+  provider: {
+    type: String,
+    required: true
+  },
+  metadata: {
+    type: Object,
+    default: {}
+  }
+}, {
+  timestamps: true
+});
+
+// Bank Transfer Withdraw Schema
+const BankTransferWithdrawSchema = new Schema({
+  playerId: {
+    type: String,
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  accountNumber: {
+    type: String,
+    required: true
+  },
+  bankName: {
+    type: String,
+    required: true
+  },
+  orderId: {
+    type: String,
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending'
+  },
+  transactionId: {
+    type: String,
+    default: ''
+  },
+  referenceNumber: {
+    type: String,
+    default: null
+  },
+  currency: {
+    type: String,
+    default: 'BDT'
+  },
+  provider: {
+    type: String,
+    required: true
+  },
+  metadata: {
+    type: Object,
+    default: {}
+  }
+}, {
+  timestamps: true
+});
+
 const TransactionSchema = new mongoose.Schema({
   amount: {
     type: Number,
@@ -205,7 +401,7 @@ const UserSchema = new Schema({
     type: Number,
     default: 0
   },
-    withdrawalRequests: {  // New field specifically for withdrawal requests
+  withdrawalRequests: {  // New field specifically for withdrawal requests
     type: [TransactionSchema],
     default: []
   },
@@ -221,40 +417,57 @@ const UserSchema = new Schema({
     type: Number,
     default: 0
   },
-   totalpayment:{
+  totalpayment:{
     type: Number,
     default: 0
   },
-      currentstatus:{
-        type: String,
-        default:"online"
-    },
-     totalprepayment:{
-    type: Number,
-    default: 0
-  },
-     totalpayout:{
-    type: Number,
-    default: 0
-  },
-paymentMethod: {
-  type: [{
+  currentstatus:{
     type: String,
-  }],
-  default: [],
-  validate: {
-    validator: function(v) {
-      return v.length <= 5; // Limit to 5 payment methods max
-    },
-    message: 'Cannot have more than 5 payment methods!'
-  }
-},
+    default:"online"
+  },
+  totalprepayment:{
+    type: Number,
+    default: 0
+  },
+  totalpayout:{
+    type: Number,
+    default: 0
+  },
+  paymentMethod: {
+    type: [{
+      type: String,
+    }],
+    default: [],
+    validate: {
+      validator: function(v) {
+        return v.length <= 15; // Limit to 5 payment methods max
+      },
+      message: 'Cannot have more than 5 payment methods!'
+    }
+  },
   currency: {
     type: String,
     default: 'BDT',
   },
   agentAccounts: {
     type: [AgentAccountSchema],
+    default: []
+  },
+  // New fields for the additional schemas
+  nagadFreeDeposits: {
+    type: [NagadFreeDepositSchema],
+    default: []
+  },
+  nagadFreeWithdraws: {
+    type: [NagadFreeWithdrawSchema],
+    default: []
+  },
+  bankTransferDeposits: {
+    type: [BankTransferDepositSchema],
+    default: []
+  },
+  bankTransferWithdraws: {
+    type: [BankTransferWithdrawSchema],
     default: []
   },
   role: {
@@ -371,6 +584,27 @@ UserSchema.methods.removeAgentAccount = function(accountId) {
   this.agentAccounts = this.agentAccounts.filter(
     account => !account._id.equals(accountId)
   );
+  return this.save();
+};
+
+// Methods to add transactions to the new schemas
+UserSchema.methods.addNagadFreeDeposit = function(depositData) {
+  this.nagadFreeDeposits.push(depositData);
+  return this.save();
+};
+
+UserSchema.methods.addNagadFreeWithdraw = function(withdrawData) {
+  this.nagadFreeWithdraws.push(withdrawData);
+  return this.save();
+};
+
+UserSchema.methods.addBankTransferDeposit = function(depositData) {
+  this.bankTransferDeposits.push(depositData);
+  return this.save();
+};
+
+UserSchema.methods.addBankTransferWithdraw = function(withdrawData) {
+  this.bankTransferWithdraws.push(withdrawData);
   return this.save();
 };
 

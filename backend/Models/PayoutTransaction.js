@@ -81,7 +81,7 @@ const PayoutTransactionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "success", "rejected","reassigned"],
+      enum: ["pending", "success", "rejected","reassigned","error","failed","completed"],
       default: "pending"
     },
     statusHistory: [{
