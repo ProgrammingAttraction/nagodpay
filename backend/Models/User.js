@@ -12,9 +12,12 @@ const NagadFreeDepositSchema = new Schema({
     type: Number,
     required: true
   },
+  transactionId:{
+        type: String,
+    required: true
+  },
   accountNumber: {
     type: String,
-    required: true
   },
   orderId: {
     type: String,
@@ -61,7 +64,6 @@ const NagadFreeWithdrawSchema = new Schema({
   },
   accountNumber: {
     type: String,
-    required: true
   },
   orderId: {
     type: String,

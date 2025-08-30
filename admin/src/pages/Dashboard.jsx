@@ -33,7 +33,8 @@ const Dashboard = () => {
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
   const token = localStorage.getItem('authToken');
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-  const [getwaycost,setgetwaycost]=useState();
+  const [getwaycost, setgetwaycost] = useState(0);
+
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
@@ -44,6 +45,7 @@ const Dashboard = () => {
             'Authorization': `Bearer ${token}`
           }
         });
+        console.log('Analytics response:', response.data);
         setAnalyticsData(response.data.data);
         setError(null);
       } catch (err) {
@@ -53,28 +55,37 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
-  const fetchgetwaycost= async () => {
+
+    const fetchGetwayCost = async () => {
       try {
         const response = await axios.get(`${base_url}/api/admin/total-getwaycost`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
-        setgetwaycost(response.data.totalGetwaycost)
+        setgetwaycost(response.data.totalGetwaycost || 0);
         setError(null);
       } catch (err) {
-        setError(err.response?.data?.message || 'Failed to fetch analytics');
-        console.error('Error fetching analytics:', err);
-      } finally {
-        setLoading(false);
+        setError(err.response?.data?.message || 'Failed to fetch gateway cost');
+        console.error('Error fetching gateway cost:', err);
       }
     };
-    fetchgetwaycost();
+
     fetchAnalytics();
+    fetchGetwayCost();
   }, [period, base_url, token]);
 
   // Format currency values
-  const formatCurrency = (value) => `৳${(value / 100).toLocaleString()}`;
+  const formatCurrency = (value) => {
+    if (!value) return '৳0';
+    return `৳${(value / 100).toLocaleString('en-BD')}`;
+  };
+
+  // Format number with commas
+  const formatNumber = (value) => {
+    if (!value) return '0';
+    return value.toLocaleString('en-BD');
+  };
 
   // Calculate percentage
   const calculatePercentage = (value, total) => {
@@ -86,33 +97,33 @@ const Dashboard = () => {
   const summaryCards = [
     {     
       title: 'Total Payin',
-      value: `৳${analyticsData?.totals.payin.total}`,
+      value: formatCurrency(analyticsData?.totals.payin.total || 0),
       icon: <FaBangladeshiTakaSign className="w-6 h-6" />,
       change: analyticsData ? `${calculatePercentage(analyticsData.totals.payin.completed, analyticsData.totals.payin.total)}% completed` : '0%',
       isPositive: true,
       gradient: 'from-indigo-500 to-blue-500',
       data: {
-        completed: analyticsData?.totals.payin.completed || 0,
-        pending: analyticsData?.totals.payin.pending || 0,
-        rejected: analyticsData?.totals.payin.rejected || 0
+        completed: formatCurrency(analyticsData?.totals.payin.completed || 0),
+        pending: formatCurrency(analyticsData?.totals.payin.pending || 0),
+        rejected: formatCurrency(analyticsData?.totals.payin.rejected || 0)
       }
     },
     {
       title: 'Total Payout',
-      value:`৳${analyticsData?.totals.payout.total }`,
+      value: formatCurrency(analyticsData?.totals.payout.total || 0),
       icon: <FiCreditCard className="w-6 h-6" />,
       change: analyticsData ? `${calculatePercentage(analyticsData.totals.payout.success, analyticsData.totals.payout.total)}% success` : '0%',
       isPositive: true,
       gradient: 'from-green-500 to-teal-500',
       data: {
-        success: analyticsData?.totals.payout.success || 0,
-        pending: analyticsData?.totals.payout.pending || 0,
-        rejected: analyticsData?.totals.payout.rejected || 0
+        success: formatCurrency(analyticsData?.totals.payout.success || 0),
+        pending: formatCurrency(analyticsData?.totals.payout.pending || 0),
+        rejected: formatCurrency(analyticsData?.totals.payout.rejected || 0)
       }
     },
     {
       title: 'Net Balance',
-      value: analyticsData?.totals.net,
+      value: formatCurrency(analyticsData?.totals.net || 0),
       icon: <FiTrendingUp className="w-6 h-6" />,
       change: analyticsData ? 
         `${Math.abs(calculatePercentage(analyticsData.totals.net, analyticsData.totals.payin.total))}% ${analyticsData.totals.net >= 0 ? 'profit' : 'loss'}` 
@@ -120,42 +131,39 @@ const Dashboard = () => {
       isPositive: analyticsData ? analyticsData.totals.net >= 0 : true,
       gradient: analyticsData?.totals.net >= 0 ? 'from-purple-500 to-pink-500' : 'from-red-500 to-orange-500',
       data: {
-        payin: analyticsData?.totals.payin.total || 0,
-        payout: analyticsData?.totals.payout.total || 0
+        payin: formatCurrency(analyticsData?.totals.payin.total || 0),
+        payout: formatCurrency(analyticsData?.totals.payout.total || 0)
       }
     },
     {
       title: 'Total Transactions',
-      value: (analyticsData ? 
-        (analyticsData.statusCounts.payin.completed + analyticsData.statusCounts.payin.pending + analyticsData.statusCounts.payin.rejected +
-         analyticsData.statusCounts.payout.success + analyticsData.statusCounts.payout.pending + analyticsData.statusCounts.payout.rejected) 
-        : 0).toLocaleString(),
+      value: formatNumber(analyticsData?.summary?.totalTransactions || 0),
       icon: <FiCheckCircle className="w-6 h-6" />,
       change: analyticsData ? 
         `${calculatePercentage(
-          analyticsData.statusCounts.payin.completed + analyticsData.statusCounts.payout.success,
-          analyticsData.statusCounts.payin.completed + analyticsData.statusCounts.payin.pending + analyticsData.statusCounts.payin.rejected +
-          analyticsData.statusCounts.payout.success + analyticsData.statusCounts.payout.pending + analyticsData.statusCounts.payout.rejected
+          analyticsData.counts.payin.completed + analyticsData.counts.payout.success,
+          analyticsData.summary.totalTransactions
         )}% successful` 
         : '0%',
       isPositive: true,
       gradient: 'from-amber-500 to-orange-500',
       data: {
-        successful: analyticsData ? 
-          (analyticsData.statusCounts.payin.completed + analyticsData.statusCounts.payout.success) : 0,
-        pending: analyticsData ? 
-          (analyticsData.statusCounts.payin.pending + analyticsData.statusCounts.payout.pending) : 0,
-        rejected: analyticsData ? 
-          (analyticsData.statusCounts.payin.rejected + analyticsData.statusCounts.payout.rejected) : 0
+        successful: formatNumber(analyticsData ? 
+          (analyticsData.counts.payin.completed + analyticsData.counts.payout.success) : 0),
+        pending: formatNumber(analyticsData ? 
+          (analyticsData.counts.payin.pending + analyticsData.counts.payout.pending) : 0),
+        rejected: formatNumber(analyticsData ? 
+          (analyticsData.counts.payin.rejected + analyticsData.counts.payout.rejected) : 0)
       }
     },
-        {
+    {
       title: 'Total Revenue',
-      value:`৳${getwaycost}`,
+      value: formatCurrency(getwaycost || 0),
       icon: <FiCheckCircle className="w-6 h-6" />,
       isPositive: true,
       gradient: 'from-amber-500 to-orange-500',
       data: {
+        revenue: formatCurrency(getwaycost || 0)
       }
     }
   ];
@@ -166,36 +174,36 @@ const Dashboard = () => {
       title: 'Payin Status',
       icon: <FaBangladeshiTakaSign className="text-indigo-500" />,
       data: [
-        { label: 'Completed', value: analyticsData?.statusCounts.payin.completed || 0, amount: analyticsData?.totals.payin.completed || 0, icon: <FiCheckCircle className="text-green-500" />, color: 'bg-green-100' },
-        { label: 'Pending', value: analyticsData?.statusCounts.payin.pending || 0, amount: analyticsData?.totals.payin.pending || 0, icon: <FiClock className="text-orange-500" />, color: 'bg-orange-100' },
-        { label: 'Rejected', value: analyticsData?.statusCounts.payin.rejected || 0, amount: analyticsData?.totals.payin.rejected || 0, icon: <FiXCircle className="text-red-500" />, color: 'bg-red-100' }
+        { label: 'Completed', value: formatNumber(analyticsData?.counts.payin.completed || 0), amount: formatCurrency(analyticsData?.totals.payin.completed || 0), icon: <FiCheckCircle className="text-green-500" />, color: 'bg-green-100' },
+        { label: 'Pending', value: formatNumber(analyticsData?.counts.payin.pending || 0), amount: formatCurrency(analyticsData?.totals.payin.pending || 0), icon: <FiClock className="text-orange-500" />, color: 'bg-orange-100' },
+        { label: 'Rejected', value: formatNumber(analyticsData?.counts.payin.rejected || 0), amount: formatCurrency(analyticsData?.totals.payin.rejected || 0), icon: <FiXCircle className="text-red-500" />, color: 'bg-red-100' }
       ]
     },
     {
       title: 'Payout Status',
       icon: <FaExchangeAlt className="text-blue-500" />,
       data: [
-        { label: 'Success', value: analyticsData?.statusCounts.payout.success || 0, amount: analyticsData?.totals.payout.success || 0, icon: <FiCheckCircle className="text-green-500" />, color: 'bg-green-100' },
-        { label: 'Pending', value: analyticsData?.statusCounts.payout.pending || 0, amount: analyticsData?.totals.payout.pending || 0, icon: <FiClock className="text-orange-500" />, color: 'bg-orange-100' },
-        { label: 'Rejected', value: analyticsData?.statusCounts.payout.rejected || 0, amount: analyticsData?.totals.payout.rejected || 0, icon: <FiXCircle className="text-red-500" />, color: 'bg-red-100' }
+        { label: 'Success', value: formatNumber(analyticsData?.counts.payout.success || 0), amount: formatCurrency(analyticsData?.totals.payout.success || 0), icon: <FiCheckCircle className="text-green-500" />, color: 'bg-green-100' },
+        { label: 'Pending', value: formatNumber(analyticsData?.counts.payout.pending || 0), amount: formatCurrency(analyticsData?.totals.payout.pending || 0), icon: <FiClock className="text-orange-500" />, color: 'bg-orange-100' },
+        { label: 'Rejected', value: formatNumber(analyticsData?.counts.payout.rejected || 0), amount: formatCurrency(analyticsData?.totals.payout.rejected || 0), icon: <FiXCircle className="text-red-500" />, color: 'bg-red-100' }
       ]
     },
     {
       title: 'Payin Summary',
       icon: <FiTrendingUp className="text-purple-500" />,
       data: [
-        { label: 'Total Amount', value: analyticsData?.totals.payin.total || 0, icon: <FaBangladeshiTakaSign className="text-indigo-500" />, color: 'bg-indigo-100' },
-        { label: 'Avg. Transaction', value: analyticsData?.payin.byProvider[0]?.avgAmount || 0, icon: <FaDollarSign className="text-blue-500" />, color: 'bg-blue-100' },
-        { label: 'Total Transactions', value: (analyticsData?.statusCounts.payin.completed + analyticsData?.statusCounts.payin.pending + analyticsData?.statusCounts.payin.rejected || 0).toLocaleString(), icon: <FaFileAlt className="text-teal-500" />, color: 'bg-teal-100' }
+        { label: 'Total Amount', value: formatCurrency(analyticsData?.totals.payin.total || 0), icon: <FaBangladeshiTakaSign className="text-indigo-500" />, color: 'bg-indigo-100' },
+        { label: 'Avg. Transaction', value: formatCurrency(analyticsData?.providers.payin[0]?.avgAmount || 0), icon: <FaDollarSign className="text-blue-500" />, color: 'bg-blue-100' },
+        { label: 'Total Transactions', value: formatNumber(analyticsData?.counts.payin.total || 0), icon: <FaFileAlt className="text-teal-500" />, color: 'bg-teal-100' }
       ]
     },
     {
       title: 'Payout Summary',
       icon: <FiTrendingDown className="text-teal-500" />,
       data: [
-        { label: 'Total Amount', value: analyticsData?.totals.payout.total || 0, icon: <FaBangladeshiTakaSign className="text-green-500" />, color: 'bg-green-100' },
-        { label: 'Avg. Transaction', value: analyticsData?.payout.byProvider[0]?.avgAmount || 0, icon: <FaDollarSign className="text-amber-500" />, color: 'bg-amber-100' },
-        { label: 'Total Transactions', value: (analyticsData?.statusCounts.payout.success + analyticsData?.statusCounts.payout.pending + analyticsData?.statusCounts.payout.rejected || 0).toLocaleString(), icon: <FaFileAlt className="text-pink-500" />, color: 'bg-pink-100' }
+        { label: 'Total Amount', value: formatCurrency(analyticsData?.totals.payout.total || 0), icon: <FaBangladeshiTakaSign className="text-green-500" />, color: 'bg-green-100' },
+        { label: 'Avg. Transaction', value: formatCurrency(analyticsData?.providers.payout[0]?.avgAmount || 0), icon: <FaDollarSign className="text-amber-500" />, color: 'bg-amber-100' },
+        { label: 'Total Transactions', value: formatNumber(analyticsData?.counts.payout.total || 0), icon: <FaFileAlt className="text-pink-500" />, color: 'bg-pink-100' }
       ]
     }
   ];
@@ -238,10 +246,10 @@ const Dashboard = () => {
 
   // Prepare provider distribution data
   const providerData = [
-    ...(analyticsData?.payin.byProvider.map(provider => ({
+    ...(analyticsData?.providers.payin.map(provider => ({
       name: provider._id,
       payin: provider.totalAmount / 100,
-      payout: analyticsData?.payout.byProvider.find(p => p._id === provider._id)?.totalAmount / 100 || 0
+      payout: analyticsData?.providers.payout.find(p => p._id === provider._id)?.totalAmount / 100 || 0
     })) || [])
   ];
 
@@ -328,7 +336,7 @@ const Dashboard = () => {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 gap-6 mb-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 mb-8 sm:grid-cols-2 lg:grid-cols-5">
             {summaryCards.map((card, index) => (
               <div 
                 key={index} 
@@ -351,7 +359,7 @@ const Dashboard = () => {
                         <div key={key} className="bg-white bg-opacity-10 rounded p-1 text-center">
                           <p className="text-xs opacity-80 text-gray-800 font-[700] capitalize">{key}</p>
                           <p className="text-sm text-gray-800 font-[700]">
-                            {typeof value === 'number' ? value : value}
+                            {value}
                           </p>
                         </div>
                       ))}
@@ -383,7 +391,7 @@ const Dashboard = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-gray-800">{item.value}</p>
-                        {item.amount !== undefined && (
+                        {item.amount && (
                           <p className="text-xs text-gray-500">{item.amount}</p>
                         )}
                       </div>
@@ -401,13 +409,13 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-semibold text-gray-700">Payin Trend</h2>
                 <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">
-                  {analyticsData?.totals.payin.total ? analyticsData.totals.payin.total : '৳0'}
+                  {analyticsData?.totals.payin.total ? formatCurrency(analyticsData.totals.payin.total) : '৳0'}
                 </span>
               </div>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart 
-                    data={formatTrendData(analyticsData?.payin.trend)} 
+                    data={formatTrendData(analyticsData?.trends.payin)} 
                     margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -449,13 +457,13 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-semibold text-gray-700">Payout Trend</h2>
                 <span className="text-xs bg-amber-50 text-amber-600 px-2 py-1 rounded-full">
-                  {analyticsData?.totals.payout.total ? analyticsData.totals.payout.total : '৳0'}
+                  {analyticsData?.totals.payout.total ? formatCurrency(analyticsData.totals.payout.total) : '৳0'}
                 </span>
               </div>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart 
-                    data={formatTrendData(analyticsData?.payout.trend)} 
+                    data={formatTrendData(analyticsData?.trends.payout)} 
                     margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -500,7 +508,7 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-semibold text-gray-700">Provider Distribution</h2>
                 <span className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-full">
-                  {analyticsData?.payin.byProvider.length || 0} providers
+                  {analyticsData?.providers.payin.length || 0} providers
                 </span>
               </div>
               <div className="h-[300px]">
@@ -560,7 +568,7 @@ const Dashboard = () => {
                 <h2 className="text-md font-semibold text-gray-700">Payment Breakdown</h2>
                 <span className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded-full">
                   {analyticsData ? 
-                    `${analyticsData.totals.payin.total + analyticsData.totals.payout.total} total` 
+                    formatCurrency(analyticsData.totals.payin.total + analyticsData.totals.payout.total) + ' total'
                     : '৳0 total'}
                 </span>
               </div>
@@ -604,7 +612,7 @@ const Dashboard = () => {
                     <div key={index} className="flex items-center gap-2">
                       <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }}></span>
                       <span className="text-xs font-medium text-gray-600">
-                        {entry.name}: {entry.value * 100}
+                        {entry.name}: {formatCurrency(entry.value * 100)}
                       </span>
                     </div>
                   ))}
@@ -619,8 +627,8 @@ const Dashboard = () => {
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
               <h2 className="text-md font-semibold text-gray-700 mb-4">Top Payin Accounts</h2>
               <div className="space-y-4">
-                {analyticsData?.payin.topAccounts.length > 0 ? (
-                  analyticsData.payin.topAccounts.map((account, index) => (
+                {analyticsData?.topAccounts.payin && analyticsData.topAccounts.payin.length > 0 ? (
+                  analyticsData.topAccounts.payin.map((account, index) => (
                     <div key={index} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition-colors">
                       <div className="flex items-center space-x-3">
                         <div className="bg-indigo-100 p-2 rounded-lg">
@@ -632,7 +640,7 @@ const Dashboard = () => {
                       </div>
                       <div className="text-right">
                         <span className="font-bold block text-gray-800">
-                          ৳{account.totalAmount}
+                          {formatCurrency(account.totalAmount)}
                         </span>
                         <span className="text-xs text-gray-500">
                           {account.count} transaction{account.count !== 1 ? 's' : ''}
@@ -653,8 +661,8 @@ const Dashboard = () => {
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
               <h2 className="text-md font-semibold text-gray-700 mb-4">Top Payout Accounts</h2>
               <div className="space-y-4">
-                {analyticsData?.payout.topAccounts.length > 0 ? (
-                  analyticsData.payout.topAccounts.map((account, index) => (
+                {analyticsData?.topAccounts.payout && analyticsData.topAccounts.payout.length > 0 ? (
+                  analyticsData.topAccounts.payout.map((account, index) => (
                     <div key={index} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition-colors">
                       <div className="flex items-center space-x-3">
                         <div className="bg-amber-100 p-2 rounded-lg">
@@ -666,7 +674,7 @@ const Dashboard = () => {
                       </div>
                       <div className="text-right">
                         <span className="font-bold block text-gray-800">
-                          ৳{account.totalAmount}
+                          {formatCurrency(account.totalAmount)}
                         </span>
                         <span className="text-xs text-gray-500">
                           {account.count} transaction{account.count !== 1 ? 's' : ''}

@@ -10,7 +10,6 @@ const ForwardedSms = require('../Models/ForwardedSms');
 const PayoutTransaction = require('../Models/PayoutTransaction');
 const bcrypt=require("bcrypt")
 const Cashdesk = require('../Models/Cashdesk');
-
 // Protect all admin routes
 // Adminroute.use(authenticate);
 // Adminroute.use(authorizeAdmin);
@@ -1041,48 +1040,80 @@ const Merchantkey = require('../Models/Merchantkey');
 const MerchantPaymentRequest = require('../Models/MerchantPaymentRequest');
 const Merchantwithdraw = require('../Models/Merchantwithdraw');
 
+
 Adminroute.get('/analytics', async (req, res) => {
   try {
-    const { period = 'month', provider } = req.query;
+    const { 
+      period = 'month', 
+      provider, 
+      merchantId,
+      startDate,
+      endDate,
+      currency = 'BDT'
+    } = req.query;
     
-    // Get date range based on period
-    const now = moment();
+    // Get date range based on period or custom dates
     let start, end;
     
-    switch(period) {
-      case 'today':
-        start = now.clone().startOf('day');
-        end = now.clone().endOf('day');
-        break;
-      case 'month':
-        start = now.clone().startOf('month');
-        end = now.clone().endOf('month');
-        break;
-      case 'year':
-        start = now.clone().startOf('year');
-        end = now.clone().endOf('year');
-        break;
-      case 'all':
-      default:
-        start = moment(0); // beginning of time
-        end = moment().endOf('day');
-        break;
+    if (startDate && endDate) {
+      start = moment(startDate).startOf('day');
+      end = moment(endDate).endOf('day');
+    } else {
+      const now = moment();
+      switch(period) {
+        case 'today':
+          start = now.clone().startOf('day');
+          end = now.clone().endOf('day');
+          break;
+        case 'week':
+          start = now.clone().startOf('week');
+          end = now.clone().endOf('week');
+          break;
+        case 'month':
+          start = now.clone().startOf('month');
+          end = now.clone().endOf('month');
+          break;
+        case 'year':
+          start = now.clone().startOf('year');
+          end = now.clone().endOf('year');
+          break;
+        case 'all':
+        default:
+          start = moment(0); // beginning of time
+          end = moment().endOf('day');
+          break;
+      }
     }
     
     // Base match query
-    const matchQuery = {
+    const baseMatchQuery = {
       createdAt: { $gte: start.toDate(), $lte: end.toDate() }
     };
     
-    // Nagad-specific match query
+    // Add merchant filter if specified
+    if (merchantId) {
+      baseMatchQuery.merchantid = merchantId;
+    }
+    
+    // Add currency filter if specified
+    if (currency) {
+      baseMatchQuery.currency = currency.toUpperCase();
+    }
+    
+    // Provider-specific match queries
     const nagadMatchQuery = {
-      ...matchQuery,
-      provider: /nagad/i // Case-insensitive regex for Nagad
+      ...baseMatchQuery,
+      provider: /nagad/i
+    };
+    
+    const bankMatchQuery = {
+      ...baseMatchQuery,
+      provider: /bank/i
     };
     
     // Add provider filter if specified
     if (provider) {
-      matchQuery.provider = new RegExp(provider, 'i');
+      baseMatchQuery.provider = new RegExp(provider, 'i');
     }
     
     // Helper function to get the correct amount field based on payment type
@@ -1094,390 +1125,296 @@ Adminroute.get('/analytics', async (req, res) => {
       }
     };
     
-    // Execute all queries in parallel for better performance
-    const [
+    // Common aggregation pipelines
+    const createPayinStatsPipeline = (matchQuery) => [
+      { $match: { ...matchQuery, status: 'completed' } },
+      { 
+        $group: {
+          _id: '$provider',
+          count: { $sum: 1 },
+          totalAmount: { $sum: getPayinAmountField },
+          avgAmount: { $avg: getPayinAmountField },
+          minAmount: { $min: getPayinAmountField },
+          maxAmount: { $max: getPayinAmountField }
+        }
+      },
+      { $sort: { totalAmount: -1 } }
+    ];
+    
+    const createPayoutStatsPipeline = (matchQuery) => [
+      { $match: { ...matchQuery, status: 'success' } },
+      { 
+        $group: {
+          _id: '$provider',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$sentAmount' },
+          avgAmount: { $avg: '$sentAmount' },
+          minAmount: { $min: '$sentAmount' },
+          maxAmount: { $max: '$sentAmount' }
+        }
+      },
+      { $sort: { totalAmount: -1 } }
+    ];
+    
+    const createStatusCountPipeline = (model, matchQuery, statusField, amountField) => [
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: `$${statusField}`,
+          count: { $sum: 1 },
+          totalAmount: { $sum: amountField }
+        }
+      }
+    ];
+    
+    const createTrendPipeline = (matchQuery, status, amountField, period) => [
+      { $match: { ...matchQuery, status } },
+      {
+        $group: {
+          _id: period === 'today' ? { $hour: '$createdAt' } : 
+               period === 'week' ? { $dayOfWeek: '$createdAt' } :
+               period === 'month' ? { $dayOfMonth: '$createdAt' } : 
+               { $month: '$createdAt' },
+          count: { $sum: 1 },
+          amount: { $sum: amountField }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ];
+    
+    // Execute all queries in parallel
+    const queries = {
       // General stats
-      payinStats,
-      payoutStats,
-      pendingPayins,
-      pendingPayinsAmount,
-      completedPayins,
-      completedPayinsAmount,
-      rejectedPayins,
-      rejectedPayinsAmount,
-      pendingPayouts,
-      pendingPayoutsAmount,
-      successPayouts,
-      successPayoutsAmount,
-      rejectedPayouts,
-      rejectedPayoutsAmount,
-      payinTrend,
-      payoutTrend,
-      topPayinAccounts,
-      topPayoutAccounts,
+      payinStats: PayinTransaction.aggregate(createPayinStatsPipeline(baseMatchQuery)),
+      payoutStats: PayoutTransaction.aggregate(createPayoutStatsPipeline(baseMatchQuery)),
+      
+      // Payin status breakdown
+      payinStatusBreakdown: PayinTransaction.aggregate(
+        createStatusCountPipeline(PayinTransaction, baseMatchQuery, 'status', getPayinAmountField)
+      ),
+      
+      // Payout status breakdown
+      payoutStatusBreakdown: PayoutTransaction.aggregate(
+        createStatusCountPipeline(PayoutTransaction, baseMatchQuery, 'status', '$sentAmount')
+      ),
+      
+      // Trends
+      payinTrend: PayinTransaction.aggregate(
+        createTrendPipeline(baseMatchQuery, 'completed', getPayinAmountField, period)
+      ),
+      payoutTrend: PayoutTransaction.aggregate(
+        createTrendPipeline(baseMatchQuery, 'success', '$sentAmount', period)
+      ),
+      
+      // Top accounts
+      topPayinAccounts: PayinTransaction.aggregate([
+        { $match: { ...baseMatchQuery, status: 'completed' } },
+        {
+          $group: {
+            _id: '$payerAccount',
+            count: { $sum: 1 },
+            totalAmount: { $sum: getPayinAmountField }
+          }
+        },
+        { $sort: { totalAmount: -1 } },
+        { $limit: 10 }
+      ]),
+      
+      topPayoutAccounts: PayoutTransaction.aggregate([
+        { $match: { ...baseMatchQuery, status: 'success' } },
+        {
+          $group: {
+            _id: '$payeeAccount',
+            count: { $sum: 1 },
+            totalAmount: { $sum: '$sentAmount' }
+          }
+        },
+        { $sort: { totalAmount: -1 } },
+        { $limit: 10 }
+      ]),
       
       // Nagad-specific queries
-      nagadPayinStats,
-      nagadPayoutStats,
-      nagadPendingPayins,
-      nagadPendingPayinsAmount,
-      nagadCompletedPayins,
-      nagadCompletedPayinsAmount,
-      nagadRejectedPayins,
-      nagadRejectedPayinsAmount,
-      nagadPendingPayouts,
-      nagadPendingPayoutsAmount,
-      nagadSuccessPayouts,
-      nagadSuccessPayoutsAmount,
-      nagadRejectedPayouts,
-      nagadRejectedPayoutsAmount,
-      nagadPayinTrend,
-      nagadPayoutTrend,
-      nagadTopPayinAccounts,
-      nagadTopPayoutAccounts
-    ] = await Promise.all([
-      // Payin stats by provider (completed only)
-      PayinTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'completed' } },
-        { 
-          $group: {
-            _id: '$provider',
-            count: { $sum: 1 },
-            totalAmount: { $sum: getPayinAmountField },
-            avgAmount: { $avg: getPayinAmountField }
-          }
-        },
-        { $sort: { totalAmount: -1 } }
+      nagadPayinStats: PayinTransaction.aggregate(createPayinStatsPipeline(nagadMatchQuery)),
+      nagadPayoutStats: PayoutTransaction.aggregate(createPayoutStatsPipeline(nagadMatchQuery)),
+      nagadPayinTrend: PayinTransaction.aggregate(
+        createTrendPipeline(nagadMatchQuery, 'completed', getPayinAmountField, period)
+      ),
+      nagadPayoutTrend: PayoutTransaction.aggregate(
+        createTrendPipeline(nagadMatchQuery, 'success', '$sentAmount', period)
+      ),
+      
+      // Bank-specific queries
+      bankPayinStats: PayinTransaction.aggregate(createPayinStatsPipeline(bankMatchQuery)),
+      bankPayoutStats: PayoutTransaction.aggregate(createPayoutStatsPipeline(bankMatchQuery)),
+      
+      // Transaction counts by type
+      totalTransactions: Promise.all([
+        PayinTransaction.countDocuments(baseMatchQuery),
+        PayoutTransaction.countDocuments(baseMatchQuery),
+        NagadFreeDeposit.countDocuments(baseMatchQuery),
+        BankDeposit.countDocuments(baseMatchQuery)
       ]),
       
-      // Payout stats by provider (success only)
-      PayoutTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'success' } },
-        { 
-          $group: {
-            _id: '$provider',
-            count: { $sum: 1 },
-            totalAmount: { $sum: '$sentAmount' },
-            avgAmount: { $avg: '$sentAmount' }
-          }
-        },
-        { $sort: { totalAmount: -1 } }
-      ]),
-      
-      // Payin status counts and amounts
-      PayinTransaction.countDocuments({ ...matchQuery, status: 'pending' }),
-      PayinTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'pending' } },
-        { $group: { _id: null, totalAmount: { $sum: getPayinAmountField } } }
-      ]),
-      PayinTransaction.countDocuments({ ...matchQuery, status: 'completed' }),
-      PayinTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'completed' } },
-        { $group: { _id: null, totalAmount: { $sum: getPayinAmountField } } }
-      ]),
-      PayinTransaction.countDocuments({ ...matchQuery, status: 'rejected' }),
-      PayinTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'rejected' } },
-        { $group: { _id: null, totalAmount: { $sum: getPayinAmountField } } }
-      ]),
-      
-      // Payout status counts and amounts
-      PayoutTransaction.countDocuments({ ...matchQuery, status: 'pending' }),
-      PayoutTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'pending' } },
-        { $group: { _id: null, totalAmount: { $sum: '$sentAmount' } } }
-      ]),
-      PayoutTransaction.countDocuments({ ...matchQuery, status: 'success' }),
-      PayoutTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'success' } },
-        { $group: { _id: null, totalAmount: { $sum: '$sentAmount' } } }
-      ]),
-      PayoutTransaction.countDocuments({ ...matchQuery, status: 'rejected' }),
-      PayoutTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'rejected' } },
-        { $group: { _id: null, totalAmount: { $sum: '$sentAmount' } } }
-      ]),
-      
-      // Payin trend (completed only)
-      PayinTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'completed' } },
+      // Success rates
+      payinSuccessRate: PayinTransaction.aggregate([
+        { $match: baseMatchQuery },
         {
           $group: {
-            _id: period === 'today' ? { $hour: '$createdAt' } : 
-                 period === 'month' ? { $dayOfMonth: '$createdAt' } : 
-                 { $month: '$createdAt' },
-            count: { $sum: 1 },
-            amount: { $sum: getPayinAmountField }
-          }
-        },
-        { $sort: { _id: 1 } }
-      ]),
-      
-      // Payout trend (success only)
-      PayoutTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'success' } },
-        {
-          $group: {
-            _id: period === 'today' ? { $hour: '$createdAt' } : 
-                 period === 'month' ? { $dayOfMonth: '$createdAt' } : 
-                 { $month: '$createdAt' },
-            count: { $sum: 1 },
-            amount: { $sum: '$sentAmount' }
-          }
-        },
-        { $sort: { _id: 1 } }
-      ]),
-      
-      // Top payin accounts (completed only)
-      PayinTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'completed' } },
-        {
-          $group: {
-            _id: '$payerAccount',
-            count: { $sum: 1 },
-            totalAmount: { $sum: getPayinAmountField }
-          }
-        },
-        { $sort: { totalAmount: -1 } },
-        { $limit: 5 }
-      ]),
-      
-      // Top payout accounts (success only)
-      PayoutTransaction.aggregate([
-        { $match: { ...matchQuery, status: 'success' } },
-        {
-          $group: {
-            _id: '$payeeAccount',
-            count: { $sum: 1 },
-            totalAmount: { $sum: '$sentAmount' }
-          }
-        },
-        { $sort: { totalAmount: -1 } },
-        { $limit: 5 }
-      ]),
-      
-      // Nagad-specific analytics
-      // Nagad payin stats (completed only)
-      PayinTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'completed' } },
-        { 
-          $group: {
-            _id: '$provider',
-            count: { $sum: 1 },
-            totalAmount: { $sum: getPayinAmountField },
-            avgAmount: { $avg: getPayinAmountField }
+            _id: null,
+            total: { $sum: 1 },
+            completed: {
+              $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+            }
           }
         }
       ]),
       
-      // Nagad payout stats (success only)
-      PayoutTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'success' } },
-        { 
+      payoutSuccessRate: PayoutTransaction.aggregate([
+        { $match: baseMatchQuery },
+        {
           $group: {
-            _id: '$provider',
-            count: { $sum: 1 },
-            totalAmount: { $sum: '$sentAmount' },
-            avgAmount: { $avg: '$sentAmount' }
+            _id: null,
+            total: { $sum: 1 },
+            success: {
+              $sum: { $cond: [{ $eq: ['$status', 'success'] }, 1, 0] }
+            }
           }
         }
-      ]),
-      
-      // Nagad payin status counts and amounts
-      PayinTransaction.countDocuments({ ...nagadMatchQuery, status: 'pending' }),
-      PayinTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'pending' } },
-        { $group: { _id: null, totalAmount: { $sum: getPayinAmountField } } }
-      ]),
-      PayinTransaction.countDocuments({ ...nagadMatchQuery, status: 'completed' }),
-      PayinTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'completed' } },
-        { $group: { _id: null, totalAmount: { $sum: getPayinAmountField } } }
-      ]),
-      PayinTransaction.countDocuments({ ...nagadMatchQuery, status: 'rejected' }),
-      PayinTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'rejected' } },
-        { $group: { _id: null, totalAmount: { $sum: getPayinAmountField } } }
-      ]),
-      
-      // Nagad payout status counts and amounts
-      PayoutTransaction.countDocuments({ ...nagadMatchQuery, status: 'pending' }),
-      PayoutTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'pending' } },
-        { $group: { _id: null, totalAmount: { $sum: '$sentAmount' } } }
-      ]),
-      PayoutTransaction.countDocuments({ ...nagadMatchQuery, status: 'success' }),
-      PayoutTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'success' } },
-        { $group: { _id: null, totalAmount: { $sum: '$sentAmount' } } }
-      ]),
-      PayoutTransaction.countDocuments({ ...nagadMatchQuery, status: 'rejected' }),
-      PayoutTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'rejected' } },
-        { $group: { _id: null, totalAmount: { $sum: '$sentAmount' } } }
-      ]),
-      
-      // Nagad payin trend (completed only)
-      PayinTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'completed' } },
-        {
-          $group: {
-            _id: period === 'today' ? { $hour: '$createdAt' } : 
-                 period === 'month' ? { $dayOfMonth: '$createdAt' } : 
-                 { $month: '$createdAt' },
-            count: { $sum: 1 },
-            amount: { $sum: getPayinAmountField }
-          }
-        },
-        { $sort: { _id: 1 } }
-      ]),
-      
-      // Nagad payout trend (success only)
-      PayoutTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'success' } },
-        {
-          $group: {
-            _id: period === 'today' ? { $hour: '$createdAt' } : 
-                 period === 'month' ? { $dayOfMonth: '$createdAt' } : 
-                 { $month: '$createdAt' },
-            count: { $sum: 1 },
-            amount: { $sum: '$sentAmount' }
-          }
-        },
-        { $sort: { _id: 1 } }
-      ]),
-      
-      // Top Nagad payin accounts (completed only)
-      PayinTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'completed' } },
-        {
-          $group: {
-            _id: '$payerAccount',
-            count: { $sum: 1 },
-            totalAmount: { $sum: getPayinAmountField }
-          }
-        },
-        { $sort: { totalAmount: -1 } },
-        { $limit: 5 }
-      ]),
-      
-      // Top Nagad payout accounts (success only)
-      PayoutTransaction.aggregate([
-        { $match: { ...nagadMatchQuery, status: 'success' } },
-        {
-          $group: {
-            _id: '$payeeAccount',
-            count: { $sum: 1 },
-            totalAmount: { $sum: '$sentAmount' }
-          }
-        },
-        { $sort: { totalAmount: -1 } },
-        { $limit: 5 }
       ])
-    ]);
+    };
     
-    // Extract amount totals from aggregation results
+    // Execute all queries
+    const results = await Promise.all(Object.values(queries));
+    const data = {};
+    Object.keys(queries).forEach((key, index) => {
+      data[key] = results[index];
+    });
+    
+    // Helper function to extract amount from aggregation results
     const getAmount = (result) => result[0]?.totalAmount || 0;
+    const getStatusAmount = (breakdown, status) => 
+      breakdown.find(item => item._id === status)?.totalAmount || 0;
+    const getStatusCount = (breakdown, status) => 
+      breakdown.find(item => item._id === status)?.count || 0;
     
-    // Calculate totals for all transactions
-    const totalPayinPendingAmount = getAmount(pendingPayinsAmount);
-    const totalPayinCompletedAmount = getAmount(completedPayinsAmount);
-    const totalPayinRejectedAmount = getAmount(rejectedPayinsAmount);
-    const totalPayinAmount = totalPayinPendingAmount + totalPayinCompletedAmount + totalPayinRejectedAmount;
+    // Calculate success rates
+    const payinSuccessRateData = data.payinSuccessRate[0] || { total: 0, completed: 0 };
+    const payoutSuccessRateData = data.payoutSuccessRate[0] || { total: 0, success: 0 };
     
-    const totalPayoutPendingAmount = getAmount(pendingPayoutsAmount);
-    const totalPayoutSuccessAmount = getAmount(successPayoutsAmount);
-    const totalPayoutRejectedAmount = getAmount(rejectedPayoutsAmount);
-    const totalPayoutAmount = totalPayoutPendingAmount + totalPayoutSuccessAmount + totalPayoutRejectedAmount;
-    
-    // Calculate totals for Nagad transactions
-    const totalNagadPayinPendingAmount = getAmount(nagadPendingPayinsAmount);
-    const totalNagadPayinCompletedAmount = getAmount(nagadCompletedPayinsAmount);
-    const totalNagadPayinRejectedAmount = getAmount(nagadRejectedPayinsAmount);
-    const totalNagadPayinAmount = totalNagadPayinPendingAmount + totalNagadPayinCompletedAmount + totalNagadPayinRejectedAmount;
-    
-    const totalNagadPayoutPendingAmount = getAmount(nagadPendingPayoutsAmount);
-    const totalNagadPayoutSuccessAmount = getAmount(nagadSuccessPayoutsAmount);
-    const totalNagadPayoutRejectedAmount = getAmount(nagadRejectedPayoutsAmount);
-    const totalNagadPayoutAmount = totalNagadPayoutPendingAmount + totalNagadPayoutSuccessAmount + totalNagadPayoutRejectedAmount;
+    const payinSuccessRate = payinSuccessRateData.total > 0 
+      ? (payinSuccessRateData.completed / payinSuccessRateData.total) * 100 
+      : 0;
+      
+    const payoutSuccessRate = payoutSuccessRateData.total > 0 
+      ? (payoutSuccessRateData.success / payoutSuccessRateData.total) * 100 
+      : 0;
     
     // Response data
     const analyticsData = {
       period: {
         start: start.toDate(),
         end: end.toDate(),
-        name: period
+        name: period,
+        currency
+      },
+      summary: {
+        totalTransactions: data.totalTransactions.reduce((sum, count) => sum + count, 0),
+        totalPayins: data.totalTransactions[0],
+        totalPayouts: data.totalTransactions[1],
+        totalNagadFreeDeposits: data.totalTransactions[2],
+        totalBankDeposits: data.totalTransactions[3],
+        successRates: {
+          payin: Math.round(payinSuccessRate * 100) / 100,
+          payout: Math.round(payoutSuccessRate * 100) / 100
+        }
       },
       totals: {
         // All transactions
         payin: {
-          total: totalPayinAmount,
-          completed: totalPayinCompletedAmount,
-          pending: totalPayinPendingAmount,
-          rejected: totalPayinRejectedAmount
+          total: data.payinStatusBreakdown.reduce((sum, item) => sum + item.totalAmount, 0),
+          completed: getStatusAmount(data.payinStatusBreakdown, 'completed'),
+          pending: getStatusAmount(data.payinStatusBreakdown, 'pending'),
+          rejected: getStatusAmount(data.payinStatusBreakdown, 'rejected')
         },
         payout: {
-          total: totalPayoutAmount,
-          success: totalPayoutSuccessAmount,
-          pending: totalPayoutPendingAmount,
-          rejected: totalPayoutRejectedAmount
+          total: data.payoutStatusBreakdown.reduce((sum, item) => sum + item.totalAmount, 0),
+          success: getStatusAmount(data.payoutStatusBreakdown, 'success'),
+          pending: getStatusAmount(data.payoutStatusBreakdown, 'pending'),
+          rejected: getStatusAmount(data.payoutStatusBreakdown, 'rejected')
         },
-        net: totalPayinCompletedAmount - totalPayoutSuccessAmount,
+        net: getStatusAmount(data.payinStatusBreakdown, 'completed') - 
+             getStatusAmount(data.payoutStatusBreakdown, 'success'),
         
         // Nagad-specific
-        nagadPayin: {
-          total: totalNagadPayinAmount,
-          completed: totalNagadPayinCompletedAmount,
-          pending: totalNagadPayinPendingAmount,
-          rejected: totalNagadPayinRejectedAmount
+        nagad: {
+          payin: data.nagadPayinStats.reduce((sum, item) => sum + item.totalAmount, 0),
+          payout: data.nagadPayoutStats.reduce((sum, item) => sum + item.totalAmount, 0),
+          net: data.nagadPayinStats.reduce((sum, item) => sum + item.totalAmount, 0) - 
+               data.nagadPayoutStats.reduce((sum, item) => sum + item.totalAmount, 0)
         },
-        nagadPayout: {
-          total: totalNagadPayoutAmount,
-          success: totalNagadPayoutSuccessAmount,
-          pending: totalNagadPayoutPendingAmount,
-          rejected: totalNagadPayoutRejectedAmount
-        },
-        nagadNet: totalNagadPayinCompletedAmount - totalNagadPayoutSuccessAmount
-      },
-      payin: {
-        byProvider: payinStats,
-        trend: payinTrend,
-        topAccounts: topPayinAccounts
-      },
-      payout: {
-        byProvider: payoutStats,
-        trend: payoutTrend,
-        topAccounts: topPayoutAccounts
-      },
-      nagad: {
-        payin: {
-          byProvider: nagadPayinStats,
-          trend: nagadPayinTrend,
-          topAccounts: nagadTopPayinAccounts
-        },
-        payout: {
-          byProvider: nagadPayoutStats,
-          trend: nagadPayoutTrend,
-          topAccounts: nagadTopPayoutAccounts
+        
+        // Bank-specific
+        bank: {
+          payin: data.bankPayinStats.reduce((sum, item) => sum + item.totalAmount, 0),
+          payout: data.bankPayoutStats.reduce((sum, item) => sum + item.totalAmount, 0),
+          net: data.bankPayinStats.reduce((sum, item) => sum + item.totalAmount, 0) - 
+               data.bankPayoutStats.reduce((sum, item) => sum + item.totalAmount, 0)
         }
       },
-      statusCounts: {
+      counts: {
         payin: {
-          pending: pendingPayins,
-          completed: completedPayins,
-          rejected: rejectedPayins
+          total: data.payinStatusBreakdown.reduce((sum, item) => sum + item.count, 0),
+          completed: getStatusCount(data.payinStatusBreakdown, 'completed'),
+          pending: getStatusCount(data.payinStatusBreakdown, 'pending'),
+          rejected: getStatusCount(data.payinStatusBreakdown, 'rejected')
         },
         payout: {
-          pending: pendingPayouts,
-          success: successPayouts,
-          rejected: rejectedPayouts
+          total: data.payoutStatusBreakdown.reduce((sum, item) => sum + item.count, 0),
+          success: getStatusCount(data.payoutStatusBreakdown, 'success'),
+          pending: getStatusCount(data.payoutStatusBreakdown, 'pending'),
+          rejected: getStatusCount(data.payoutStatusBreakdown, 'rejected')
         }
+      },
+      providers: {
+        payin: data.payinStats,
+        payout: data.payoutStats,
+        nagad: {
+          payin: data.nagadPayinStats,
+          payout: data.nagadPayoutStats
+        },
+        bank: {
+          payin: data.bankPayinStats,
+          payout: data.bankPayoutStats
+        }
+      },
+      trends: {
+        payin: data.payinTrend,
+        payout: data.payoutTrend,
+        nagad: {
+          payin: data.nagadPayinTrend,
+          payout: data.nagadPayoutTrend
+        }
+      },
+      topAccounts: {
+        payin: data.topPayinAccounts,
+        payout: data.topPayoutAccounts
       }
     };
     
     res.json({
       success: true,
-      data: analyticsData
+      data: analyticsData,
+      metadata: {
+        generatedAt: new Date(),
+        filters: {
+          period,
+          provider,
+          merchantId,
+          currency,
+          startDate: start.toISOString(),
+          endDate: end.toISOString()
+        }
+      }
     });
     
   } catch (error) {
@@ -1485,7 +1422,7 @@ Adminroute.get('/analytics', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch payment analytics',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
@@ -2318,6 +2255,300 @@ Adminroute.patch('/cashdesk/:id/status', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update cashdesk status',
+      error: error.message
+    });
+  }
+});
+
+const PaymentMethod = require('../Models/PaymentMethod'); // Add this import at the top with other models
+const NagadFreeDeposit = require('../Models/NagadFreeDeposit');
+const BankDeposit = require('../Models/BankDeposit');
+
+// Payment Method Routes
+
+// GET all payment methods
+Adminroute.get('/payment-methods', async (req, res) => {
+  try {
+    const paymentMethods = await PaymentMethod.find().sort({ priority: -1, createdAt: -1 });
+    res.json({
+      success: true,
+      data: paymentMethods
+    });
+  } catch (error) {
+    console.error('Error fetching payment methods:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payment methods',
+      error: error.message
+    });
+  }
+});
+
+// GET single payment method by ID
+Adminroute.get('/payment-methods/:id', async (req, res) => {
+  try {
+    const paymentMethod = await PaymentMethod.findById(req.params.id);
+    
+    if (!paymentMethod) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment method not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: paymentMethod
+    });
+  } catch (error) {
+    console.error('Error fetching payment method:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment method ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payment method',
+      error: error.message
+    });
+  }
+});
+
+// POST create new payment method
+Adminroute.post('/payment-methods', async (req, res) => {
+  try {
+    const {
+      name,
+      name_bn,
+      image,
+      type,
+      category,
+      minAmount,
+      maxAmount,
+      isEnabled,
+      priority
+    } = req.body;
+    
+    // Check if payment method name already exists
+    const existingPaymentMethod = await PaymentMethod.findOne({ name });
+    if (existingPaymentMethod) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment method name already exists'
+      });
+    }
+    
+    // Create new payment method
+    const newPaymentMethod = new PaymentMethod({
+      name,
+      name_bn,
+      image,
+      type,
+      category,
+      minAmount: minAmount || 100,
+      maxAmount: maxAmount || 30000,
+      isEnabled: isEnabled !== undefined ? isEnabled : true,
+      priority: priority || 0
+    });
+    
+    const savedPaymentMethod = await newPaymentMethod.save();
+    
+    res.status(201).json({
+      success: true,
+      message: 'Payment method created successfully',
+      data: savedPaymentMethod
+    });
+  } catch (error) {
+    console.error('Error creating payment method:', error);
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create payment method',
+      error: error.message
+    });
+  }
+});
+
+// PUT update payment method
+Adminroute.put('/payment-methods/:id', async (req, res) => {
+  try {
+    const {
+      name,
+      name_bn,
+      image,
+      type,
+      category,
+      minAmount,
+      maxAmount,
+      isEnabled,
+      priority
+    } = req.body;
+    
+    // Check if payment method name already exists (excluding current document)
+    if (name) {
+      const existingPaymentMethod = await PaymentMethod.findOne({
+        name,
+        _id: { $ne: req.params.id }
+      });
+      
+      if (existingPaymentMethod) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment method name already exists'
+        });
+      }
+    }
+    
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (name_bn) updateData.name_bn = name_bn;
+    if (image) updateData.image = image;
+    if (type) updateData.type = type;
+    if (category) updateData.category = category;
+    if (minAmount !== undefined) updateData.minAmount = minAmount;
+    if (maxAmount !== undefined) updateData.maxAmount = maxAmount;
+    if (isEnabled !== undefined) updateData.isEnabled = isEnabled;
+    if (priority !== undefined) updateData.priority = priority;
+    
+    const updatedPaymentMethod = await PaymentMethod.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { 
+        new: true,
+        runValidators: true
+      }
+    );
+    
+    if (!updatedPaymentMethod) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment method not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Payment method updated successfully',
+      data: updatedPaymentMethod
+    });
+  } catch (error) {
+    console.error('Error updating payment method:', error);
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment method ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update payment method',
+      error: error.message
+    });
+  }
+});
+
+// DELETE payment method
+Adminroute.delete('/payment-methods/:id', async (req, res) => {
+  try {
+    const deletedPaymentMethod = await PaymentMethod.findByIdAndDelete(req.params.id);
+    
+    if (!deletedPaymentMethod) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment method not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Payment method deleted successfully',
+      data: deletedPaymentMethod
+    });
+  } catch (error) {
+    console.error('Error deleting payment method:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment method ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete payment method',
+      error: error.message
+    });
+  }
+});
+
+// PATCH update payment method status (enable/disable)
+Adminroute.patch('/payment-methods/:id/status', async (req, res) => {
+  try {
+    const { isEnabled } = req.body;
+    
+    if (typeof isEnabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isEnabled must be a boolean value'
+      });
+    }
+    
+    const updatedPaymentMethod = await PaymentMethod.findByIdAndUpdate(
+      req.params.id,
+      { isEnabled },
+      { new: true }
+    );
+    
+    if (!updatedPaymentMethod) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment method not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Payment method ${isEnabled ? 'enabled' : 'disabled'} successfully`,
+      data: updatedPaymentMethod
+    });
+  } catch (error) {
+    console.error('Error updating payment method status:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment method ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update payment method status',
       error: error.message
     });
   }

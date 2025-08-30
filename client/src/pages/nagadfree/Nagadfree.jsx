@@ -1,23 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../../components/common/Header';
 import Sidebar from '../../components/common/Sidebar';
-import { FaCalendarAlt, FaEye, FaCheck, FaSync, FaSearch, FaTimes } from 'react-icons/fa';
+import { FaCalendarAlt, FaEye, FaCheck, FaSync, FaSearch, FaTimes,FaCopy  } from 'react-icons/fa';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import moment from 'moment';
 import { RiShareForwardLine } from "react-icons/ri";
 import Swal from 'sweetalert2';
-
+import { MdOutlineContentCopy } from "react-icons/md";
 const Nagadfree = () => {
+  const merchantkey = "28915f245e5b2f4b7637";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [forwardLoading, setForwardLoading] = useState(false);
   const [userData, setUserData] = useState(null);
   const [nagadFreeDeposits, setNagadFreeDeposits] = useState([]);
   const [filteredDeposits, setFilteredDeposits] = useState([]);
   const token = localStorage.getItem('authToken');
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
   const currentUser = JSON.parse(localStorage.getItem("userData"));
+  const [order_id, setOrder_id] = useState("");
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState('');
@@ -30,13 +33,28 @@ const Nagadfree = () => {
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
   const [currentDeposit, setCurrentDeposit] = useState(null);
   const [transactionId, setTransactionId] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [status, setStatus] = useState('pending');
   const [metadata, setMetadata] = useState('');
 
-  const statusOptions = ['pending', 'processing', 'completed', 'failed', 'cancelled', 'rejected'];
+  // Add copy to clipboard function
+  const copyToClipboard = (text) => {
+    if (!text || text === 'N/A') return;
+    
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        toast.success('Transaction ID copied to clipboard!');
+      })
+      .catch((err) => {
+        console.error('Failed to copy: ', err);
+        toast.error('Failed to copy to clipboard');
+      });
+  };
+
+  const statusOptions = ['pending', 'completed'];
 
   const toggleSidebar = () => {
     setSidebarOpen((prev) => !prev);
@@ -53,6 +71,9 @@ const Nagadfree = () => {
       if (response.data.success) {
         setUserData(response.data.user);
         const deposits = response.data.user.nagadFreeDeposits || [];
+        console.log("deposits",deposits)
+        // Sort deposits by date, newest first
+        deposits.sort((a, b) => new Date(b.createdAt || b.statusDate) - new Date(a.createdAt || a.statusDate));
         setNagadFreeDeposits(deposits);
         setFilteredDeposits(deposits);
         setTotalPages(Math.ceil(deposits.length / limit));
@@ -84,7 +105,7 @@ const Nagadfree = () => {
       results = results.filter(deposit => 
         deposit.orderId?.toLowerCase().includes(query) || 
         deposit.playerId?.toLowerCase().includes(query) ||
-        deposit.accountNumber?.toLowerCase().includes(query) ||
+        (deposit.accountNumber && deposit.accountNumber.toLowerCase().includes(query)) ||
         deposit.amount?.toString().includes(query)
       );
     }
@@ -95,9 +116,25 @@ const Nagadfree = () => {
   }, [statusFilter, searchQuery, nagadFreeDeposits, limit]);
 
   const handleView = (deposit) => {
-    // Implement view functionality
-    toast.success(`Viewing deposit: ${deposit.orderId}`);
-    console.log("View deposit:", deposit);
+    Swal.fire({
+      title: 'Deposit Details',
+      html: `
+        <div class="text-left">
+          <p><strong>Order ID:</strong> ${deposit.orderId || 'N/A'}</p>
+          <p><strong>Player ID:</strong> ${deposit.playerId}</p>
+          <p><strong>Amount:</strong> ${deposit.amount} ${deposit.currency}</p>
+          ${deposit.accountNumber ? `<p><strong>Account:</strong> ${deposit.accountNumber}</p>` : ''}
+          <p><strong>Status:</strong> ${deposit.status}</p>
+          <p><strong>Cash Desk Processed:</strong> ${deposit.cashdeskProcessed ? 'Yes' : 'No'}</p>
+          <p><strong>Created:</strong> ${moment(deposit.createdAt || deposit.statusDate).format('DD MMM YYYY, h:mm A')}</p>
+          ${deposit.transactionId ? `<p><strong>Transaction ID:</strong> ${deposit.transactionId}</p>` : ''}
+          ${deposit.referenceNumber ? `<p><strong>Reference Number:</strong> ${deposit.referenceNumber}</p>` : ''}
+          ${deposit.metadata ? `<p><strong>Metadata:</strong> ${deposit.metadata}</p>` : ''}
+          ${deposit.cashdeskError ? `<p><strong>CashDesk Error:</strong> ${JSON.stringify(deposit.cashdeskError)}</p>` : ''}
+        </div>
+      `,
+      icon: 'info'
+    });
   };
 
   const openUpdateModal = (deposit) => {
@@ -107,10 +144,17 @@ const Nagadfree = () => {
     setStatus(deposit.status);
     setMetadata(deposit.metadata || '');
     setIsModalOpen(true);
+    setOrder_id(deposit.orderId);
+  };
+
+  const openForwardModal = (deposit) => {
+    setCurrentDeposit(deposit);
+    setIsForwardModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setIsForwardModalOpen(false);
     setCurrentDeposit(null);
     setTransactionId('');
     setReferenceNumber('');
@@ -133,21 +177,21 @@ const Nagadfree = () => {
     try {
       setLoading(true);
       const response = await axios.patch(
-        `${base_url}/api/payment/nagad-free-deposits/${currentDeposit._id}/status`,
+        `${base_url}/api/payment/nagad-free-deposits/${currentDeposit.orderId}/status`,
         {
           status: status,
-          transactionId: transactionId,
           referenceNumber: referenceNumber,
-          metadata: metadata
+          metadata: metadata,
+          userid:userData._id
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
-            'x-api-key': userData.apiKey
+            'x-api-key': merchantkey,
           }
         }
       );
-      
+
       if (response.data.success) {
         Swal.fire({
           icon: 'success',
@@ -164,9 +208,73 @@ const Nagadfree = () => {
       }
     } catch (error) {
       console.error("Error updating deposit:", error);
-      toast.error("Error updating deposit");
+      
+      // Handle CashDeskBot failure specifically
+      if (error.response?.data?.success === false && error.response.data.error) {
+        Swal.fire({
+          icon: 'error',
+          title: 'CashDesk Deposit Failed',
+          html: `
+            <p>${error.response.data.message}</p>
+            <p class="mt-2 text-sm"><strong>Error:</strong> ${error.response.data.error}</p>
+          `,
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Update Failed',
+          text: error.response?.data?.message || 'Error updating deposit status',
+        });
+      }
     } finally {
       setLoading(false);
+      closeModal();
+    }
+  };
+
+  const handleForwardDeposit = async () => {
+    if (!currentDeposit) return;
+
+    try {
+      setForwardLoading(true);
+      const response = await axios.post(
+        `${base_url}/api/payment/forward-nagad-free-deposit`,
+        {
+          orderId: currentDeposit.orderId
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Forward Success',
+          html: `
+            <p>${response.data.message}</p>
+            <p><strong>New Agent:</strong> ${response.data.newAgent.username} (${response.data.newAgent.name})</p>
+          `,
+        });
+        fetchNagadFreeDeposits(); // Refresh data
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Forward Failed',
+          text: `${response.data.message}`,
+        });
+      }
+    } catch (error) {
+      console.error("Error forwarding deposit:", error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Forward Failed',
+        text: error.response?.data?.message || 'Error forwarding deposit',
+      });
+    } finally {
+      setForwardLoading(false);
       closeModal();
     }
   };
@@ -189,6 +297,11 @@ const Nagadfree = () => {
   const indexOfLastDeposit = currentPage * limit;
   const indexOfFirstDeposit = indexOfLastDeposit - limit;
   const currentDeposits = filteredDeposits.slice(indexOfFirstDeposit, indexOfLastDeposit);
+
+  // Check if action buttons should be shown
+  const shouldShowActions = (deposit) => {
+    return deposit.status !== 'completed' && deposit.status !== 'failed' && deposit.status !== 'cancelled';
+  };
 
   return (
     <section className="flex h-screen font-fira overflow-hidden">
@@ -214,33 +327,21 @@ const Nagadfree = () => {
                 
                 <div className="p-4 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Order ID</label>
                     <input
                       type="text"
-                      value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
-                      className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter transaction ID"
+                      value={currentDeposit.orderId || 'N/A'}
+                      disabled
+                      className="w-full p-2 border border-gray-300 bg-gray-100 rounded-md"
                     />
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Reference Number</label>
-                    <input
-                      type="text"
-                      value={referenceNumber}
-                      onChange={(e) => setReferenceNumber(e.target.value)}
-                      className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter reference number"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
                       className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      required
                     >
                       {statusOptions.map(option => (
                         <option key={option} value={option}>
@@ -261,6 +362,15 @@ const Nagadfree = () => {
                     />
                   </div>
                   
+                  {status === 'completed' && (
+                    <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-md">
+                      <p className="text-yellow-800 text-sm">
+                        <strong>Note:</strong> Setting status to "completed" will trigger CashDeskBot deposit processing. 
+                        If CashDeskBot fails, the status will automatically be set to "failed".
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="flex justify-end space-x-3 pt-2">
                     <button
                       onClick={closeModal}
@@ -274,6 +384,66 @@ const Nagadfree = () => {
                       className="px-4 py-2 bg-green-600 text-white cursor-pointer rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
                     >
                       {loading ? 'Updating...' : 'Update Status'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Forward Deposit Modal */}
+          {isForwardModalOpen && currentDeposit && (
+            <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] bg-opacity-50 flex items-center justify-center z-[10000]">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="flex justify-between items-center border-b p-4 border-gray-200">
+                  <h3 className="text-lg font-semibold">Forward Nagad Free Deposit</h3>
+                  <button onClick={closeModal} className="text-gray-500 cursor-pointer hover:text-gray-700">
+                    <FaTimes />
+                  </button>
+                </div>
+                
+                <div className="p-4 space-y-4">
+                  <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-md">
+                    <p className="text-yellow-800 text-sm">
+                      Are you sure you want to forward this deposit to another agent? This action cannot be undone.
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Order ID</label>
+                      <div className="p-2 bg-gray-100 rounded-md">{currentDeposit.orderId || 'N/A'}</div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                      <div className="p-2 bg-gray-100 rounded-md">{currentDeposit.amount} {currentDeposit.currency}</div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Player ID</label>
+                      <div className="p-2 bg-gray-100 rounded-md">{currentDeposit.playerId}</div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Current Status</label>
+                      <div className="p-2 bg-gray-100 rounded-md">{currentDeposit.status}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end space-x-3 pt-2">
+                    <button
+                      onClick={closeModal}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 cursor-pointer rounded-md hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleForwardDeposit}
+                      disabled={forwardLoading}
+                      className="px-4 py-2 bg-blue-600 text-white cursor-pointer rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {forwardLoading ? 'Forwarding...' : 'Confirm Forward'}
                     </button>
                   </div>
                 </div>
@@ -368,7 +538,8 @@ const Nagadfree = () => {
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Order ID</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Player ID</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Amount</th>
-                          <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Account</th>
+                          <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Process</th>
+                          <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">TRX ID</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Date</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Status</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Actions</th>
@@ -387,10 +558,24 @@ const Nagadfree = () => {
                               {deposit.amount} {deposit.currency}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {deposit.accountNumber}
+                              {deposit.cashdeskProcessed ? "Success" : deposit.cashdeskError ? "Failed" : "Not Processed"} 
                             </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div className="flex items-center">
+                              {deposit.transactionId || "N/A"}
+                              {deposit.transactionId && deposit.transactionId !== "N/A" && (
+                                <button
+                                  onClick={() => copyToClipboard(deposit.transactionId)}
+                                  className="ml-2 p-1 text-gray-500 cursor-pointer hover:text-blue-500 transition-colors"
+                                  title="Copy Transaction ID"
+                                >
+                                  <MdOutlineContentCopy size={18} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {moment(deposit.createdAt).format('DD MMM YYYY, h:mm A')}
+                              {moment(deposit.createdAt || deposit.statusDate).format('DD MMM YYYY, h:mm A')}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -408,17 +593,30 @@ const Nagadfree = () => {
                                 <button
                                   onClick={() => handleView(deposit)}
                                   className="p-2 bg-blue-500 cursor-pointer text-white rounded-md hover:bg-blue-600 transition-colors"
-                                  title="View"
+                                  title="View Details"
                                 >
                                   <FaEye />
                                 </button>
-                                <button
-                                  onClick={() => openUpdateModal(deposit)}
-                                  className="p-2 bg-green-500 cursor-pointer text-white rounded-md hover:bg-green-600 transition-colors"
-                                  title="Update Status"
-                                >
-                                  <FaCheck />
-                                </button>
+                                {shouldShowActions(deposit) && (
+                                  <>
+                                    <button
+                                      onClick={() => openUpdateModal(deposit)}
+                                      className="p-2 bg-green-500 cursor-pointer text-white rounded-md hover:bg-green-600 transition-colors"
+                                      title="Update Status"
+                                    >
+                                      <FaCheck />
+                                    </button>
+                                    {deposit.status === 'pending' && (
+                                      <button
+                                        onClick={() => openForwardModal(deposit)}
+                                        className="p-2 bg-purple-500 cursor-pointer text-white rounded-md hover:bg-purple-600 transition-colors"
+                                        title="Forward Deposit"
+                                      >
+                                        <RiShareForwardLine />
+                                      </button>
+                                    )}
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>

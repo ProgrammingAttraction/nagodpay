@@ -14,7 +14,6 @@ const NagadFreeDepositSchema = new mongoose.Schema({
   },
   accountNumber: {
     type: String,
-    required: true,
     trim: true
   },
   orderId: {

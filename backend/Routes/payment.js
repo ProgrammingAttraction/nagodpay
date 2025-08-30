@@ -22,6 +22,7 @@ const Merchantkey = require('../Models/Merchantkey');
 const qs=require('qs');
 const BankDeposit = require('../Models/BankDeposit');
 const NagadFreeDeposit = require('../Models/NagadFreeDeposit');
+const PaymentMethod = require('../Models/PaymentMethod');
 // Paymentrouter.use(authenticate);
 // Paymentrouter.use(authorizeuser);
 
@@ -131,243 +132,8 @@ function generateMD5Hash(data) {
 function generateSHA256Hash(data) {
   return crypto.createHash('sha256').update(data).digest('hex');
 }
-// wokring payout------
-// Paymentrouter.post("/payout", async (req, res) => {
-//   const { payeeId, paymentId, amount } = req.body;
-//   console.log("Payout request received:", req.body);
-
-//   if (!payeeId || !paymentId) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "Missing required fields (payeeId or paymentId)."
-//     });
-//   }
-
-//   try {
-//     const existcode = await PayoutTransaction.findOne({ paymentId });
-//     if (existcode) {
-//       return res.send({ success: false, message: "Already withdrawal code used!" });
-//     }
-
-//     // 1. Generate confirm hash (MD5 of "payeeId:CASHDESK_HASH")
-//     const confirmString = `${payeeId}:${CASHDESK_HASH}`;
-//     const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
-
-//     // 2. Generate step1 hash (SHA256 of query string)
-//     const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${payeeId}`;
-//     const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
-
-//     // 3. Generate step2 hash (MD5 of parameters)
-//     const step2String = `code=${paymentId}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
-//     const step2 = crypto.createHash('md5').update(step2String).digest('hex');
-
-//     // 4. Final signature
-//     const finalSignature = crypto.createHash('sha256').update(step1 + step2).digest('hex');
-
-//     // 5. Prepare payload
-//     const payoutPayload = {
-//       cashdeskid: parseInt(CASHDESK_ID),
-//       lng: 'ru',
-//       code: paymentId,
-//       confirm: confirm
-//     };
-
-//     // 6. Call CashDeskBot API
-//     const cashdeskResponse = await axios.post(
-//       `${CASHDESK_API_BASE}/Deposit/${payeeId}/Payout`,
-//       payoutPayload,
-//       {
-//         headers: {
-//           'sign': finalSignature,
-//           'Content-Type': 'application/json'
-//         },
-//         timeout: 10000
-//       }
-//     );
-
-//     console.log("CashDesk response:", cashdeskResponse.data);
-
-//     // Handle API response - UPDATED VALIDATION
-//     if (cashdeskResponse.data && 
-//         cashdeskResponse.data.Success === true && 
-//         cashdeskResponse.data.Summa < 0) {
-      
-//       const paidOutAmount = Math.abs(cashdeskResponse.data.Summa); // Convert negative to positive
-
-//       // Validate if the paid out amount matches the requested amount (optional)
-//       if (amount && paidOutAmount !== parseFloat(amount)) {
-//         console.warn(`Warning: Requested amount (${amount}) differs from paid out amount (${paidOutAmount})`);
-//       }
-
-//       // Save successful payout transaction
-//       const newPayoutTransaction = new PayoutTransaction({
-//         paymentId,
-//         orderId: req.body.orderId || `ORD-${Date.now()}`,
-//         payeeId,
-//         payeeAccount: req.body.payeeAccount,
-//         callbackUrl: req.body.callbackUrl,
-//         requestAmount: paidOutAmount,
-//         currency: req.body.currency || 'BDT',
-//         provider: "CashDeskBot",
-//         status: "pending",
-//         statusHistory: [{
-//           status: "completed",
-//           changedAt: new Date(),
-//           changedBy: "system",
-//           notes: `Payout successful. Amount: ${paidOutAmount}`
-//         }],
-//         withdrawalDetails: {
-//           providerSpecific: cashdeskResponse.data,
-//           actualPayoutAmount: paidOutAmount,
-//           originalResponseAmount: cashdeskResponse.data.Summa
-//         },
-//         mode: req.body.mode || "live",
-//         merchantid: req.body.merchantid || "",
-//         update_by: req.body.update_by || "",
-//         auditLog: [{
-//           action: "Payout Completed",
-//           performedBy: "system",
-//           performedAt: new Date(),
-//           details: {
-//             payoutPayload,
-//             cashdeskResponse: cashdeskResponse.data
-//           }
-//         }]
-//       });
-
-//       await newPayoutTransaction.save();
-
-//       // If callback URL is provided, send success notification
-//       if (req.body.callbackUrl) {
-//         try {
-//           await axios.post(req.body.callbackUrl, {
-//             success: true,
-//             paymentId,
-//             orderId: newPayoutTransaction.orderId,
-//             amount: paidOutAmount,
-//             status: "completed",
-//             timestamp: new Date().toISOString()
-//           });
-//         } catch (callbackError) {
-//           console.error("Callback notification failed:", callbackError.message);
-//         }
-//       }
-
-//       return res.status(200).json({
-//         success: true,
-//         message: `Payout request successfully processed. Amount ${paidOutAmount} withdrawn.`,
-//         response: cashdeskResponse.data,
-//         payoutAmount: paidOutAmount
-//       });
-
-//     } else {
-//       // Handle cases where CashDeskBot returns success: false or invalid amount
-//       let errorMessage = "CashDeskBot rejected payout";
-      
-//       if (cashdeskResponse.data && cashdeskResponse.data.Success === true && cashdeskResponse.data.Summa >= 0) {
-//         errorMessage = `Invalid payout amount: ${cashdeskResponse.data.Summa}. Expected negative value for withdrawal.`;
-//       } else if (cashdeskResponse.data && cashdeskResponse.data.Message) {
-//         errorMessage = cashdeskResponse.data.Message;
-//       }
-
-//       // Save failed payout attempt for auditing
-//       const failedPayoutTransaction = new PayoutTransaction({
-//         paymentId,
-//         orderId: req.body.orderId || `ORD-${Date.now()}`,
-//         payeeId,
-//         payeeAccount: req.body.payeeAccount,
-//         callbackUrl: req.body.callbackUrl,
-//         requestAmount: amount,
-//         currency: req.body.currency || 'BDT',
-//         provider: "CashDeskBot",
-//         status: "failed",
-//         statusHistory: [{
-//           status: "failed",
-//           changedAt: new Date(),
-//           changedBy: "system",
-//           notes: errorMessage
-//         }],
-//         withdrawalDetails: {
-//           providerSpecific: cashdeskResponse.data || {},
-//           failureReason: errorMessage
-//         },
-//         mode: req.body.mode || "live",
-//         merchantid: req.body.merchantid || "",
-//         update_by: req.body.update_by || "",
-//         auditLog: [{
-//           action: "Payout Failed",
-//           performedBy: "system",
-//           performedAt: new Date(),
-//           details: {
-//             payoutPayload,
-//             cashdeskResponse: cashdeskResponse.data || {},
-//             error: errorMessage
-//           }
-//         }]
-//       });
-
-//       await failedPayoutTransaction.save();
-
-//       return res.status(400).json({
-//         success: false,
-//         message: errorMessage,
-//         response: cashdeskResponse.data
-//       });
-//     }
-//   } catch (e) {
-//     console.error("Error during payout process:", e.message);
-
-//     // Save error case for auditing
-//     const errorPayoutTransaction = new PayoutTransaction({
-//       paymentId,
-//       orderId: req.body.orderId || `ORD-${Date.now()}`,
-//       payeeId,
-//       payeeAccount: req.body.payeeAccount,
-//       callbackUrl: req.body.callbackUrl,
-//       requestAmount: amount,
-//       currency: req.body.currency || 'BDT',
-//       provider: "CashDeskBot",
-//       status: "error",
-//       statusHistory: [{
-//         status: "error",
-//         changedAt: new Date(),
-//         changedBy: "system",
-//         notes: `System error: ${e.message}`
-//       }],
-//       mode: req.body.mode || "live",
-//       merchantid: req.body.merchantid || "",
-//       update_by: req.body.update_by || "",
-//       auditLog: [{
-//         action: "Payout Error",
-//         performedBy: "system",
-//         performedAt: new Date(),
-//         details: {
-//           error: e.message,
-//           response: e.response?.data || {}
-//         }
-//       }]
-//     });
-
-//     await errorPayoutTransaction.save();
-
-//     if (e.response) {
-//       console.error("CashDeskBot error:", e.response.data);
-//       return res.status(500).json({
-//         success: false,
-//         message: "CashDeskBot API error occurred",
-//         errorDetails: e.response.data
-//       });
-//     }
-
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error during payout request",
-//       errorDetails: e.message
-//     });
-//   }
-// });
 Paymentrouter.post("/payout", async (req, res) => {
-  const { payeeId, paymentId, amount,payeeAccount} = req.body;
+  const { payeeId, paymentId,payeeAccount} = req.body;
   console.log("Payout request received:", req.body);
 
   if (!payeeId || !paymentId) {
@@ -429,9 +195,9 @@ Paymentrouter.post("/payout", async (req, res) => {
       const paidOutAmount = Math.abs(cashdeskResponse.data.Summa); // Convert negative to positive
 
       // Validate if the paid out amount matches the requested amount (optional)
-      if (amount && paidOutAmount !== parseFloat(amount)) {
-        console.warn(`Warning: Requested amount (${amount}) differs from paid out amount (${paidOutAmount})`);
-      }
+      // if (paidOutAmount !== parseFloat(amount)) {
+      //   console.warn(`Warning: Requested amount (${amount}) differs from paid out amount (${paidOutAmount})`);
+      // }
 
       // Find all agent users with balance >= payout amount
       const eligibleAgents = await UserModel.find({
@@ -659,11 +425,16 @@ Paymentrouter.post("/checkout", async (req, res) => {
         const requiredBalance = 50000 + expectedAmount;
         console.log(`Required Balance: ${requiredBalance} (50000 + ${expectedAmount})`);
         
+        // 2. Map provider to provider_name
         let provider_name;
         if (match_payment.provider === 'bkash') {
             provider_name = 'Bkash P2P';
         } else if (match_payment.provider === 'nagad') {
             provider_name = 'Nagad P2P';
+        } else if (match_payment.provider === 'rocket') {
+            provider_name = 'Rocket P2P';
+        } else if (match_payment.provider === 'upay') {
+            provider_name = 'Upay P2P';
         } else {
             console.log(`Unsupported provider: ${match_payment.provider}`);
             return res.status(400).send({ success: false, message: "Unsupported payment provider" });
@@ -671,7 +442,7 @@ Paymentrouter.post("/checkout", async (req, res) => {
 
         console.log("Looking for provider:", provider_name);
 
-        // 2. Find eligible users with sufficient balance (50000 + expectedAmount) and active agent accounts
+        // 3. Find eligible users with sufficient balance (50000 + expectedAmount) and active agent accounts
         const eligibleUsers = await UserModel.aggregate([
             {
                 $match: {
@@ -751,7 +522,7 @@ Paymentrouter.post("/checkout", async (req, res) => {
             });
         }
 
-        // 3. Select a random user with weights based on their balance
+        // 4. Select a random user with weights based on their balance
         const totalBalance = eligibleUsers.reduce((sum, user) => sum + user.balance, 0);
         let randomPoint = Math.random() * totalBalance;
         let selectedAgent = null;
@@ -776,7 +547,7 @@ Paymentrouter.post("/checkout", async (req, res) => {
             activeAccounts: selectedAgent.activeAccounts.length
         });
 
-        // 4. Select a random active account
+        // 5. Select a random active account
         const selectedAccount = selectedAgent.activeAccounts[
             Math.floor(Math.random() * selectedAgent.activeAccounts.length)
         ];
@@ -786,9 +557,12 @@ Paymentrouter.post("/checkout", async (req, res) => {
             accountNumber: selectedAccount.accountNumber,
             shopName: selectedAccount.shopName
         });
-match_payment.agentAccount=selectedAccount.accountNumber;
-match_payment.save();
-return res.status(200).send({
+
+        // 6. Update payment transaction with agent account
+        match_payment.agentAccount = selectedAccount.accountNumber;
+        await match_payment.save();
+        
+        return res.status(200).send({
             success: true,
             message: "Agent and bank account selected successfully",
             agent: {
@@ -811,8 +585,6 @@ return res.status(200).send({
             }
         });
 
-
-
     } catch (error) {
         console.error("Checkout error:", error);
         return res.status(500).send({
@@ -822,1017 +594,7 @@ return res.status(200).send({
         });
     }
 });
-// Paymentrouter.post("/checkout", async (req, res) => {
-//     const { paymentId } = req.body;
-//     const apiKey = req.headers['x-api-key']?req.headers['x-api-key']:'';
-//     console.log(apiKey)
-//     // const matched_api=await Merchantkey.findOne({apiKey:apiKey});
-//     // if(!matched_api){
-//     //   return res.send({success:false,message:"Merchnat Key Not Found."})
-//     // }
-//     const data = req.body;
-//     console.log('bkash-payment-data', req.body.paymentId);
-    
-//     try {
-//         // 1. Find the payment transaction
-//         const match_payment = await PayinTransaction.findOne({ paymentId });
-//         if (!match_payment) {
-//             return res.send({ success: false, message: "Payment ID not found!" });
-//         }
 
-//         const expectedAmount = Number(match_payment.expectedAmount || 0);
-//         console.log("Expected Amount:", expectedAmount);
-//         let provoder_name;
-//         if(match_payment.provider === 'bkash'){
-//             provoder_name = 'Bkash P2P';
-//         }else if(match_payment.provider === 'nagad'){
-//             provoder_name = 'Nagad P2P';
-//         }
-//         console.log(provoder_name)
-//  // 2. Find eligible users with sufficient balance (balance >= 50000 + expectedAmount) and at least one agent account
-//     const eligibleUsers = await UserModel.find({
-//             balance: { $gte: 50000 + expectedAmount }, // Balance must be at least 50,000 + expectedAmount
-//             'agentAccounts.0': { $exists: true }, // Has at least one agent account
-//             status: 'active', // Only active users
-//             paymentMethod: { $in: [provoder_name] } // Updated to check if provoder_name is in the paymentMethod array
-//         });
-//         if (eligibleUsers.length === 0) {
-//             return res.status(404).send({
-//                 success: false,
-//                 message: "No eligible agents found with sufficient balance"
-//             });
-//         }
-
-//         // 3. Randomly select one user from the eligible users
-//         const randomIndex = Math.floor(Math.random() * eligibleUsers.length);
-//         const selectedAgent = eligibleUsers[randomIndex];
-
-//         // 4. Log the selected agent for debugging
-//         console.log("Selected Agent:", {
-//             _id: selectedAgent._id,
-//             username: selectedAgent.username,
-//             balance: selectedAgent.balance,
-//             agentAccountsCount: selectedAgent.agentAccounts.length
-//         });
-
-//         // 5. Get all active bank accounts for the selected agent
-//         const agentAccounts = await BankAccount.find({
-//             user_id: selectedAgent._id,
-//             status: 'active',
-//             provider:provoder_name
-//         });
-
-//         if (agentAccounts.length === 0) {
-//             return res.status(404).send({
-//                 success: false,
-//                 message: "No active bank accounts found for the selected agent"
-//             });
-//         }
-
-//         // 6. Randomly select one bank account
-//         const randomAccountIndex = Math.floor(Math.random() * agentAccounts.length);
-//         const selectedAccount = agentAccounts[randomAccountIndex];
-
-//         console.log("Selected Bank Account:", {
-//             provider: selectedAccount.provider,
-//             accountNumber: selectedAccount.accountNumber,
-//             shopName: selectedAccount.shopName
-//         });
-
-//         // Now you can proceed with the payment using the selectedAccount
-//         // ... rest of your payment processing logic ...
-
-//         // Example response (modify as needed)
-//         return res.status(200).send({
-//             success: true,
-//             message: "Agent and bank account selected successfully",
-//             agent: {
-//                 id: selectedAgent._id,
-//                 username: selectedAgent.username
-//             },
-//             bankAccount: {
-//                 provider: selectedAccount.provider,
-//                 accountNumber: selectedAccount.accountNumber,
-//                 shopName: selectedAccount.shopName
-//             },
-//             paymentDetails: match_payment
-//         });
-
-//     } catch (error) {
-//         console.error("Checkout error:", error);
-//         return res.status(500).send({
-//             success: false,
-//             message: "An error occurred during checkout",
-//             error: error.message || error
-//         });
-//     }
-// });
-
-
-// Paymentrouter.post("/checkout", async (req, res) => {
-//     const { paymentId } = req.body;
-//     const apiKey = req.headers['x-api-key'] ? req.headers['x-api-key'] : '';
-    
-//     try {
-//         // 1. Find the payment transaction
-//         const match_payment = await PayinTransaction.findOne({ paymentId });
-//         if (!match_payment) {
-//             console.log(`Payment ID ${paymentId} not found`);
-//             return res.status(404).send({ success: false, message: "Payment ID not found!" });
-//         }
-
-//         const expectedAmount = Number(match_payment.expectedAmount || 0);
-//         console.log("Expected Amount:", expectedAmount);
-        
-//         let provider_name;
-//         if (match_payment.provider === 'bkash') {
-//             provider_name = 'Bkash P2P';
-//         } else if (match_payment.provider === 'nagad') {
-//             provider_name = 'Nagad P2P';
-//         } else {
-//             console.log(`Unsupported provider: ${match_payment.provider}`);
-//             return res.status(400).send({ success: false, message: "Unsupported payment provider" });
-//         }
-
-//         console.log("Looking for provider:", provider_name);
-
-//         // 2. Find eligible users with sufficient balance and active agent accounts
-//         const eligibleUsers = await UserModel.aggregate([
-//             {
-//                 $match: {
-//                     balance: { $gte: expectedAmount }, // Removed the 50000 minimum for testing
-//                     status: 'active',
-//                     paymentMethod: { $in: [provider_name] }
-//                 }
-//             },
-//             {
-//                 $lookup: {
-//                     from: "bankaccounts",
-//                     let: { userId: "$_id" },
-//                     pipeline: [
-//                         {
-//                             $match: {
-//                                 $expr: { $eq: ["$user_id", "$$userId"] },
-//                                 status: 'active',
-//                                 provider: provider_name
-//                             }
-//                         }
-//                     ],
-//                     as: "activeAccounts"
-//                 }
-//             },
-//             {
-//                 $match: {
-//                     "activeAccounts.0": { $exists: true }
-//                 }
-//             },
-//             {
-//                 $project: {
-//                     _id: 1,
-//                     username: 1,
-//                     balance: 1,
-//                     activeAccounts: 1,
-//                     paymentMethod: 1
-//                 }
-//             }
-//         ]);
-
-//         console.log(`Found ${eligibleUsers.length} eligible users`);
-
-//         if (eligibleUsers.length === 0) {
-//             // Diagnostic query to understand why no users are eligible
-//             const allUsersCount = await UserModel.countDocuments({
-//                 paymentMethod: { $in: [provider_name] },
-//                 status: 'active'
-//             });
-            
-//             const usersWithBalance = await UserModel.countDocuments({
-//                 paymentMethod: { $in: [provider_name] },
-//                 status: 'active',
-//                 balance: { $gte: expectedAmount }
-//             });
-            
-//             const usersWithAccounts = await UserModel.countDocuments({
-//                 paymentMethod: { $in: [provider_name] },
-//                 status: 'active',
-//                 balance: { $gte: expectedAmount },
-//                 'agentAccounts.0': { $exists: true }
-//             });
-
-//             console.log(`Diagnostics:
-//                 Total users with provider ${provider_name}: ${allUsersCount}
-//                 Users with sufficient balance: ${usersWithBalance}
-//                 Users with agent accounts: ${usersWithAccounts}`);
-
-//             return res.status(404).send({
-//                 success: false,
-//                 message: "No eligible agents found with sufficient balance and active accounts",
-//                 diagnostics: {
-//                     totalUsers: allUsersCount,
-//                     usersWithBalance: usersWithBalance,
-//                     usersWithAccounts: usersWithAccounts
-//                 }
-//             });
-//         }
-
-//         // 3. Select a random user with weights based on their balance
-//         // This gives users with higher balance a better chance of being selected
-//         const totalBalance = eligibleUsers.reduce((sum, user) => sum + user.balance, 0);
-//         let randomPoint = Math.random() * totalBalance;
-//         let selectedAgent = null;
-
-//         for (const user of eligibleUsers) {
-//             randomPoint -= user.balance;
-//             if (randomPoint <= 0) {
-//                 selectedAgent = user;
-//                 break;
-//             }
-//         }
-
-//         // Fallback to simple random selection if something went wrong
-//         if (!selectedAgent) {
-//             selectedAgent = eligibleUsers[Math.floor(Math.random() * eligibleUsers.length)];
-//         }
-
-//         console.log("Selected Agent:", {
-//             _id: selectedAgent._id,
-//             username: selectedAgent.username,
-//             balance: selectedAgent.balance,
-//             activeAccounts: selectedAgent.activeAccounts.length
-//         });
-
-//         // 4. Select a random active account
-//         const selectedAccount = selectedAgent.activeAccounts[
-//             Math.floor(Math.random() * selectedAgent.activeAccounts.length)
-//         ];
-
-//         console.log("Selected Bank Account:", {
-//             provider: selectedAccount.provider,
-//             accountNumber: selectedAccount.accountNumber,
-//             shopName: selectedAccount.shopName
-//         });
-
-//         return res.status(200).send({
-//             success: true,
-//             message: "Agent and bank account selected successfully",
-//             agent: {
-//                 id: selectedAgent._id,
-//                 username: selectedAgent.username,
-//                 balance: selectedAgent.balance
-//             },
-//             bankAccount: {
-//                 provider: selectedAccount.provider,
-//                 accountNumber: selectedAccount.accountNumber,
-//                 shopName: selectedAccount.shopName
-//             },
-//             paymentDetails: {
-//                 paymentId: match_payment.paymentId,
-//                 expectedAmount: match_payment.expectedAmount,
-//                 provider: match_payment.provider
-//             }
-//         });
-
-//     } catch (error) {
-//         console.error("Checkout error:", error);
-//         return res.status(500).send({
-//             success: false,
-//             message: "An error occurred during checkout",
-//             error: error.message
-//         });
-//     }
-// });
-// --------------------main-part
-// Paymentrouter.post("/paymentSubmit",  async (req, res) => {
-//   console.log("---payment-submit-data---");
-//   const { paymentId, provider, agentAccount, payerAccount, transactionId } = req.body;
-//   const currentTime = new Date();
-
-//   try {
-//     // 1. Validate forwarded SMS
-// const forwardedSms = await ForwardedSms.findOne({
-//   transactionId,
-//   transactionType: "payin",
-//   $expr: {
-//     $eq: [
-//       { $substr: ["$customerAccount", 0, 4] },
-//       { $substr: [payerAccount, 0, 4] }
-//     ]
-//   }
-// });
-//    console.log(forwardedSms)
-//     if (!forwardedSms) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "tid",
-//         message: "Transaction ID is not valid.",
-//       });
-//     }
-
-//     // 2. Prevent duplicate transactions
-//     const transaction_old = await PayinTransaction.findOne({ transactionId });
-//     if (transaction_old) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "tid",
-//         message: "Transaction ID is used already.",
-//       });
-//     }
-
-//     // 3. Validate payment ID
-//     const transaction = await PayinTransaction.findOne({ paymentId });
-//     if (!transaction) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "pid",
-//         message: "There is no transaction with your payment id.",
-//       });
-//     }
-
-//     const expirationDuration = 24 * 60 * 60 * 1000;
-//     const elapsedTime = currentTime - transaction.createdAt;
-//    const bankaccount=await BankAccount.findOne({accountNumber:transaction.agentAccount});
-//       const matcheduser=await UserModel.findById({_id:bankaccount.user_id});
-//     // 4. Update transaction
-//     // transaction.agentAccount = forwardedSms.agentAccount;
-//     transaction.payerAccount = forwardedSms.customerAccount;
-//     transaction.transactionId = forwardedSms.transactionId;
-//     transaction.receivedAmount = forwardedSms.transactionAmount;
-//     transaction.balanceAmount = forwardedSms.balanceAmount;
-//     transaction.transactionDate = forwardedSms.transactionDate;
-//     transaction.submitDate = currentTime;
-//     transaction.userid=matcheduser._id;
-//     transaction.statusDate = currentTime;
-//     transaction.status = elapsedTime > expirationDuration ? "expired" : "completed";
-//     await transaction.save();
-
-
-
-//     // 7. Telegram Notifications
-//     const find_payment = await PayinTransaction.findOne({ paymentId });
-//     const payinPayload =
-//       "🎉 **New Payin Alert!** 🎉\n" +
-//       "\n" +
-//       "🆔 **Payment ID:** `" + find_payment.paymentId + "`\n" +
-//       "💼 **Provider:** " + (forwardedSms.provider || "").toUpperCase() + " Personal\n" +
-//       "📲 **Agent Wallet:** `" + forwardedSms.agentAccount + "`\n" +
-//       "📥 **Receive Wallet:** `" + forwardedSms.customerAccount + "`\n" +
-//       "🔢 **Transaction ID:** `" + forwardedSms.transactionId + "`\n" +
-//       "💰 **" + forwardedSms.currency + " Amount:** `" + forwardedSms.transactionAmount + "`\n";
-
-//     easypay_payin_bot.sendMessage(7920367057, payinPayload, { parse_mode: "Markdown" });
-//     easypay_bot.sendMessage(7920367057, payinPayload, { parse_mode: "Markdown" });
-
-//     forwardedSms.status = "used";
-//     await forwardedSms.save();
-
-//     if (elapsedTime > expirationDuration) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "pid",
-//         message: "Your payment transaction is expired.",
-//       });
-//     }
-    
-
-//        if(!bankaccount){
-//         return res.send({success:false,message:"Bank account not found."})
-//        }
-//        bankaccount.total_order+=1;
-//        bankaccount.total_recieved+=forwardedSms.transactionAmount;
-//        bankaccount.save();
-
-//       //  ------------------merchant---------------------
-//       const merchant_info=await Merchantkey.findById({_id:transaction.merchantid});
-//       const commissionsmoney=(forwardedSms.transactionAmount/100)*merchant_info.depositCommission;
-//       merchant_info.balance+=forwardedSms.transactionAmount;
-//       merchant_info.balance-=commissionsmoney;
-//       merchant_info.getwaycost+=commissionsmoney;
-//       merchant_info.total_payin+=forwardedSms.transactionAmount;
-//       merchant_info.save();
-//       //  ------------------update-agent-------------------
-//       const comissionmoney=(forwardedSms.transactionAmount/100)*matcheduser.depositcommission;
-//       console.log(comissionmoney)
-//       matcheduser.balance-=forwardedSms.transactionAmount;
-//       matcheduser.balance+=comissionmoney;
-//       matcheduser.providercost+=comissionmoney;
-//       matcheduser.totalpayment+=forwardedSms.transactionAmount;
-//       matcheduser.save();
-//       //  --------------------user-find means-agent-account------------------------
-      
-//     // 8. Send callback to merchant
-//     try {
-//       const callbackResp = await axios.post(transaction.callbackUrl, {
-//         paymentId: transaction.orderId,
-//         transactionId: transaction.transactionId,
-//         amount: forwardedSms.transactionAmount,
-//         player_id: transaction.payerId,
-//         status: "success",
-//       }, {
-//         headers: {
-//           'Content-Type': 'application/json',
-//           'Accept': 'application/json',
-//         }
-//       });
-
-//       transaction.sentCallbackDate = new Date();
-//       await transaction.save();
-
-//       if (!callbackResp.data.success) {
-//         return res.status(200).json({
-//           success: false,
-//           message: "Callback has not been sent to the merchant successfully"
-//         });
-//       }
-
-//       return res.status(200).json({
-//         success: true,
-//         message: "Callback has been sent to the merchant successfully",
-//         data: transaction
-//       });
-//     } catch (callbackErr) {
-//       console.error('Callback error:', callbackErr.message);
-//       return res.status(200).json({
-//         success: false,
-//         message: "Callback to the merchant failed"
-//       });
-//     }
-//   } catch (error) {
-//     console.error("payment-submit-error", error);
-//     return res.status(500).json({ success: false, message: error.message });
-//   }
-// });
-
-// Paymentrouter.post("/paymentSubmit", async (req, res) => {
-//   console.log("---payment-submit-data---");
-//   const { paymentId, provider, agentAccount, payerAccount, transactionId } = req.body;
-//   const currentTime = new Date();
-
-//   try {
-//     // 1. Validate forwarded SMS
-//     const forwardedSms = await ForwardedSms.findOne({
-//       transactionId,
-//       transactionType: "payin",
-//       $expr: {
-//         $eq: [
-//           { $substr: ["$customerAccount", 0, 4] },
-//           { $substr: [payerAccount, 0, 4] }
-//         ]
-//       }
-//     });
-    
-//     if (!forwardedSms) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "tid",
-//         message: "Transaction ID is not valid.",
-//       });
-//     }
-
-//     // 2. Prevent duplicate transactions
-//     const transaction_old = await PayinTransaction.findOne({ transactionId });
-//     if (transaction_old) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "tid",
-//         message: "Transaction ID is used already.",
-//       });
-//     }
-
-//     // 3. Validate payment ID
-//     const transaction = await PayinTransaction.findOne({ paymentId });
-//     if (!transaction) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "pid",
-//         message: "There is no transaction with your payment id.",
-//       });
-//     }
-
-//     const expirationDuration = 24 * 60 * 60 * 1000;
-//     const elapsedTime = currentTime - transaction.createdAt;
-//     const bankaccount = await BankAccount.findOne({accountNumber: transaction.agentAccount});
-//     const matcheduser = await UserModel.findById({_id: bankaccount.user_id});
-    
-//     // 4. Update transaction
-//     transaction.payerAccount = forwardedSms.customerAccount;
-//     transaction.transactionId = forwardedSms.transactionId;
-//     transaction.receivedAmount = forwardedSms.transactionAmount;
-//     transaction.balanceAmount = forwardedSms.balanceAmount;
-//     transaction.transactionDate = forwardedSms.transactionDate;
-//     transaction.submitDate = currentTime;
-//     transaction.userid = matcheduser._id;
-//     transaction.statusDate = currentTime;
-//     transaction.status = elapsedTime > expirationDuration ? "expired" : "completed";
-//     await transaction.save();
-
-//     // 5. Telegram Notifications
-//     const find_payment = await PayinTransaction.findOne({ paymentId });
-//     const payinPayload =
-//       "🎉 **New Payin Alert!** 🎉\n" +
-//       "\n" +
-//       "🆔 **Payment ID:** `" + find_payment.paymentId + "`\n" +
-//       "💼 **Provider:** " + (forwardedSms.provider || "").toUpperCase() + " Personal\n" +
-//       "📲 **Agent Wallet:** `" + forwardedSms.agentAccount + "`\n" +
-//       "📥 **Receive Wallet:** `" + forwardedSms.customerAccount + "`\n" +
-//       "🔢 **Transaction ID:** `" + forwardedSms.transactionId + "`\n" +
-//       "💰 **" + forwardedSms.currency + " Amount:** `" + forwardedSms.transactionAmount + "`\n";
-
-//     easypay_payin_bot.sendMessage(7920367057, payinPayload, { parse_mode: "Markdown" });
-//     easypay_bot.sendMessage(7920367057, payinPayload, { parse_mode: "Markdown" });
-
-//     forwardedSms.status = "used";
-//     await forwardedSms.save();
-
-//     if (elapsedTime > expirationDuration) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "pid",
-//         message: "Your payment transaction is expired.",
-//       });
-//     }
-    
-//     if (!bankaccount) {
-//       return res.send({success: false, message: "Bank account not found."})
-//     }
-    
-//     bankaccount.total_order += 1;
-//     bankaccount.total_recieved += forwardedSms.transactionAmount;
-//     bankaccount.save();
-
-//     // 6. Update merchant balance
-//     const merchant_info = await Merchantkey.findById({_id: transaction.merchantid});
-//     const commissionsmoney = (forwardedSms.transactionAmount/100) * merchant_info.depositCommission;
-//     merchant_info.balance += forwardedSms.transactionAmount;
-//     merchant_info.balance -= commissionsmoney;
-//     merchant_info.getwaycost += commissionsmoney;
-//     merchant_info.total_payin += forwardedSms.transactionAmount;
-//     merchant_info.save();
-    
-//     // 7. Update agent balance
-//     const comissionmoney = (forwardedSms.transactionAmount/100) * matcheduser.depositcommission;
-//     matcheduser.balance -= forwardedSms.transactionAmount;
-//     matcheduser.balance += comissionmoney;
-//     matcheduser.providercost += comissionmoney;
-//     matcheduser.totalpayment += forwardedSms.transactionAmount;
-//     matcheduser.save();
-
-//     // 8. Send callback to merchant
-//     const callbackResp = await axios.post(transaction.callbackUrl, {
-//       paymentId: transaction.orderId,
-//       transactionId: transaction.transactionId,
-//       amount: forwardedSms.transactionAmount,
-//       player_id: transaction.payerId,
-//       status: "success",
-//     }, {
-//       headers: {
-//         'Content-Type': 'application/json',
-//         'Accept': 'application/json',
-//       }
-//     });
-
-//     transaction.sentCallbackDate = new Date();
-//     await transaction.save();
-
-//     if (!callbackResp.data.success) {
-//       return res.status(200).json({
-//         success: false,
-//         message: "Callback has not been sent to the merchant successfully"
-//       });
-//     }
-
-//     // >>>>>>> ONLY ADDITION: CASH DESKBOT DEPOSIT AFTER SUCCESS <<<<<<<
-//     if (transaction.payerId && forwardedSms.transactionAmount) {
-//       try {
-//         const confirm = crypto.createHash('md5')
-//           .update(`${transaction.payerId}:${CASHDESK_HASH}`)
-//           .digest('hex');
-        
-//         const step1 = crypto.createHash('sha256')
-//           .update(`hash=${CASHDESK_HASH}&lng=ru&Userid=${transaction.payerId}`)
-//           .digest('hex');
-        
-//         const step2 = crypto.createHash('md5')
-//           .update(`summa=${forwardedSms.transactionAmount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`)
-//           .digest('hex');
-        
-//         const finalSignature = crypto.createHash('sha256')
-//           .update(step1 + step2)
-//           .digest('hex');
-
-//         const depositPayload = {
-//           cashdeskid: parseInt(CASHDESK_ID),
-//           lng: 'ru',
-//           summa: parseFloat(forwardedSms.transactionAmount),
-//           confirm
-//         };
-
-//         // Make CashDesk deposit API call
-//         const cashdeskResponse = await axios.post(
-//           `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`,
-//           depositPayload,
-//           {
-//             headers: {
-//               'sign': finalSignature,
-//               'Content-Type': 'application/json'
-//             }
-//           }
-//         );
-
-//         console.log('CashDesk deposit successful:', cashdeskResponse.data);
-        
-//         // Store CashDesk response in transaction if needed
-//         transaction.cashdeskResponse = cashdeskResponse.data;
-//         await transaction.save();
-//       } catch (cashdeskError) {
-//         console.error('CashDesk deposit failed:', cashdeskError.response?.data || cashdeskError.message);
-//         // Don't fail the whole request if CashDesk fails
-//       }
-//     }
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Payment processed successfully and CashDesk deposit initiated",
-//       data: transaction
-//     });
-
-//   } catch (error) {
-//     console.error("payment-submit-error", error);
-//     return res.status(500).json({ 
-//       success: false, 
-//       message: error.message 
-//     });
-//   }
-// });
-// Paymentrouter.post("/changePaymentStatus", change_payment_status);
-// Paymentrouter.post("/changePayoutStatus", async (req, res) => {
-//   const { id, status, payment_id, transactionId, admin_name } = req.body;
-//   console.log(req.body.payment_id)
-//   const requestTime = new Date().toLocaleString('en-US', {
-//     year: 'numeric',
-//     month: 'short',
-//     day: 'numeric',
-//     hour: 'numeric',
-//     minute: 'numeric',
-//     second: 'numeric',
-//     hour12: true,
-//   });
-//   console.log(`Request received at: ${requestTime}`);
-//   console.log(id, status, transactionId);
-
-//   if (!status || !transactionId) {
-//     return res.status(400).json({ message: 'Please check all fields' });
-//   }
-//   console.log(status);
-
-//   try {
-//     const transaction = await PayoutTransaction.findOne({paymentId: payment_id});
-//     console.log("dfsfd", transaction)
-//     const forwardedSms = await ForwardedSms.findOne({
-//       transactionId: transactionId,
-//       transactionAmount: transaction.requestAmount,
-//       transactionType: "payout"
-//     });
-//     console.log(forwardedSms);
-
-//     if (!forwardedSms) {
-//       return res.status(200).json({
-//         success: false,
-//         type: "tid",
-//         message: "Transaction ID is not valid.",
-//       });
-//     }
-
-//     if (forwardedSms.status === "used") {
-//       return res.status(200).json({
-//         success: false,
-//         type: "tid",
-//         message: "Transaction ID is already used.",
-//       });
-//     }
-
-//     // ---------------------------UPDATE AGENT WITHDRAWAL REQUEST---------------------
-//     // Find the agent with a withdrawal request matching the payment_id
-//     const agent = await UserModel.findOne({
-//       "withdrawalRequests.paymentid": payment_id
-//     });
-
-//     if (!agent) {
-//       console.log("No agent found with a withdrawal request matching payment ID:", payment_id);
-//       return res.status(400).json({
-//         success: false,
-//         message: "No agent found with this payment ID"
-//       });
-//     }
-
-//     // Find the specific withdrawal request
-//     const withdrawalRequest = agent.withdrawalRequests.find(
-//       req => req.paymentid === payment_id
-//     );
-
-//     if (!withdrawalRequest) {
-//       console.log("No withdrawal request found with payment ID:", payment_id);
-//       return res.status(400).json({
-//         success: false,
-//         message: "No withdrawal request found with this payment ID"
-//       });
-//     }
-
-//     // Update the withdrawal request status and transactionId
-//     const updatedAgent = await UserModel.findOneAndUpdate(
-//       {
-//         _id: agent._id,
-//         "withdrawalRequests._id": withdrawalRequest._id
-//       },
-//       {
-//         $set: { 
-//           "withdrawalRequests.$.status": status,
-//           "withdrawalRequests.$.transactionId": transactionId,
-//           "withdrawalRequests.$.processedBy": admin_name
-//         }
-//       },
-//       { new: true }
-//     );
-    
-//     if (!updatedAgent) {
-//       console.log("Failed to update withdrawal request");
-//       return res.status(400).json({
-//         success: false,
-//         message: "Failed to update withdrawal request"
-//       });
-//     }
-
-//     console.log("Withdrawal request updated successfully");
-//     console.log("ttt",transaction)
-//  const bankaccount=await BankAccount.findOne({accountNumber:forwardedSms.agentAccount});
-//  if(!bankaccount){
-//   return res.send({success:false,message:"Agent did not find."})
-//  }
-//     if (status === "success") {
-//       // Update ForwardedSms status to "used"
-//       forwardedSms.status = "used";
-//       await forwardedSms.save();
-     
-//       bankaccount.total_payoutno+=1;
-//       bankaccount.total_cashout+=forwardedSms.transactionAmount;
-//       bankaccount.save();
-
-//       // ---------matched-user---------------
-//       const matcheduser=await UserModel.findById({_id:bankaccount.user_id});
-//       console.log("helll",matcheduser)
-//       const agentcomissionmoney=(forwardedSms.transactionAmount/100)*matcheduser.withdracommission;
-//       console.log(agentcomissionmoney)
-//       matcheduser.balance+=forwardedSms.transactionAmount;
-//       matcheduser.balance+=agentcomissionmoney;
-//       matcheduser.providercost+=agentcomissionmoney;
-//       matcheduser.totalpayout+=forwardedSms.transactionAmount;
-//       matcheduser.save();
-//       console.log("dff",forwardedSms)
-//          //  ------------------merchant---------------------
-//       const merchant_info=await Merchantkey.findById({_id:transaction.merchantid});
-//       merchant_info.balance-=forwardedSms.transactionAmount;
-//       merchant_info.total_payout+=forwardedSms.transactionAmount;
-//       const comissionmoney=(forwardedSms.transactionAmount/100)*merchant_info.withdrawCommission;
-//       merchant_info.balance-=forwardedSms.transactionAmount;
-//       merchant_info.getwaycost+=comissionmoney;
-//       merchant_info.save();
-//     }
-
-//     // Update the transaction status
-//     transaction.status = status;
-//     transaction.statusDate = new Date();
-//     const savedTransaction = await transaction.save();
-
-//     // Update transaction details
-//     await PayoutTransaction.findByIdAndUpdate(
-//       { _id: transaction._id },
-//       {
-//         $set: {
-//           transactionId: transactionId,
-//           createdAt: requestTime,
-//           sentAmount: forwardedSms.transactionAmount,
-//           update_by: admin_name,
-//           agent_account: forwardedSms.agentAccount,
-//         },
-//       }
-//     );
-
-//     if (['success', 'failed', 'rejected'].includes(status)) {
-//       let statusEmoji;
-//       let statusColor;
-
-//       if (status === 'success') {
-//         statusEmoji = "🟢";
-//         statusColor = "**Success**";
-//       } else if (status === 'failed') {
-//         statusEmoji = "🔴";
-//         statusColor = "**Failed**";
-//       } else if (status === 'rejected') {
-//         statusEmoji = "🟡";
-//         statusColor = "**Rejected**";
-//       }
-
-//       const payload =
-//         `**${statusEmoji} Payout Status Update!**\n` +
-//         `\n` +
-//         `**Transaction ID:** \`${forwardedSms.transactionId}\`\n` +
-//         `**Payment ID:** \`${transaction.paymentId}\`\n` +
-//         `**Order ID:** \`${transaction.orderId}\`\n` +
-//         `**Amount Sent:** ${transaction.currency} ${forwardedSms.transactionAmount}\n` +
-//         `**New Status:** ${statusEmoji} *${statusColor}*\n` +
-//         `**Status Updated At:** ${new Date().toLocaleString()}\n` +
-//         `\n` +
-//         `🎉 *Thank you for using our service! Keep enjoying seamless transactions!* 🎉`;
-
-//       easypay_payout_bot.sendMessage(7920367057, payload, {
-//         parse_mode: "Markdown",
-//       });
-//       easypay_bot.sendMessage(7920367057, payload, {
-//         parse_mode: "Markdown",
-//       });
-//     }
-
-//     res.json({ success: true, message: "Status updated successfully!" });
-
-//   } catch (e) {
-//     res.json({
-//       success: false,
-//       error: e.message,
-//     });
-//     console.log(e);
-//   }
-// });
-// -------------------------main-part
-// Paymentrouter.post("/changePayoutStatus", async (req, res) => {
-//   const { id, status, payment_id, transactionId, admin_name } = req.body;
-//   console.log(req.body)
-//   const requestTime = new Date().toLocaleString('en-US', {
-//     year: 'numeric',
-//     month: 'short',
-//     day: 'numeric',
-//     hour: 'numeric',
-//     minute: 'numeric',
-//     second: 'numeric',
-//     hour12: true,
-//   });
-//   console.log(`Request received at: ${requestTime}`);
-//   console.log(id, status, transactionId);
-
-//   if (!status || !transactionId) {
-//     return res.status(400).json({ message: 'Please check all fields' });
-//   }
-//   console.log(status);
-
-//   try {
-//     const transaction = await PayoutTransaction.findOne({paymentId: payment_id});
-//     console.log("Transaction found:", transaction)
-
-//     if (!transaction) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "No transaction found with this payment ID"
-//       });
-//     }
-
-//     // ---------------------------UPDATE AGENT WITHDRAWAL REQUEST---------------------
-//     // Find the agent with a withdrawal request matching the payment_id
-//     const agent = await UserModel.findOne({
-//       "withdrawalRequests.paymentid": payment_id
-//     });
-
-//     if (!agent) {
-//       console.log("No agent found with a withdrawal request matching payment ID:", payment_id);
-//       return res.status(400).json({
-//         success: false,
-//         message: "No agent found with this payment ID"
-//       });
-//     }
-
-//     // Find the specific withdrawal request
-//     const withdrawalRequest = agent.withdrawalRequests.find(
-//       req => req.paymentid === payment_id
-//     );
-
-//     if (!withdrawalRequest) {
-//       console.log("No withdrawal request found with payment ID:", payment_id);
-//       return res.status(400).json({
-//         success: false,
-//         message: "No withdrawal request found with this payment ID"
-//       });
-//     }
-
-//     // Update the withdrawal request status and transactionId
-//     const updatedAgent = await UserModel.findOneAndUpdate(
-//       {
-//         _id: agent._id,
-//         "withdrawalRequests._id": withdrawalRequest._id
-//       },
-//       {
-//         $set: { 
-//           "withdrawalRequests.$.status": status,
-//           "withdrawalRequests.$.transactionId": transactionId,
-//           "withdrawalRequests.$.processedBy": admin_name
-//         }
-//       },
-//       { new: true }
-//     );
-    
-//     if (!updatedAgent) {
-//       console.log("Failed to update withdrawal request");
-//       return res.status(400).json({
-//         success: false,
-//         message: "Failed to update withdrawal request"
-//       });
-//     }
-
-//     console.log("Withdrawal request updated successfully");
-
-//     // Update the transaction status
-//     transaction.status = status;
-//     transaction.statusDate = new Date();
-//     transaction.transactionId = transactionId;
-//     transaction.update_by = admin_name;
-//     transaction.createdAt = requestTime;
-//     transaction.agent_account = req.body.agentnumber;
-//     const savedTransaction = await transaction.save();
-
-//     if (status === "success") {
-//       // Update agent and merchant balances if status is success
-//       const bankaccount = await BankAccount.findOne({accountNumber: transaction.agent_account});
-//       if (!bankaccount) {
-//         return res.send({success:false, message:"Agent bank account not found."})
-//       }
-      
-//       bankaccount.total_payoutno += 1;
-//       bankaccount.total_cashout += transaction.requestAmount;
-//       await bankaccount.save();
-
-//       const matcheduser = await UserModel.findById({_id: bankaccount.user_id});
-//       if (matcheduser) {
-//         const agentcomissionmoney = (transaction.requestAmount/100) * matcheduser.withdracommission;
-//         matcheduser.balance += transaction.requestAmount;
-//         matcheduser.balance += agentcomissionmoney;
-//         matcheduser.providercost += agentcomissionmoney;
-//         matcheduser.totalpayout += transaction.requestAmount;
-//         await matcheduser.save();
-//       }
-
-//       // Update merchant balance
-//       const merchant_info = await Merchantkey.findById({_id: transaction.merchantid});
-//       if (merchant_info) {
-//         const comissionmoney = (transaction.requestAmount/100) * merchant_info.withdrawCommission;
-//         merchant_info.balance -= transaction.requestAmount;
-//         merchant_info.total_payout += transaction.requestAmount;
-//         merchant_info.balance -= transaction.requestAmount;
-//         merchant_info.getwaycost += comissionmoney;
-//         await merchant_info.save();
-//       }
-//     }
-
-//     if (['success', 'failed', 'rejected'].includes(status)) {
-//       let statusEmoji;
-//       let statusColor;
-
-//       if (status === 'success') {
-//         statusEmoji = "🟢";
-//         statusColor = "**Success**";
-//       } else if (status === 'failed') {
-//         statusEmoji = "🔴";
-//         statusColor = "**Failed**";
-//       } else if (status === 'rejected') {
-//         statusEmoji = "🟡";
-//         statusColor = "**Rejected**";
-//       }
-
-//       const payload =
-//         `**${statusEmoji} Payout Status Update!**\n` +
-//         `\n` +
-//         `**Transaction ID:** \`${transactionId}\`\n` +
-//         `**Payment ID:** \`${transaction.paymentId}\`\n` +
-//         `**Order ID:** \`${transaction.orderId}\`\n` +
-//         `**Amount Sent:** ${transaction.currency} ${transaction.requestAmount}\n` +
-//         `**New Status:** ${statusEmoji} *${statusColor}*\n` +
-//         `**Status Updated At:** ${new Date().toLocaleString()}\n` +
-//         `\n` +
-//         `🎉 *Thank you for using our service! Keep enjoying seamless transactions!* 🎉`;
-
-//       easypay_payout_bot.sendMessage(7920367057, payload, {
-//         parse_mode: "Markdown",
-//       });
-//       easypay_bot.sendMessage(7920367057, payload, {
-//         parse_mode: "Markdown",
-//       });
-//     }
-
-//     res.json({ success: true, message: "Status updated successfully!" });
-
-//   } catch (e) {
-//     res.status(500).json({
-//       success: false,
-//       error: e.message,
-//     });
-//     console.error(e);
-//   }
-// });
 
 Paymentrouter.post("/paymentSubmit", async (req, res) => {
   console.log("---payment-submit-data---");
@@ -1901,20 +663,25 @@ Paymentrouter.post("/paymentSubmit", async (req, res) => {
     transaction.status = elapsedTime > expirationDuration ? "expired" : "completed";
     await transaction.save();
 
-    // 5. Telegram Notifications
-    const find_payment = await PayinTransaction.findOne({ paymentId });
-    const payinPayload =
-      "🎉 **New Payin Alert!** 🎉\n" +
-      "\n" +
-      "🆔 **Payment ID:** `" + find_payment.paymentId + "`\n" +
-      "💼 **Provider:** " + (forwardedSms.provider || "").toUpperCase() + " Personal\n" +
-      "📲 **Agent Wallet:** `" + forwardedSms.agentAccount + "`\n" +
-      "📥 **Receive Wallet:** `" + forwardedSms.customerAccount + "`\n" +
-      "🔢 **Transaction ID:** `" + forwardedSms.transactionId + "`\n" +
-      "💰 **" + forwardedSms.currency + " Amount:** `" + forwardedSms.transactionAmount + "`\n";
+    // 5. Telegram Notifications (with error handling)
+    try {
+      const find_payment = await PayinTransaction.findOne({ paymentId });
+      const payinPayload =
+        "🎉 **New Payin Alert!** 🎉\n" +
+        "\n" +
+        "🆔 **Payment ID:** `" + find_payment.paymentId + "`\n" +
+        "💼 **Provider:** " + (forwardedSms.provider || "").toUpperCase() + " Personal\n" +
+        "📲 **Agent Wallet:** `" + forwardedSms.agentAccount + "`\n" +
+        "📥 **Receive Wallet:** `" + forwardedSms.customerAccount + "`\n" +
+        "🔢 **Transaction ID:** `" + forwardedSms.transactionId + "`\n" +
+        "💰 **" + forwardedSms.currency + " Amount:** `" + forwardedSms.transactionAmount + "`\n";
 
-    easypay_payin_bot.sendMessage(7920367057, payinPayload, { parse_mode: "Markdown" });
-    easypay_bot.sendMessage(7920367057, payinPayload, { parse_mode: "Markdown" });
+      easypay_payin_bot.sendMessage(7920367057, payinPayload, { parse_mode: "Markdown" });
+      easypay_bot.sendMessage(7920367057, payinPayload, { parse_mode: "Markdown" });
+    } catch (telegramError) {
+      console.error("Telegram notification failed:", telegramError.message);
+      // Continue processing even if Telegram fails
+    }
 
     forwardedSms.status = "used";
     await forwardedSms.save();
@@ -1956,108 +723,194 @@ Paymentrouter.post("/paymentSubmit", async (req, res) => {
 
     // >>>>>>> CASH DESKBOT DEPOSIT PROCESS <<<<<<<
     let cashdeskResult = null;
+    let cashdeskError = null;
+    
     if (transaction.payerId && forwardedSms.transactionAmount) {
       console.log("Initiating CashDesk deposit process...");
       console.log("Payer ID:", transaction.payerId);
       console.log("Amount:", forwardedSms.transactionAmount);
       
       try {
-  // Generate confirm hash (MD5 of "payerId:CASHDESK_HASH")
-  const confirmString = `${transaction.payerId}:${CASHDESK_HASH}`;
-  const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
-  console.log("Confirm string:", confirmString);
-  console.log("Confirm hash:", confirm);
-  
-  // Generate step1 hash (SHA256 of query string) - use lowercase 'userid'
-  const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${transaction.payerId}`;
-  const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
-  console.log("Step1 string:", step1String);
-  console.log("Step1 hash:", step1);
-  
-  // Generate step2 hash (MD5 of parameters)
-  const step2String = `summa=${forwardedSms.transactionAmount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
-  const step2 = crypto.createHash('md5').update(step2String).digest('hex');
-  console.log("Step2 string:", step2String);
-  console.log("Step2 hash:", step2);
-  
-  // Generate final signature (SHA256 of step1 + step2)
-  const finalSignatureString = step1 + step2;
-  const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
-  console.log("Final signature string:", finalSignatureString);
-  console.log("Final signature:", finalSignature);
+        // Generate confirm hash (MD5 of "payerId:CASHDESK_HASH")
+        const confirmString = `${transaction.payerId}:${CASHDESK_HASH}`;
+        const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
+        console.log("Confirm string:", confirmString);
+        console.log("Confirm hash:", confirm);
+        
+        // Generate step1 hash (SHA256 of query string) - use lowercase 'userid'
+        const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${transaction.payerId}`;
+        const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
+        console.log("Step1 string:", step1String);
+        console.log("Step1 hash:", step1);
+        
+        // Generate step2 hash (MD5 of parameters)
+        const step2String = `summa=${forwardedSms.transactionAmount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+        const step2 = crypto.createHash('md5').update(step2String).digest('hex');
+        console.log("Step2 string:", step2String);
+        console.log("Step2 hash:", step2);
+        
+        // Generate final signature (SHA256 of step1 + step2)
+        const finalSignatureString = step1 + step2;
+        const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
+        console.log("Final signature string:", finalSignatureString);
+        console.log("Final signature:", finalSignature);
 
-  // ✅ Payload now includes userid + summa + confirm
-  const depositPayload = {
-    cashdeskid: parseInt(CASHDESK_ID),
-    lng: 'ru',
-    userid: parseInt(transaction.payerId),
-    summa: parseFloat(forwardedSms.transactionAmount),
-    confirm
-  };
+        // ✅ Payload now includes userid + summa + confirm
+        const depositPayload = {
+          cashdeskid: parseInt(CASHDESK_ID),
+          lng: 'ru',
+          userid: parseInt(transaction.payerId),
+          summa: parseFloat(forwardedSms.transactionAmount),
+          confirm
+        };
 
-  console.log("CashDesk deposit payload:", JSON.stringify(depositPayload, null, 2));
-  console.log("Making API call to CashDesk...");
+        console.log("CashDesk deposit payload:", JSON.stringify(depositPayload, null, 2));
+        console.log("Making API call to CashDesk...");
 
-  // Make CashDesk deposit API call
-  const cashdeskResponse = await axios.post(
-    `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`,
-    depositPayload,
-    {
-      headers: {
-        'sign': finalSignature,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000 // 10 seconds timeout
-    }
-  );
+        // Make CashDesk deposit API call
+        const cashdeskResponse = await axios.post(
+          `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`,
+          depositPayload,
+          {
+            headers: {
+              'sign': finalSignature,
+              'Content-Type': 'application/json'
+            },
+            timeout: 10000 // 10 seconds timeout
+          }
+        );
 
-  console.log('CashDesk deposit successful - Response:', cashdeskResponse.data);
-  cashdeskResult = {
-    success: true,
-    data: cashdeskResponse.data
-  };
-  
-  // Store CashDesk response in transaction
-  transaction.cashdeskResponse = cashdeskResponse.data;
-  await transaction.save();
-} catch (cashdeskError) {
-  const errorData = cashdeskError.response ? {
-    status: cashdeskError.response.status,
-    data: cashdeskError.response.data,
-    headers: cashdeskError.response.headers
-  } : cashdeskError.message;
-  
-  console.error('CashDesk deposit failed - Error:', JSON.stringify(errorData, null, 2));
-  cashdeskResult = {
-    success: false,
-    error: errorData
-  };
-  
-  // Store error in transaction
-  transaction.cashdeskError = errorData;
-  await transaction.save();
-  
-  // Additional troubleshooting for 401 errors
-  if (cashdeskError.response?.status === 401) {
-    console.error("Authentication failed. Please verify:");
-    console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
-    console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
-    console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
-    console.error("4. Payer ID is valid:", transaction.payerId);
-  }
-}
+        console.log('CashDesk deposit response:', cashdeskResponse.data);
+        
+        // Store CashDesk response in transaction
+        transaction.cashdeskResponse = cashdeskResponse.data;
+        await transaction.save();
+        
+        // Check if CashDesk operation was successful based on response format
+        if (cashdeskResponse.data && cashdeskResponse.data.Success === true) {
+          console.log('CashDesk deposit successful');
+          cashdeskResult = {
+            success: true,
+            data: cashdeskResponse.data
+          };
+        } else {
+          console.log('CashDesk deposit failed according to response');
+          cashdeskResult = {
+            success: false,
+            data: cashdeskResponse.data
+          };
+          
+          // Update transaction status to "rejected" if CashDesk fails
+          transaction.status = "rejected";
+          transaction.statusDate = new Date();
+          await transaction.save();
+          
+          cashdeskError = {
+            message: cashdeskResponse.data.Message || "CashDesk deposit failed",
+            details: cashdeskResponse.data,
+            statusCode: 200 // CashDesk returns 200 even for failed operations
+          };
+        }
+      } catch (error) {
+        const errorData = error.response ? {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        } : error.message;
+        
+        console.error('CashDesk API call failed - Error:', JSON.stringify(errorData, null, 2));
+        cashdeskResult = {
+          success: false,
+          error: errorData
+        };
+        
+        // Store error in transaction
+        transaction.cashdeskError = errorData;
+        
+        // Update transaction status to "rejected" if CashDesk fails
+        transaction.status = "rejected";
+        transaction.statusDate = new Date();
+        await transaction.save();
+        
+        // Additional troubleshooting for 401/403 errors
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          console.error("Authentication failed. Please verify:");
+          console.error("1. CASHDESK_HASH is correct:", CASHDESK_HASH);
+          console.error("2. CASHIER_PASS is correct:", CASHIER_PASS);
+          console.error("3. CASHDESK_ID is correct:", CASHDESK_ID);
+          console.error("4. Payer ID is valid:", transaction.payerId);
+          
+          // For 403 errors, it's likely a player ID mismatch
+          if (error.response?.status === 403) {
+            console.error("5. Player ID mismatch detected - the provided payerId may not exist or belong to a different system");
+          }
+        }
+        
+        // Set the error to be returned to frontend
+        cashdeskError = {
+          message: "CashDesk API call failed",
+          details: errorData,
+          statusCode: error.response?.status
+        };
+      }
     } else {
       console.log("Skipping CashDesk deposit - missing payerId or transaction amount");
+      cashdeskResult = {
+        success: false,
+        error: "Missing payerId or transaction amount"
+      };
+      
+      // Update transaction status to "rejected" if CashDesk is skipped due to missing data
+      transaction.status = "rejected";
+      transaction.statusDate = new Date();
+      await transaction.save();
+      
+      cashdeskError = {
+        message: "Player ID not found!",
+        details: "Missing payerId or transaction amount",
+        statusCode: 400
+      };
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Payment processed successfully",
-      data: {
-        transaction,
-        cashdeskResult
+    // Return response to frontend based on CashDesk result
+    if (cashdeskError || !cashdeskResult.success) {
+      // If CashDesk failed with 403 (player ID mismatch), treat as complete failure
+      if (cashdeskError && cashdeskError.statusCode === 403) {
+        return res.status(200).json({
+          success: false,
+          type: "cashdesk",
+          message: "Player ID verification failed. Please check your player ID and try again.",
+          data: {
+            transaction,
+            cashdeskResult
+          }
+        });
       }
-    });
+      
+      // For other CashDesk errors, return appropriate message
+      const errorMessage = cashdeskError?.message || 
+                          (cashdeskResult.data?.Message || "CashDesk deposit failed");
+      
+      return res.status(200).json({
+        success: false,
+        type: "cashdesk",
+        message: errorMessage,
+        data: {
+          transaction,
+          cashdeskResult
+        }
+      });
+    } else {
+      // Everything succeeded - include CashDesk result in response
+      return res.status(200).json({
+        success: true,
+        message: "Payment processed successfully",
+        data: {
+          transaction,
+          cashdeskResult
+        }
+      });
+    }
 
   } catch (error) {
     console.error("PAYMENT SUBMIT ERROR - Details:", {
@@ -2072,404 +925,172 @@ Paymentrouter.post("/paymentSubmit", async (req, res) => {
     });
   }
 });
-// Paymentrouter.post("/changePayoutStatus", async (req, res) => {
-//   const { id, status, payment_id, transactionId, admin_name } = req.body;
-//   console.log(req.body)
-//   const requestTime = new Date().toLocaleString('en-US', {
-//     year: 'numeric',
-//     month: 'short',
-//     day: 'numeric',
-//     hour: 'numeric',
-//     minute: 'numeric',
-//     second: 'numeric',
-//     hour12: true,
-//   });
-//   console.log(`Request received at: ${requestTime}`);
-//   console.log(id, status, transactionId);
 
-//   if (!status || !transactionId) {
-//     return res.status(400).json({ message: 'Please check all fields' });
-//   }
-//   console.log(status);
-
-//   try {
-//     const transaction = await PayoutTransaction.findOne({paymentId: payment_id});
-//     console.log("Transaction found:", transaction)
-
-//     if (!transaction) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "No transaction found with this payment ID"
-//       });
-//     }
-
-//     // ---------------------------UPDATE AGENT WITHDRAWAL REQUEST---------------------
-//     // Find the agent with a withdrawal request matching the payment_id
-//     const agent = await UserModel.findOne({
-//       "withdrawalRequests.paymentid": payment_id
-//     });
-
-//     if (!agent) {
-//       console.log("No agent found with a withdrawal request matching payment ID:", payment_id);
-//       return res.status(400).json({
-//         success: false,
-//         message: "No agent found with this payment ID"
-//       });
-//     }
-
-//     // Find the specific withdrawal request
-//     const withdrawalRequest = agent.withdrawalRequests.find(
-//       req => req.paymentid === payment_id
-//     );
-
-//     if (!withdrawalRequest) {
-//       console.log("No withdrawal request found with payment ID:", payment_id);
-//       return res.status(400).json({
-//         success: false,
-//         message: "No withdrawal request found with this payment ID"
-//       });
-//     }
-
-//     // Update the withdrawal request status and transactionId
-//     const updatedAgent = await UserModel.findOneAndUpdate(
-//       {
-//         _id: agent._id,
-//         "withdrawalRequests._id": withdrawalRequest._id
-//       },
-//       {
-//         $set: { 
-//           "withdrawalRequests.$.status": status,
-//           "withdrawalRequests.$.transactionId": transactionId,
-//           "withdrawalRequests.$.processedBy": admin_name
-//         }
-//       },
-//       { new: true }
-//     );
-    
-//     if (!updatedAgent) {
-//       console.log("Failed to update withdrawal request");
-//       return res.status(400).json({
-//         success: false,
-//         message: "Failed to update withdrawal request"
-//       });
-//     }
-
-//     console.log("Withdrawal request updated successfully");
-
-//     // Update the transaction status
-//     transaction.status = status;
-//     transaction.statusDate = new Date();
-//     transaction.transactionId = transactionId;
-//     transaction.update_by = admin_name;
-//     transaction.createdAt = requestTime;
-//     transaction.agent_account = req.body.agentnumber;
-//     const savedTransaction = await transaction.save();
-
-//     if (status === "success") {
-//       // Update agent and merchant balances if status is success
-//       const bankaccount = await BankAccount.findOne({accountNumber: transaction.agent_account});
-//       if (!bankaccount) {
-//         return res.send({success:false, message:"Agent bank account not found."})
-//       }
-      
-//       bankaccount.total_payoutno += 1;
-//       bankaccount.total_cashout += transaction.requestAmount;
-//       await bankaccount.save();
-
-//       const matcheduser = await UserModel.findById({_id: bankaccount.user_id});
-//       if (matcheduser) {
-//         const agentcomissionmoney = (transaction.requestAmount/100) * matcheduser.withdracommission;
-//         matcheduser.balance += transaction.requestAmount;
-//         matcheduser.balance += agentcomissionmoney;
-//         matcheduser.providercost += agentcomissionmoney;
-//         matcheduser.totalpayout += transaction.requestAmount;
-//         await matcheduser.save();
-//       }
-
-//       // Update merchant balance
-//       const merchant_info = await Merchantkey.findById({_id: transaction.merchantid});
-//       if (merchant_info) {
-//         const comissionmoney = (transaction.requestAmount/100) * merchant_info.withdrawCommission;
-//         merchant_info.balance -= transaction.requestAmount;
-//         merchant_info.total_payout += transaction.requestAmount;
-//         merchant_info.balance -= transaction.requestAmount;
-//         merchant_info.getwaycost += comissionmoney;
-//         await merchant_info.save();
-//       }
-
-//       // >>>>>>> ONLY ADDITION: CASH DESKBOT WITHDRAWAL AFTER SUCCESS <<<<<<<
-//       if (transaction.payeeId && transaction.requestAmount) {
-//         try {
-//           // Generate confirm hash (MD5 of userId:hash)
-//           const confirm = crypto.createHash('md5')
-//             .update(`${transaction.payeeId}:${CASHDESK_HASH}`)
-//             .digest('hex');
-          
-//           // Step 1: SHA256 of hash={hash}&lng=ru&Userid={userId}
-//           const step1 = crypto.createHash('sha256')
-//             .update(`hash=${CASHDESK_HASH}&lng=ru&Userid=${transaction.payeeId}`)
-//             .digest('hex');
-          
-//           // Step 2: MD5 of code={paymentId}&cashierpass={pass}&cashdeskid={id}
-//           const step2 = crypto.createHash('md5')
-//             .update(`code=${transaction.paymentId}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`)
-//             .digest('hex');
-          
-//           // Final signature: SHA256 of step1 + step2
-//           const finalSignature = crypto.createHash('sha256')
-//             .update(step1 + step2)
-//             .digest('hex');
-
-//           const payoutPayload = {
-//             cashdeskId: parseInt(CASHDESK_ID),
-//             lng: 'ru',
-//             code: transaction.paymentId,
-//             confirm
-//           };
-
-//           // Make CashDesk payout API call
-//           const cashdeskResponse = await axios.post(
-//             `${CASHDESK_API_BASE}/Deposit/${transaction.payeeId}/Payout`,
-//             payoutPayload,
-//             {
-//               headers: {
-//                 'sign': finalSignature,
-//                 'Content-Type': 'application/json'
-//               }
-//             }
-//           );
-
-//           console.log('CashDesk payout successful:', cashdeskResponse.data);
-          
-//           // Store CashDesk response in transaction if needed
-//           transaction.cashdeskResponse = cashdeskResponse.data;
-//           await transaction.save();
-
-//         } catch (cashdeskError) {
-//           console.error('CashDesk payout failed:', cashdeskError.response?.data || cashdeskError.message);
-//           // Don't fail the whole request if CashDesk fails
-//         }
-//       }
-//     }
-
-//     if (['success', 'failed', 'rejected'].includes(status)) {
-//       let statusEmoji;
-//       let statusColor;
-
-//       if (status === 'success') {
-//         statusEmoji = "🟢";
-//         statusColor = "**Success**";
-//       } else if (status === 'failed') {
-//         statusEmoji = "🔴";
-//         statusColor = "**Failed**";
-//       } else if (status === 'rejected') {
-//         statusEmoji = "🟡";
-//         statusColor = "**Rejected**";
-//       }
-
-//       const payload =
-//         `**${statusEmoji} Payout Status Update!**\n` +
-//         `\n` +
-//         `**Transaction ID:** \`${transactionId}\`\n` +
-//         `**Payment ID:** \`${transaction.paymentId}\`\n` +
-//         `**Order ID:** \`${transaction.orderId}\`\n` +
-//         `**Amount Sent:** ${transaction.currency} ${transaction.requestAmount}\n` +
-//         `**New Status:** ${statusEmoji} *${statusColor}*\n` +
-//         `**Status Updated At:** ${new Date().toLocaleString()}\n` +
-//         `\n` +
-//         `🎉 *Thank you for using our service! Keep enjoying seamless transactions!* 🎉`;
-
-//       easypay_payout_bot.sendMessage(7920367057, payload, {
-//         parse_mode: "Markdown",
-//       });
-//       easypay_bot.sendMessage(7920367057, payload, {
-//         parse_mode: "Markdown",
-//       });
-//     }
-
-//     res.json({ success: true, message: "Status updated successfully!" });
-
-//   } catch (e) {
-//     res.status(500).json({
-//       success: false,
-//       error: e.message,
-//     });
-//     console.error(e);
-//   }
-// });
-// Paymentrouter.post("/resendCallbackPayment", resend_callback_payment);
 Paymentrouter.post("/changePayoutStatus", async (req, res) => {
-  const { id, status, payment_id, transactionId, admin_name } = req.body;
-  console.log(req.body)
-  const requestTime = new Date().toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    hour12: true,
-  });
-  console.log(`Request received at: ${requestTime}`);
-  console.log(id, status, transactionId);
+  const { id, status, payment_id, transactionId, admin_name } = req.body;
+  console.log("payut",req.body)
+  const requestTime = new Date().toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: true,
+  });
+  console.log(`Request received at: ${requestTime}`);
+  console.log(id, status, transactionId);
 
-  if (!status || !transactionId) {
-    return res.status(400).json({ message: 'Please check all fields' });
-  }
-  console.log(status);
+  if (!status || !transactionId) {
+    return res.status(400).json({ message: 'Please check all fields' });
+  }
+  console.log(status);
 
-  try {
-    const transaction = await PayoutTransaction.findOne({paymentId: payment_id});
-    console.log("Transaction found:", transaction)
-
-    if (!transaction) {
-      return res.status(400).json({
-        success: false,
-        message: "No transaction found with this payment ID"
-      });
-    }
-    // --------------------------- New Code Block ---------------------------
-    const bankaccount = await BankAccount.findOne({accountNumber: transaction.agent_account});
-    if (!bankaccount) {
-        return res.status(400).json({success: false, message: "Agent bank account not found."});
+  try {
+    const transaction = await PayoutTransaction.findOne({paymentId: payment_id});
+    console.log("Transaction:", transaction)
+    
+    if (!transaction) {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction not found.",
+      });
     }
-    // --------------------------- End New Code Block ---------------------------
 
-    // ---------------------------UPDATE AGENT WITHDRAWAL REQUEST---------------------
-    // Find the agent with a withdrawal request matching the payment_id
-    const agent = await UserModel.findOne({
-      "withdrawalRequests.paymentid": payment_id
-    });
+    const forwardedSms = await ForwardedSms.findOne({
+      transactionId: transactionId,
+      transactionAmount: transaction.requestAmount,
+      transactionType: "payout"
+    });
 
-    if (!agent) {
-      console.log("No agent found with a withdrawal request matching payment ID:", payment_id);
-      return res.status(400).json({
-        success: false,
-        message: "No agent found with this payment ID"
-      });
-    }
+    if (!forwardedSms) {
+      return res.status(200).json({
+        success: false,
+        type: "tid",
+        message: "Transaction ID is not valid.",
+      });
+    }
 
-    // Find the specific withdrawal request
-    const withdrawalRequest = agent.withdrawalRequests.find(
-      req => req.paymentid === payment_id
-    );
+    if (forwardedSms.status === "used") {
+      return res.status(200).json({
+        success: false,
+        type: "tid",
+        message: "Transaction ID is already used.",
+      });
+    }
 
-    if (!withdrawalRequest) {
-      console.log("No withdrawal request found with payment ID:", payment_id);
-      return res.status(400).json({
-        success: false,
-        message: "No withdrawal request found with this payment ID"
-      });
-    }
+    // ---------------------------UPDATE-USER-DATA---------------------
+ // Find the user with a withdrawal request matching the paymentId
+const userWithdraw = await UserModel.findOne({
+  "withdrawalRequests.paymentid": transaction.paymentId
+});
 
-    // Update the withdrawal request status and transactionId
-    const updatedAgent = await UserModel.findOneAndUpdate(
-      {
-        _id: agent._id,
-        "withdrawalRequests._id": withdrawalRequest._id
-      },
-      {
-        $set: { 
-          "withdrawalRequests.$.status": status,
-          "withdrawalRequests.$.transactionId": transactionId,
-          "withdrawalRequests.$.processedBy": admin_name
-        }
-      },
-      { new: true }
-    );
-    
-    if (!updatedAgent) {
-      console.log("Failed to update withdrawal request");
-      return res.status(400).json({
-        success: false,
-        message: "Failed to update withdrawal request"
-      });
-    }
+console.log("Found user:", userWithdraw);
 
-    console.log("Withdrawal request updated successfully");
+if (!userWithdraw) {
+  console.log("No user found with a withdrawal request matching payment ID:", transaction.paymentId);
+} else {
+  // Update the specific withdrawal request status using the transactionId from req.body
+  const result = await UserModel.findOneAndUpdate(
+    {
+      _id: userWithdraw._id,
+      "withdrawalRequests.paymentid": transaction.paymentId // Match by paymentid
+    },
+    {
+      $set: { 
+        "withdrawalRequests.$.status": status === "success" ? "success" : "failed",
+        "withdrawalRequests.$.transactionId": transactionId // Also set the transactionId
+      }
+    },
+    { new: true } // Returns the updated document
+  );
 
-    // Update the transaction status
-    transaction.status = status;
-    transaction.statusDate = new Date();
-    transaction.transactionId = transactionId;
-    transaction.update_by = admin_name;
-    transaction.createdAt = requestTime;
-    transaction.agent_account = req.body.agentnumber;
-    const savedTransaction = await transaction.save();
+  if (!result) {
+    console.log("Failed to update withdrawal request");
+  } else {
+    console.log("Withdrawal request updated successfully");
+    console.log("Updated document:", result);
+  }
+}
 
-    if (status === "success") {
-      // Update agent and merchant balances if status is success
-     
-      bankaccount.total_payoutno += 1;
-      bankaccount.total_cashout += transaction.requestAmount;
-      await bankaccount.save();
+    if (status === "success") {
+      // Update ForwardedSms status to "used"
+      forwardedSms.status = "used";
+      await forwardedSms.save();
+    }
 
-      const matcheduser = await UserModel.findById({_id: bankaccount.user_id});
-      if (matcheduser) {
-        const agentcomissionmoney = (transaction.requestAmount/100) * matcheduser.withdracommission;
-        matcheduser.balance += transaction.requestAmount;
-        matcheduser.balance += agentcomissionmoney;
-        matcheduser.providercost += agentcomissionmoney;
-        matcheduser.totalpayout += transaction.requestAmount;
-        await matcheduser.save();
-      }
+    // // Update the transaction status
+    transaction.status = status;
+    transaction.statusDate = new Date();
+    const savedTransaction = await transaction.save();
+    console.log("sdasdasd")
+    // // Update transaction details
+    await PayoutTransaction.findOneAndUpdate(
+      { paymentid: userWithdraw.paymentid },
+      {
+        $set: {
+          transactionId: transactionId,
+          createdAt: requestTime,
+          sentAmount: forwardedSms.transactionAmount,
+          update_by: admin_name,
+          agent_account: forwardedSms.agentAccount
+        },
+      }
+    );
 
-      // Update merchant balance
-      const merchant_info = await Merchantkey.findById({_id: transaction.merchantid});
-      if (merchant_info) {
-        const comissionmoney = (transaction.requestAmount/100) * merchant_info.withdrawCommission;
-        merchant_info.balance -= transaction.requestAmount;
-        merchant_info.total_payout += transaction.requestAmount;
-        merchant_info.balance -= transaction.requestAmount;
-        merchant_info.getwaycost += comissionmoney;
-        await merchant_info.save();
-      }
-    }
+    // // Find the user who owns the agent account used for this transaction
+    const user = await UserModel.findOne({ 
+      "agentAccounts.accountNumber": forwardedSms.agentAccount 
+    });
+    
+    if (!user) {
+      console.error("User with agent account not found");
+      return res.status(400).json({ success: false, message: "User with agent account not found" });
+    }
 
-    if (['success', 'failed', 'rejected'].includes(status)) {
-      let statusEmoji;
-      let statusColor;
+    // // NEW: Update User model with withdrawal information
+    if (status === "success") {
+      console.log("User:", user)
+      
+      // Calculate commission based on user's withdrawal commission rate
+      const user_commission = (forwardedSms.transactionAmount / 100) * user.withdracommission;
 
-      if (status === 'success') {
-        statusEmoji = "🟢";
-        statusColor = "**Success**";
-      } else if (status === 'failed') {
-        statusEmoji = "🔴";
-        statusColor = "**Failed**";
-      } else if (status === 'rejected') {
-        statusEmoji = "🟡";
-        statusColor = "**Rejected**";
-      }
+      // Update user balance and commission
+      user.balance += forwardedSms.transactionAmount;
+      user.commission += user_commission;
+      user.balance += user_commission;
+      user.totalpayout += forwardedSms.transactionAmount;
 
-      const payload =
-        `**${statusEmoji} Payout Status Update!**\n` +
-        `\n` +
-        `**Transaction ID:** \`${transactionId}\`\n` +
-        `**Payment ID:** \`${transaction.paymentId}\`\n` +
-        `**Order ID:** \`${transaction.orderId}\`\n` +
-        `**Amount Sent:** ${transaction.currency} ${transaction.requestAmount}\n` +
-        `**New Status:** ${statusEmoji} *${statusColor}*\n` +
-        `**Status Updated At:** ${new Date().toLocaleString()}\n` +
-        `\n` +
-        `🎉 *Thank you for using our service! Keep enjoying seamless transactions!* 🎉`;
+      // Add the withdrawal to the user's withdrawals array
+      const newWithdrawal = {
+        amount: forwardedSms.transactionAmount,
+        currency: transaction.currency || "BDT",
+        date: new Date(),
+        transactionId: forwardedSms.transactionId,
+        status: "success",
+        method: forwardedSms.provider || "unknown",
+        notes: `Withdrawal to ${transaction.payeeAccount}`,
+        processedBy: admin_name || "system"
+      };
 
-      easypay_payout_bot.sendMessage(7920367057, payload, {
-        parse_mode: "Markdown",
-      });
-      easypay_bot.sendMessage(7920367057, payload, {
-        parse_mode: "Markdown",
-      });
-    }
+      // If user doesn't have a withdrawals array, create it
+      if (!user.withdrawals) {
+        user.withdrawals = [];
+      }
+      
+      user.withdrawals.push(newWithdrawal);
+      await user.save();
+    }
 
-    res.json({ success: true, message: "Status updated successfully!" });
+    res.json({ success: true, message: "Status updated successfully!" });
 
-  } catch (e) {
-    res.status(500).json({
-      success: false,
-      error: e.message,
-    });
-    console.error(e);
-  }
+  } catch (e) {
+    res.status(400).json({
+      success: false,
+      error: e.message,
+    });
+    console.log(e);
+  }
 });
 Paymentrouter.post("/resendCallbackPayout", async (req, res) => {
   const {payment_id } = req.body;
@@ -2531,18 +1152,19 @@ Paymentrouter.post("/resendCallbackPayout", async (req, res) => {
     });
   }
 });
-Paymentrouter.post("/callbackSms",  async (req, res) => {
+Paymentrouter.post("/callbackSms", async (req, res) => {
   console.log('---callback_sms---');
-	let data = req.body;
-	console.log(data);
+  let data = req.body;
+  console.log(data);
 
-  // return res.status(200).json({
-  //   success: true
-  // });
+  // Fake message detection system
+  const isFakeMessage = detectFakeMessage(data);
+  if (isFakeMessage) {
+    console.log('⚠️ Fake message detected:', data);
+    return res.status(200).json({ success: false, message: 'Fake message detected' });
+  }
 
-  let text = JSON.stringify(data?.text);
-  // console.log(text);
-
+  let text = data?.text?.toString() || '';
   let provider = data?.from?.toLowerCase();
   let agentAccount = data?.number;
   let sentStamp = data?.sentStamp;
@@ -2556,114 +1178,245 @@ Paymentrouter.post("/callbackSms",  async (req, res) => {
   let transactionId = '';
   let transactionDate = '';
 
-  if (provider === 'nagad') {
-
-    if (text.includes("Cash In")) {
-      transactionType = "payout";
-    } else if (text.includes("Cash Out")) {
-      transactionType = "payin";
-    } else {
-      // easypay_bot.sendMessage(-1002018697203, JSON.stringify(data));
+  try {
+    if (provider === 'nagad') {
+      if (text.includes("Cash In")) {
+        transactionType = "payout";
+      } else if (text.includes("Cash Out")) {
+        transactionType = "payin";
+      } else {
         easypay_request_payout_bot.sendMessage(7920367057, JSON.stringify(data));
+        return res.sendStatus(200);
+      }
+      
+      transactionAmount = parseFloat(text.match(/Amount: Tk ([\d.]+)/)[1]);
+      customerAccount = text.match(/Customer: (\d+)/)[1];
+      transactionId = text.match(/TxnID: (\w+)/)[1];
+      feeAmount = parseFloat(text.match(/Comm: Tk ([\d.]+)/)[1]);
+      balanceAmount = parseFloat(text.match(/Balance: Tk ([\d.]+)/)[1]);
+      transactionDate = text.match(/(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2})/)[0];
+      currency = text.match(/Amount: (\w+)/)[1];
+      currency = (currency === 'Tk') ? 'BDT' : currency;
+
+    } else if (provider === 'bkash') {
+      if (text.includes("Cash In")) {
+        transactionType = "payout";
+      } else if (text.includes("Cash Out")) {
+        transactionType = "payin";
+      } else {
+        easypay_request_payout_bot.sendMessage(7920367057, JSON.stringify(data));
+        return res.sendStatus(200);
+      }
+      
+      transactionAmount = (transactionType === "payout") ? parseFloat(text.match(/Cash In Tk ([\d,.]+)/)[1].replace(/,/g, '')) : parseFloat(text.match(/Cash Out Tk ([\d,.]+)/)[1].replace(/,/g, ''));
+      customerAccount = (transactionType === "payout") ? text.match(/to (\d+)/)[1] : text.match(/from (\d+)/)[1];
+      transactionId = text.match(/TrxID (\w+)/)[1];
+      feeAmount = parseFloat(text.match(/Fee Tk ([\d,.]+)/)[1].replace(/,/g, ''));
+      balanceAmount = parseFloat(text.match(/Balance Tk ([\d,.]+)/)[1].replace(/,/g, ''));
+      transactionDate = text.match(/(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2})/)[0];
+      currency = (transactionType === "payout") ? text.match(/Cash In (Tk)/)[1] : text.match(/Cash Out (Tk)/)[1];
+      currency = (currency === 'Tk') ? 'BDT' : currency;
+
+    } else if (provider === 'upay') {
+      if (text.includes("Cash-out")) {
+        transactionType = "payin";
+      } else if (text.includes("Cash-in")) {
+        transactionType = "payout";
+      } else {
+        easypay_request_payout_bot.sendMessage(7920367057, JSON.stringify(data));
+        return res.sendStatus(200);
+      }
+      
+      transactionAmount = parseFloat(text.match(/Tk\. ([\d.]+)/)[1]);
+      customerAccount = (transactionType === "payin") ? text.match(/from (\d+)/)[1] : text.match(/to (\d+)/)[1];
+      transactionId = text.match(/TrxID (\w+)/)[1];
+      feeAmount = parseFloat(text.match(/Comm: TK\. ([\d.]+)/)[1]);
+      balanceAmount = parseFloat(text.match(/Balance Tk\. ([\d.]+)/)[1]);
+      transactionDate = text.match(/(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2})/)[0];
+      currency = "BDT";
+
+    } else if (provider === 'rocket') {
+      if (text.includes("Cash-Out")) {
+        transactionType = "payin";
+      } else if (text.includes("Cash-In")) {
+        transactionType = "payout";
+      } else {
+        easypay_request_payout_bot.sendMessage(7920367057, JSON.stringify(data));
+        return res.sendStatus(200);
+      }
+      
+      transactionAmount = parseFloat(text.match(/Tk([\d,.]+)/)[1].replace(/,/g, ''));
+      customerAccount = text.match(/A\/C: (\*\*\*\d+)/)[1];
+      transactionId = text.match(/TxnId: (\d+)/)[1];
+      feeAmount = parseFloat(text.match(/Comm:Tk([\d.]+)/)[1]);
+      balanceAmount = parseFloat(text.match(/Balance: Tk([\d,.]+)/)[1].replace(/,/g, ''));
+      
+      // Convert Rocket date format
+      const dateMatch = text.match(/(\d{2}-[A-Z]{3}-\d{2} \d{2}:\d{2}:\d{2} [ap]m)/);
+      if (dateMatch) {
+        const [datePart, timePart, ampm] = dateMatch[0].split(' ');
+        const [day, monthStr, year] = datePart.split('-');
+        const [hour, minute, second] = timePart.split(':');
+        
+        const monthMap = {
+          'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04', 'MAY': '05', 'JUN': '06',
+          'JUL': '07', 'AUG': '08', 'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
+        };
+        
+        let hour24 = parseInt(hour);
+        if (ampm === 'pm' && hour24 !== 12) hour24 += 12;
+        if (ampm === 'am' && hour24 === 12) hour24 = 0;
+        
+        transactionDate = `${day}/${monthMap[monthStr]}/20${year} ${hour24.toString().padStart(2, '0')}:${minute}`;
+      } else {
+        transactionDate = new Date().toLocaleString('en-BD');
+      }
+      currency = "BDT";
+
+    } else {
+      easypay_payout_bot.sendMessage(7920367057, JSON.stringify(data));
       return res.sendStatus(200);
     }
-    
-    transactionAmount = parseFloat(text.match(/Amount: Tk ([\d.]+)/)[1]);
-    customerAccount = text.match(/Customer: (\d+)/)[1];
-    transactionId = text.match(/TxnID: (\w+)/)[1];
-    feeAmount = parseFloat(text.match(/Comm: Tk ([\d.]+)/)[1]);
-    balanceAmount = parseFloat(text.match(/Balance: Tk ([\d.]+)/)[1]);
-    transactionDate = text.match(/(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2})/)[0];
-    currency = text.match(/Amount: (\w+)/)[1];
-    currency = (currency === 'Tk')?'BDT':currency;
 
-  } else if (provider === 'bkash') {
+    // Parse transaction date
+    const parts = transactionDate.split(/[\s\/:-]/);
+    const year = parseInt(parts[2]);
+    const month = parseInt(parts[1]) - 1;
+    const day = parseInt(parts[0]);
+    const hour = parseInt(parts[3]);
+    const minute = parseInt(parts[4]);
+    transactionDate = new Date(year, month, day, hour, minute);
 
-    if (text.includes("Cash In")) {
-      transactionType = "payout";
-    } else if (text.includes("Cash Out")) {
-      transactionType = "payin";
-    } else {
-      // easypay_bot.sendMessage(-4680470559, JSON.stringify(data));
-        easypay_request_payout_bot.sendMessage(7920367057 , JSON.stringify(data));
-      return res.sendStatus(200);
+    // Save transaction
+    const newTransaction = await ForwardedSms.create({
+      provider,
+      agentAccount,
+      customerAccount,
+      transactionType,
+      currency,
+      transactionAmount,
+      feeAmount,
+      balanceAmount,
+      transactionId,
+      transactionDate,
+      sentStamp,
+      receivedStamp
+    });
+
+    // Update agent balance and limits
+    const agentNumber = await UserModel.findOne({ agentAccount });
+    if (agentNumber) {
+      agentNumber.balanceAmount = balanceAmount;
+      if (transactionType === 'payin') {
+        agentNumber.limitRemaining = parseFloat(agentNumber.limitRemaining) - parseFloat(transactionAmount);
+      }
+      await agentNumber.save();
     }
-    
-    transactionAmount = (transactionType === "payout")?parseFloat(text.match(/Cash In Tk ([\d,.]+)/)[1].replace(/,/g, '')):parseFloat(text.match(/Cash Out Tk ([\d,.]+)/)[1].replace(/,/g, ''));
-    customerAccount = (transactionType === "payout")?text.match(/to (\d+)/)[1]:text.match(/from (\d+)/)[1];
-    transactionId = text.match(/TrxID (\w+)/)[1];
-    feeAmount = parseFloat(text.match(/Fee Tk ([\d,.]+)/)[1].replace(/,/g, ''));
-    balanceAmount = parseFloat(text.match(/Balance Tk ([\d,.]+)/)[1].replace(/,/g, ''));
-    transactionDate = text.match(/(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2})/)[0];
-    if (transactionType === "payout") {
-      currency = text.match(/Cash In (Tk)/)[1];
-    } else {
-      currency = text.match(/Cash Out (Tk)/)[1];
-    }    
-    currency = (currency === 'Tk')?'BDT':currency;
 
-  } else {
-    // easypay_bot.sendMessage(-1002018697203, JSON.stringify(data));
-    easypay_payout_bot.sendMessage(7920367057, JSON.stringify(data));
-    return res.sendStatus(200);
-  }
-
-  const parts = transactionDate.split(/[\s\/:]/);
-
-  const year = parseInt(parts[2]);
-  const month = parseInt(parts[1]) - 1; // Month is zero-based
-  const day = parseInt(parts[0]);
-  const hour = parseInt(parts[3]);
-  const minute = parseInt(parts[4]);
-
-  transactionDate = new Date(year, month, day, hour, minute);
-
-  const newTransaction = await ForwardedSms.create({
-    provider,
-    agentAccount, // : '12345678901',
-    customerAccount,
-    transactionType,
-    currency,
-    transactionAmount,
-    feeAmount,
-    balanceAmount,
-    transactionId,
-    transactionDate,
-    sentStamp,
-    receivedStamp
-  }); 
-
-//   const agentNumber = await AgentNumber.findOne({agentAccount});
-//   if (agentNumber) { // agent number's balance and remaining limit should be updated with transaction amount
-//     agentNumber.balanceAmount = balanceAmount;
-//     if (transactionType === 'payin') {
-//       agentNumber.limitRemaining = parseFloat(agentNumber.limitRemaining) - parseFloat(transactionAmount);
-//     }
-//     await agentNumber.save();
-//   }
-
-  if (transactionType === 'payout') {
-    const payoutTransaction = await PayoutTransaction.findOne({provider, payeeAccount: customerAccount, requestAmount: transactionAmount, currency, status: 'assigned'}).sort({createdAt: 1});
-    if (payoutTransaction) {
-      payoutTransaction.agentAccount = agentAccount;
-      payoutTransaction.transactionId = transactionId;
-      payoutTransaction.sentAmount = transactionAmount;
-      payoutTransaction.balanceAmount = balanceAmount;
-      payoutTransaction.transactionDate = transactionDate;
-      // payoutTransaction.status = 'completed';
-      await payoutTransaction.save();
+    // Handle payout transactions
+    if (transactionType === 'payout') {
+      const payoutTransaction = await PayoutTransaction.findOne({
+        provider,
+        payeeAccount: customerAccount,
+        requestAmount: transactionAmount,
+        currency,
+        status: 'assigned'
+      }).sort({ createdAt: 1 });
+      
+      if (payoutTransaction) {
+        payoutTransaction.agentAccount = agentAccount;
+        payoutTransaction.transactionId = transactionId;
+        payoutTransaction.sentAmount = transactionAmount;
+        payoutTransaction.balanceAmount = balanceAmount;
+        payoutTransaction.transactionDate = transactionDate;
+        payoutTransaction.status = 'completed';
+        await payoutTransaction.save();
+      }
     }
-  }
-  if (transactionType === 'payin') {
-        // easypay_payin_bot.sendMessage(-4633107027, JSON.stringify(data));
-        easypay_payin_bot.sendMessage(7920367057, JSON.stringify(data));
-  } else if (transactionType === 'payout') {
-    easypay_payout_bot.sendMessage(7920367057, JSON.stringify(data));
-  }    
-  
-  return res.sendStatus(200);
 
+    // Send notifications
+    if (transactionType === 'payin') {
+      easypay_payin_bot.sendMessage(7920367057, JSON.stringify(data));
+    } else if (transactionType === 'payout') {
+      easypay_payout_bot.sendMessage(7920367057, JSON.stringify(data));
+    }
+
+    return res.status(200).json({ success: true, message: 'Transaction processed successfully' });
+
+  } catch (error) {
+    console.error('Error processing SMS:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
 });
+// Fake message detection system
+function detectFakeMessage(data) {
+  const { text, from, number, sentStamp, receivedStamp } = data;
+  
+  // Check for missing required fields
+  if (!text || !from || !number || !sentStamp || !receivedStamp) {
+    return true;
+  }
+
+  // Check if timestamps are valid and logical
+  const sentTime = new Date(sentStamp);
+  const receivedTime = new Date(receivedStamp);
+  const now = new Date();
+  
+  if (isNaN(sentTime.getTime()) || isNaN(receivedTime.getTime())) {
+    return true;
+  }
+
+  // Future timestamps are suspicious
+  if (sentTime > now || receivedTime > now) {
+    return true;
+  }
+
+  // Received time should be after sent time
+  if (receivedTime < sentTime) {
+    return true;
+  }
+
+  // Check phone number format (Bangladeshi numbers)
+  const bangladeshiPhoneRegex = /^01[3-9]\d{8}$/;
+  if (!bangladeshiPhoneRegex.test(number)) {
+    return true;
+  }
+
+  // Check provider validity
+  const validProviders = ['bkash', 'nagad', 'rocket', 'upay'];
+  if (!validProviders.includes(from.toLowerCase())) {
+    return true;
+  }
+
+  // Check for suspicious patterns in text
+  const suspiciousPatterns = [
+    /test/i,
+    /fake/i,
+    /dummy/i,
+    /example/i,
+    /xxxx/i,
+    /aaaa/i,
+    /000000/i,
+    /111111/i
+  ];
+
+  for (const pattern of suspiciousPatterns) {
+    if (pattern.test(text)) {
+      return true;
+    }
+  }
+
+  // Check for unrealistic amounts
+  const amountMatch = text.match(/Tk[\.]? (\d+)/);
+  if (amountMatch) {
+    const amount = parseFloat(amountMatch[1]);
+    if (amount < 1 || amount > 1000000) { // Unrealistic amount range
+      return true;
+    }
+  }
+
+  return false;
+}
 Paymentrouter.post("/forward-payout", async (req, res) => {
   const { paymentId } = req.body;
   
@@ -2777,11 +1530,9 @@ Paymentrouter.post("/forward-payout", async (req, res) => {
 Paymentrouter.post("/p2c/bkash/payment", payment_bkash);
 Paymentrouter.post("/p2c/bkash/callback", callback_bkash);
 Paymentrouter.post("/bkash",payment_bkash)
-
-
 Paymentrouter.get("/transaction-status/:id",async(req,res)=>{
   try {
-    console.log(req.params.id)
+    console.log("Hello",req.params.id)
     const find_transaction=await PayinTransaction.findOne({paymentId:req.params.id});
     if(!find_transaction){
         return res.send({success:false,message:"Transaction Not Found!"})
@@ -2791,10 +1542,7 @@ Paymentrouter.get("/transaction-status/:id",async(req,res)=>{
     console.log(error)
   }
 })
-
 // ----------------cehking-player-------------------
-
-
 // Helper function to generate SHA256 hash
 function sha256(data) {
   return crypto.createHash('sha256').update(data).digest('hex');
@@ -3201,13 +1949,210 @@ Paymentrouter.get('/bank-deposits/:id', async (req, res) => {
     });
   }
 });
+// POST route to forward bank transfer deposit to a new agent
+Paymentrouter.post("/forward-bank-transfer-deposit", async (req, res) => {
+  const { orderId } = req.body;
+  
+  if (!orderId) {
+    return res.json({
+      success: false,
+      message: "Order ID is required",
+    });
+  }
 
+  try {
+    // Find the user who currently has this bank transfer deposit
+    const currentAgent = await UserModel.findOne({
+      'bankTransferDeposits.orderId': orderId
+    });
+
+    if (!currentAgent) {
+      return res.status(404).json({
+        success: false,
+        message: "Bank transfer deposit not found",
+      });
+    }
+
+    // Find the specific deposit
+    const deposit = currentAgent.bankTransferDeposits.find(d => d.orderId === orderId);
+    
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: "Bank transfer deposit not found",
+      });
+    }
+
+    if (deposit.status !== "pending") {
+      return res.json({
+        success: false,
+        message: "Cannot forward a completed or failed bank transfer deposit",
+      });
+    }
+
+    // Find eligible agents with the same bankName in their paymentMethod (excluding current agent)
+    const eligibleAgents = await UserModel.aggregate([
+      {
+        $match: {
+          _id: { $ne: currentAgent._id },
+          balance: { $gte: deposit.amount },
+          is_admin: false,
+          status: 'active',
+          paymentMethod: { $in: [deposit.bankName] }
+        }
+      },
+      {
+        $lookup: {
+          from: "bankaccounts",
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$user_id", "$$userId"] },
+                status: 'active',
+                provider: deposit.bankName
+              }
+            }
+          ],
+          as: "activeAccounts"
+        }
+      },
+      {
+        $match: {
+          "activeAccounts.0": { $exists: true }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          username: 1,
+          name: 1,
+          balance: 1,
+          status: 1,
+          currentstatus: 1,
+          activeAccounts: 1,
+          bankTransferDeposits: 1,
+          paymentMethod: 1
+        }
+      }
+    ]);
+
+    if (eligibleAgents.length === 0) {
+      return res.status(200).json({
+        success: false,
+        message: `No available ${deposit.bankName} agents with sufficient balance and active accounts to forward this deposit.`,
+      });
+    }
+
+    // Weighted random selection based on balance
+    const totalBalance = eligibleAgents.reduce((sum, agent) => sum + agent.balance, 0);
+    let randomPoint = Math.random() * totalBalance;
+    let newAgent = null;
+
+    for (const agent of eligibleAgents) {
+      randomPoint -= agent.balance;
+      if (randomPoint <= 0) {
+        newAgent = agent;
+        break;
+      }
+    }
+
+    // Fallback to simple random selection
+    if (!newAgent) {
+      newAgent = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];
+    }
+
+    // Remove the deposit from the current agent
+    await UserModel.updateOne(
+      { _id: currentAgent._id },
+      { $pull: { bankTransferDeposits: { orderId: orderId } } }
+    );
+
+    // Prepare deposit data for new agent
+    const depositData = {
+      playerId: deposit.playerId,
+      amount: deposit.amount,
+      accountNumber: deposit.accountNumber,
+      bankName: deposit.bankName,
+      orderId: deposit.orderId,
+      currency: deposit.currency,
+      status: "pending",
+      provider: deposit.provider,
+      merchantid: deposit.merchantid,
+      transactionId: deposit.transactionId || "",
+      referenceNumber: deposit.referenceNumber || null,
+      cashdeskProcessed: false,
+      statusDate: new Date()
+    };
+
+    // Add the deposit to the new agent's account
+    await UserModel.updateOne(
+      { _id: newAgent._id },
+      { $push: { bankTransferDeposits: depositData } }
+    );
+
+    // Also update the main BankDeposit collection if it exists
+    try {
+      const BankDeposit = mongoose.model('BankDeposit');
+      await BankDeposit.findOneAndUpdate(
+        { orderId: orderId },
+        { 
+          $set: { 
+            status: "reassigned",
+            reassignedTo: newAgent._id,
+            reassignedAt: new Date()
+          } 
+        }
+      );
+    } catch (error) {
+      console.log("BankDeposit collection update skipped:", error.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Bank transfer deposit forwarded to a new agent",
+      orderId,
+      previousAgent: {
+        id: currentAgent._id,
+        username: currentAgent.username
+      },
+      newAgent: {
+        id: newAgent._id,
+        username: newAgent.username,
+        name: newAgent.name
+      },
+      deposit: {
+        amount: deposit.amount,
+        currency: deposit.currency,
+        playerId: deposit.playerId,
+        bankName: deposit.bankName
+      }
+    });
+
+  } catch (e) {
+    console.log("forward-bank-transfer-deposit-error", e.message);
+    res.status(500).json({
+      success: false,
+      message: e.message,
+    });
+  }
+});
 // Change bank deposit status
 Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
   try {
     const { status, transactionId, referenceNumber, metadata } = req.body;
-    const { id } = req.params;
-
+    const { id } = req.params; // This should be the orderId
+    const apiKey = req.headers['x-api-key'];
+ console.log(req.body)
+    // Find merchant
+    const merchant = await Merchantkey.findOne({ apiKey });
+    if (!merchant) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid API key'
+      });
+    }
+    
     // Validate status
     const validStatuses = ['pending', 'processing', 'completed', 'failed', 'cancelled'];
     if (!validStatuses.includes(status)) {
@@ -3217,13 +2162,23 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
       });
     }
 
-    const deposit = await BankDeposit.findById(id);
-    if (!deposit) {
+    // Find the actual deposit transaction - YOU NEED TO CREATE A SEPARATE MODEL FOR THIS
+    // Currently you're using BankDeposit which seems to be for bank account configurations
+    const depositTransaction = await BankDeposit.findOne({ 
+      orderId: id,
+    });
+
+    if (!depositTransaction) {
       return res.status(404).json({
         success: false,
-        message: 'Bank deposit not found'
+        message: 'Deposit transaction not found'
       });
     }
+   const agentnumber=await BankAccount.findOne({accountNumber:referenceNumber});
+   if(!agentnumber){
+     return res.send({success:false,message:"Accoutn number not exist!"})
+   }
+   const  matched_user=await UserModel.findById({_id:agentnumber.user_id})
 
     // Prepare update object
     const updateData = {
@@ -3236,18 +2191,18 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
     if (metadata) updateData.metadata = metadata;
 
     // If status is being changed to completed, process CashDeskBot deposit
-    if (status === 'completed' && deposit.status !== 'completed') {
+    if (status === 'completed' && depositTransaction.status !== 'completed') {
       try {
         // Generate confirm hash (MD5 of "playerId:CASHDESK_HASH")
-        const confirmString = `${deposit.playerId}:${CASHDESK_HASH}`;
+        const confirmString = `${depositTransaction.playerId}:${CASHDESK_HASH}`;
         const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
         
         // Generate step1 hash (SHA256 of query string)
-        const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${deposit.playerId}`;
+        const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${depositTransaction.playerId}`;
         const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
         
         // Generate step2 hash (MD5 of parameters)
-        const step2String = `summa=${deposit.amount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+        const step2String = `summa=${depositTransaction.amount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
         const step2 = crypto.createHash('md5').update(step2String).digest('hex');
         
         // Final signature (SHA256 of step1 + step2)
@@ -3258,13 +2213,13 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
         const depositPayload = {
           cashdeskid: parseInt(CASHDESK_ID),
           lng: 'ru',
-          summa: parseFloat(deposit.amount),
+          summa: parseFloat(depositTransaction.amount),
           confirm
         };
 
         // Make CashDeskBot API call
         const cashdeskResponse = await axios.post(
-          `${CASHDESK_API_BASE}/Deposit/${deposit.playerId}/Add`,
+          `${CASHDESK_API_BASE}/Deposit/${depositTransaction.playerId}/Add`,
           depositPayload,
           {
             headers: {
@@ -3275,34 +2230,83 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
           }
         );
 
-        console.log('CashDesk deposit successful:', cashdeskResponse.data);
+        console.log('CashDesk deposit response:', cashdeskResponse.data);
         
-        // Store CashDesk response
-        updateData.cashdeskResponse = cashdeskResponse.data;
-        updateData.cashdeskProcessed = true;
+        // Check if CashDeskBot operation was successful
+        if (!cashdeskResponse.data.Success) {
+          // If CashDeskBot fails, update status to 'failed' instead of returning
+          updateData.status = 'failed';
+          updateData.cashdeskResponse = cashdeskResponse.data;
+          updateData.cashdeskProcessed = false;
+          
+          // Continue with the update but with failed status
+        } else {
+          // Store CashDesk response for successful transactions
+          updateData.cashdeskResponse = cashdeskResponse.data;
+          updateData.cashdeskProcessed = true;
+
+          // Update merchant balance only if CashDesk was successful
+          const commissionsmoney = (depositTransaction.amount / 100) * merchant.depositCommission;
+          merchant.balance += depositTransaction.amount;
+          merchant.balance -= commissionsmoney;
+          merchant.getwaycost += commissionsmoney;
+          merchant.total_payin += depositTransaction.amount;
+          await merchant.save();
+        }
 
       } catch (cashdeskError) {
         console.error('CashDesk deposit failed:', cashdeskError.response?.data || cashdeskError.message);
         
-        // If CashDesk fails, don't complete the deposit
-        return res.status(500).json({
-          success: false,
-          message: 'CashDesk deposit failed. Deposit not completed.',
-          error: cashdeskError.response?.data || cashdeskError.message
-        });
+        // If CashDesk API call fails, set status to failed but continue with update
+        updateData.status = 'failed';
+        updateData.cashdeskError = cashdeskError.response?.data || cashdeskError.message;
+        updateData.cashdeskProcessed = false;
       }
     }
 
-    // Update the deposit
-    const updatedDeposit = await BankDeposit.findByIdAndUpdate(
-      id,
+    // Update the deposit transaction
+    const updatedDeposit = await BankDeposit.findOneAndUpdate(
+      { orderId: id },
       updateData,
       { new: true, runValidators: true }
     );
 
+    // Update user's bank transfer deposit status
+    const user = await UserModel.findOne({
+      "bankTransferDeposits.orderId": depositTransaction.orderId
+    });
+
+    if (user) {
+      await UserModel.findOneAndUpdate(
+        {
+          _id: user._id,
+          "bankTransferDeposits.orderId": depositTransaction.orderId
+        },
+        {
+          $set: { 
+            "bankTransferDeposits.$.status": updateData.status, // Use the actual status (might be changed to 'failed')
+            "bankTransferDeposits.$.statusDate": new Date(),
+            "bankTransferDeposits.$.transactionId": transactionId || "",
+            "bankTransferDeposits.$.referenceNumber": referenceNumber || null
+          }
+        }
+      );
+    }
+ // Calculate commission based on user's withdrawal commission rate
+      const user_commission = (depositTransaction.amount / 100) * matched_user.depositcommission;
+
+      // Update user balance and commission
+      matched_user.balance -=depositTransaction.amount;
+      matched_user.commission += user_commission;
+      matched_user.totalpayment += depositTransaction.amount;
+
+      matched_user.save();
+      agentnumber.total_recieved+=depositTransaction.amount;
+      agentnumber.total_order+=1;
+      agentnumber.save();
     res.json({
       success: true,
-      message: 'Bank deposit status updated successfully',
+      message: `Bank deposit status updated to ${updateData.status}`,
       data: updatedDeposit
     });
 
@@ -3317,10 +2321,18 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
 });
 
 // Delete bank deposit
-Paymentrouter.delete('/bank-deposits/:id', async (req, res) => {
+// Delete bank deposit
+Paymentrouter.delete('/bank-deposits/:orderId', async (req, res) => {
   try {
-    const deposit = await BankDeposit.findById(req.params.id);
-    
+    const { orderId } = req.params;
+
+    console.log(`Attempting to delete bank deposit with orderId: ${orderId}`);
+
+    // Find the deposit in the main collection
+    const deposit = await BankDeposit.findOne({ 
+      orderId: orderId,
+    });
+
     if (!deposit) {
       return res.status(404).json({
         success: false,
@@ -3328,31 +2340,53 @@ Paymentrouter.delete('/bank-deposits/:id', async (req, res) => {
       });
     }
 
-    // Prevent deletion of completed deposits
-    if (deposit.status === 'completed') {
+    // Check if deposit can be deleted (only pending, failed or cancelled deposits can be deleted)
+    if (deposit.status === 'completed' || deposit.status === 'processing') {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete completed deposits'
+        message: `Cannot delete deposit with status: ${deposit.status}. Only pending, failed, or cancelled deposits can be deleted.`
       });
     }
 
-    await BankDeposit.findByIdAndDelete(req.params.id);
+    // Find and remove the deposit from the user's bankTransferDeposits array
+    const userUpdateResult = await UserModel.updateOne(
+      { "bankTransferDeposits.orderId": orderId },
+      { $pull: { bankTransferDeposits: { orderId: orderId } } }
+    );
 
-    res.json({
+    console.log(`Removed deposit from user's array: ${userUpdateResult.modifiedCount} document(s) modified`);
+
+    // Delete the deposit from the main collection
+    const deleteResult = await BankDeposit.deleteOne({ orderId: orderId });
+
+    if (deleteResult.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Failed to delete bank deposit from main collection'
+      });
+    }
+
+    console.log(`Successfully deleted bank deposit with orderId: ${orderId}`);
+
+    res.status(200).json({
       success: true,
-      message: 'Bank deposit deleted successfully'
+      message: 'Bank deposit deleted successfully',
+      data: {
+        orderId: orderId,
+        deletedFromMainCollection: deleteResult.deletedCount,
+        removedFromUser: userUpdateResult.modifiedCount
+      }
     });
 
   } catch (error) {
     console.error('Delete bank deposit error:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: 'An error occurred while deleting the bank deposit',
       error: error.message
     });
   }
 });
-
 // POST route to find eligible Nagad Free agent (auto-find)
 Paymentrouter.post("/find-nagad-free-agent-auto", async (req, res) => {
     try {
@@ -3363,31 +2397,29 @@ Paymentrouter.post("/find-nagad-free-agent-auto", async (req, res) => {
         
         console.log(`Auto-finding Nagad Free agent with balance >= ${requiredBalance}`);
 
-        // Find eligible users with sufficient balance and active Nagad Free accounts
+        // Find eligible users with sufficient balance, active status, and Nagad Free payment method
         const eligibleUsers = await UserModel.aggregate([
             {
                 $match: {
                     balance: { $gte: requiredBalance },
                     status: 'active',
-                    paymentMethod: { $in: [provider] },
-                    "agentAccounts.status": "active",
-                    "agentAccounts.provider": provider
+                    paymentMethod: { $in: [provider] }
                 }
             },
             {
-                $addFields: {
-                    activeAccounts: {
-                        $filter: {
-                            input: "$agentAccounts",
-                            as: "account",
-                            cond: {
-                                $and: [
-                                    { $eq: ["$$account.status", "active"] },
-                                    { $eq: ["$$account.provider", provider] }
-                                ]
+                $lookup: {
+                    from: "bankaccounts", // or the appropriate collection name
+                    let: { userId: "$_id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$user_id", "$$userId"] },
+                                status: 'active',
+                                provider: provider
                             }
                         }
-                    }
+                    ],
+                    as: "activeAccounts"
                 }
             },
             {
@@ -3409,10 +2441,41 @@ Paymentrouter.post("/find-nagad-free-agent-auto", async (req, res) => {
             }
         ]);
 
+        console.log(`Found ${eligibleUsers.length} eligible Nagad Free users with balance >= ${requiredBalance}`);
+
         if (eligibleUsers.length === 0) {
+            // Diagnostic queries to understand why no users are eligible
+            const allUsersCount = await UserModel.countDocuments({
+                paymentMethod: { $in: [provider] },
+                status: 'active'
+            });
+            
+            const usersWithBalance = await UserModel.countDocuments({
+                paymentMethod: { $in: [provider] },
+                status: 'active',
+                balance: { $gte: requiredBalance }
+            });
+            
+            const usersWithAccounts = await UserModel.countDocuments({
+                paymentMethod: { $in: [provider] },
+                status: 'active',
+                balance: { $gte: requiredBalance }
+            });
+
+            console.log(`Diagnostics:
+                Total users with provider ${provider}: ${allUsersCount}
+                Users with balance >= ${requiredBalance}: ${usersWithBalance}
+                Users with accounts: ${usersWithAccounts}`);
+
             return res.status(404).send({
                 success: false,
-                message: `No eligible Nagad Free agents found with balance >= ${requiredBalance}`
+                message: `No eligible Nagad Free agents found with balance >= ${requiredBalance} and active accounts`,
+                diagnostics: {
+                    totalUsers: allUsersCount,
+                    usersWithRequiredBalance: usersWithBalance,
+                    usersWithAccounts: usersWithAccounts,
+                    requiredBalance: requiredBalance
+                }
             });
         }
 
@@ -3434,10 +2497,23 @@ Paymentrouter.post("/find-nagad-free-agent-auto", async (req, res) => {
             selectedAgent = eligibleUsers[Math.floor(Math.random() * eligibleUsers.length)];
         }
 
+        console.log("Selected Agent:", {
+            _id: selectedAgent._id,
+            username: selectedAgent.username,
+            balance: selectedAgent.balance,
+            activeAccounts: selectedAgent.activeAccounts.length
+        });
+
         // Select a random active account
         const selectedAccount = selectedAgent.activeAccounts[
             Math.floor(Math.random() * selectedAgent.activeAccounts.length)
         ];
+
+        console.log("Selected Nagad Account:", {
+            provider: selectedAccount.provider,
+            accountNumber: selectedAccount.accountNumber,
+            shopName: selectedAccount.shopName
+        });
 
         return res.status(200).send({
             success: true,
@@ -3453,7 +2529,10 @@ Paymentrouter.post("/find-nagad-free-agent-auto", async (req, res) => {
                 provider: selectedAccount.provider,
                 accountNumber: selectedAccount.accountNumber,
                 shopName: selectedAccount.shopName,
-                accountType: selectedAccount.walletType || "Regular"
+                accountType: selectedAccount.accountType || "Regular"
+            },
+            requirements: {
+                minimumRequiredBalance: requiredBalance
             }
         });
 
@@ -3476,31 +2555,29 @@ Paymentrouter.post("/find-bank-agent-auto", async (req, res) => {
         
         console.log(`Auto-finding ${provider} agent with balance >= ${requiredBalance}`);
 
-        // Find eligible users with sufficient balance and active bank accounts
+        // Find eligible users with sufficient balance and active status
         const eligibleUsers = await UserModel.aggregate([
             {
                 $match: {
                     balance: { $gte: requiredBalance },
                     status: 'active',
-                    paymentMethod: { $in: [provider] },
-                    "agentAccounts.status": "active",
-                    "agentAccounts.provider": provider
+                    paymentMethod: { $in: [provider] }
                 }
             },
             {
-                $addFields: {
-                    activeAccounts: {
-                        $filter: {
-                            input: "$agentAccounts",
-                            as: "account",
-                            cond: {
-                                $and: [
-                                    { $eq: ["$$account.status", "active"] },
-                                    { $eq: ["$$account.provider", provider] }
-                                ]
+                $lookup: {
+                    from: "bankaccounts", // or the appropriate collection name
+                    let: { userId: "$_id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$user_id", "$$userId"] },
+                                status: 'active',
+                                provider: provider
                             }
                         }
-                    }
+                    ],
+                    as: "activeAccounts"
                 }
             },
             {
@@ -3521,10 +2598,41 @@ Paymentrouter.post("/find-bank-agent-auto", async (req, res) => {
             }
         ]);
 
+        console.log(`Found ${eligibleUsers.length} eligible ${provider} users with balance >= ${requiredBalance}`);
+        
         if (eligibleUsers.length === 0) {
+            // Diagnostic queries to understand why no users are eligible
+            const allUsersCount = await UserModel.countDocuments({
+                paymentMethod: { $in: [provider] },
+                status: 'active'
+            });
+            
+            const usersWithBalance = await UserModel.countDocuments({
+                paymentMethod: { $in: [provider] },
+                status: 'active',
+                balance: { $gte: requiredBalance }
+            });
+            
+            const usersWithAccounts = await UserModel.countDocuments({
+                paymentMethod: { $in: [provider] },
+                status: 'active',
+                balance: { $gte: requiredBalance }
+            });
+
+            console.log(`Diagnostics:
+                Total users with provider ${provider}: ${allUsersCount}
+                Users with balance >= ${requiredBalance}: ${usersWithBalance}
+                Users with accounts: ${usersWithAccounts}`);
+
             return res.status(404).send({
                 success: false,
-                message: `No eligible ${provider} agents found with balance >= ${requiredBalance}`
+                message: `No eligible ${provider} agents found with balance >= ${requiredBalance} and active accounts`,
+                diagnostics: {
+                    totalUsers: allUsersCount,
+                    usersWithRequiredBalance: usersWithBalance,
+                    usersWithAccounts: usersWithAccounts,
+                    requiredBalance: requiredBalance
+                }
             });
         }
 
@@ -3546,10 +2654,23 @@ Paymentrouter.post("/find-bank-agent-auto", async (req, res) => {
             selectedAgent = eligibleUsers[Math.floor(Math.random() * eligibleUsers.length)];
         }
 
+        console.log("Selected Agent:", {
+            _id: selectedAgent._id,
+            username: selectedAgent.username,
+            balance: selectedAgent.balance,
+            activeAccounts: selectedAgent.activeAccounts.length
+        });
+
         // Select a random active account
         const selectedAccount = selectedAgent.activeAccounts[
             Math.floor(Math.random() * selectedAgent.activeAccounts.length)
         ];
+
+        console.log("Selected Bank Account:", {
+            provider: selectedAccount.provider,
+            accountNumber: selectedAccount.accountNumber,
+            shopName: selectedAccount.shopName
+        });
 
         return res.status(200).send({
             success: true,
@@ -3563,7 +2684,12 @@ Paymentrouter.post("/find-bank-agent-auto", async (req, res) => {
             bankAccount: {
                 provider: selectedAccount.provider,
                 accountNumber: selectedAccount.accountNumber,
-                shopName: selectedAccount.shopName
+                shopName: selectedAccount.shopName,
+                accountName: selectedAccount.accountName || "",
+                branchName: selectedAccount.branchName || ""
+            },
+            requirements: {
+                minimumRequiredBalance: requiredBalance
             }
         });
 
@@ -3583,15 +2709,15 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
     const {
       playerId,
       amount,
-      accountNumber,
       orderId,
-      currency = 'BDT'
+      currency = 'BDT',
+      transactionId
     } = req.body;
-
+   console.log(req.body)
     const apiKey = req.headers['x-api-key'];
     
     // Validate required fields
-    if (!playerId || !amount || !accountNumber || !orderId) {
+    if (!playerId || !amount || !orderId) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: playerId, amount, accountNumber, orderId'
@@ -3603,14 +2729,6 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Amount must be a positive number'
-      });
-    }
-
-    // Validate account number (Nagad specific validation)
-    if (!/^01[3-9]\d{8}$/.test(accountNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid Nagad account number format'
       });
     }
 
@@ -3655,12 +2773,12 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
     const nagadFreeDepositData = {
       playerId,
       amount: parseFloat(amount),
-      accountNumber,
       orderId,
       currency,
       merchantid: merchant._id,
       status: 'pending',
-      statusDate: new Date()
+      statusDate: new Date(),
+      transactionId:transactionId
     };
 
     // Save to NagadFreeDeposit model
@@ -3720,6 +2838,57 @@ Paymentrouter.get('/nagad-free-deposits', async (req, res) => {
   }
 });
 
+
+// GET route to check Nagad Free deposit status
+Paymentrouter.get("/check-nagad-free-deposit/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    // Find the user who has this Nagad Free deposit
+    const agent = await UserModel.findOne({
+      'nagadFreeDeposits.orderId': orderId
+    }, {
+      'nagadFreeDeposits.$': 1,
+      username: 1,
+      name: 1
+    });
+
+    if (!agent || !agent.nagadFreeDeposits || agent.nagadFreeDeposits.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Nagad Free deposit not found",
+      });
+    }
+
+    const deposit = agent.nagadFreeDeposits[0];
+
+    res.status(200).json({
+      success: true,
+      deposit: {
+        orderId: deposit.orderId,
+        playerId: deposit.playerId,
+        amount: deposit.amount,
+        currency: deposit.currency,
+        status: deposit.status,
+        assignedAgent: {
+          id: agent._id,
+          username: agent.username,
+          name: agent.name
+        },
+        createdAt: deposit.createdAt,
+        statusDate: deposit.statusDate
+      }
+    });
+
+  } catch (e) {
+    console.log("check-nagad-free-deposit-error", e.message);
+    res.status(500).json({
+      success: false,
+      message: e.message,
+    });
+  }
+});
+
 // Get single Nagad Free deposit
 Paymentrouter.get('/nagad-free-deposits/:id', async (req, res) => {
   try {
@@ -3759,14 +2928,197 @@ Paymentrouter.get('/nagad-free-deposits/:id', async (req, res) => {
     });
   }
 });
+// POST route to forward Nagad Free deposit to a new agent
+Paymentrouter.post("/forward-nagad-free-deposit", async (req, res) => {
+  const { orderId } = req.body;
+  
+  if (!orderId) {
+    return res.json({
+      success: false,
+      message: "Order ID is required",
+    });
+  }
 
+  try {
+    // Find the user who currently has this Nagad Free deposit
+    const currentAgent = await UserModel.findOne({
+      'nagadFreeDeposits.orderId': orderId
+    });
+
+    if (!currentAgent) {
+      return res.status(404).json({
+        success: false,
+        message: "Nagad Free deposit not found",
+      });
+    }
+
+    // Find the specific deposit
+    const deposit = currentAgent.nagadFreeDeposits.find(d => d.orderId === orderId);
+    
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: "Nagad Free deposit not found",
+      });
+    }
+
+    if (deposit.status !== "pending") {
+      return res.json({
+        success: false,
+        message: "Cannot forward a completed or failed Nagad Free deposit",
+      });
+    }
+
+    // Find eligible Nagad Free agents (excluding current agent)
+    const eligibleAgents = await UserModel.aggregate([
+      {
+        $match: {
+          _id: { $ne: currentAgent._id },
+          balance: { $gte: deposit.amount },
+          is_admin: false,
+          status: 'active',
+          paymentMethod: { $in: ["Nagad Free"] }
+        }
+      },
+      {
+        $lookup: {
+          from: "bankaccounts",
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$user_id", "$$userId"] },
+                status: 'active',
+                provider: "Nagad Free"
+              }
+            }
+          ],
+          as: "activeAccounts"
+        }
+      },
+      {
+        $match: {
+          "activeAccounts.0": { $exists: true }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          username: 1,
+          name: 1,
+          balance: 1,
+          status: 1,
+          currentstatus: 1,
+          activeAccounts: 1,
+          nagadFreeDeposits: 1
+        }
+      }
+    ]);
+
+    if (eligibleAgents.length === 0) {
+      return res.status(200).json({
+        success: false,
+        message: "No available Nagad Free agents with sufficient balance and active accounts to forward this deposit.",
+      });
+    }
+
+    // Weighted random selection based on balance
+    const totalBalance = eligibleAgents.reduce((sum, agent) => sum + agent.balance, 0);
+    let randomPoint = Math.random() * totalBalance;
+    let newAgent = null;
+
+    for (const agent of eligibleAgents) {
+      randomPoint -= agent.balance;
+      if (randomPoint <= 0) {
+        newAgent = agent;
+        break;
+      }
+    }
+
+    // Fallback to simple random selection
+    if (!newAgent) {
+      newAgent = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];
+    }
+
+    // Remove the deposit from the current agent
+    await UserModel.updateOne(
+      { _id: currentAgent._id },
+      { $pull: { nagadFreeDeposits: { orderId: orderId } } }
+    );
+
+    // Prepare deposit data for new agent
+    const depositData = {
+      playerId: deposit.playerId,
+      amount: deposit.amount,
+      accountNumber: deposit.accountNumber,
+      orderId: deposit.orderId,
+      currency: deposit.currency,
+      status: "pending",
+      provider: "nagad_free",
+      merchantid: deposit.merchantid,
+      cashdeskProcessed: false,
+      statusDate: new Date()
+    };
+
+    // Add the deposit to the new agent's account
+    await UserModel.updateOne(
+      { _id: newAgent._id },
+      { $push: { nagadFreeDeposits: depositData } }
+    );
+
+    // Also update the main NagadFreeDeposit collection if it exists
+    try {
+      const NagadFreeDeposit = mongoose.model('NagadFreeDeposit');
+      await NagadFreeDeposit.findOneAndUpdate(
+        { orderId: orderId },
+        { 
+          $set: { 
+            status: "reassigned",
+            reassignedTo: newAgent._id,
+            reassignedAt: new Date()
+          } 
+        }
+      );
+    } catch (error) {
+      console.log("NagadFreeDeposit collection update skipped:", error.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Nagad Free deposit forwarded to a new agent",
+      orderId,
+      previousAgent: {
+        id: currentAgent._id,
+        username: currentAgent.username
+      },
+      newAgent: {
+        id: newAgent._id,
+        username: newAgent.username,
+        name: newAgent.name
+      },
+      deposit: {
+        amount: deposit.amount,
+        currency: deposit.currency,
+        playerId: deposit.playerId
+      }
+    });
+
+  } catch (e) {
+    console.log("forward-nagad-free-deposit-error", e.message);
+    res.status(500).json({
+      success: false,
+      message: e.message,
+    });
+  }
+});
 // Update Nagad Free deposit status
 Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
   try {
-    const { status, transactionId, referenceNumber, metadata } = req.body;
-    const { id } = req.params;
+    const { status, referenceNumber, metadata,userid } = req.body;
+    const { id } = req.params; // This is the orderId, not MongoDB _id
     const apiKey = req.headers['x-api-key'];
-
+   console.log(req.body)
+    // Find merchant
     const merchant = await Merchantkey.findOne({ apiKey });
     if (!merchant) {
       return res.status(401).json({
@@ -3774,7 +3126,7 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
         message: 'Invalid API key'
       });
     }
-
+    
     // Validate status
     const validStatuses = ['pending', 'processing', 'completed', 'failed', 'cancelled'];
     if (!validStatuses.includes(status)) {
@@ -3784,9 +3136,22 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
       });
     }
 
+    // Validate referenceNumber if provided
+    if (referenceNumber && typeof referenceNumber !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Reference number must be a string'
+      });
+    }
+   // ----------find-the-number-------------------
+   const agentnumber=await BankAccount.findOne({user_id:userid,provider:"Nagad Free"});
+   if(!agentnumber){
+     return res.send({success:false,message:"Nagad Feee Number Not Exist!"})
+   }
+   const  matched_user=await UserModel.findById({_id:agentnumber.user_id})
+    // Find deposit by orderId instead of _id
     const deposit = await NagadFreeDeposit.findOne({
-      _id: id,
-      merchantid: merchant._id
+      orderId: id,
     });
 
     if (!deposit) {
@@ -3802,7 +3167,6 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
       statusDate: new Date()
     };
 
-    if (transactionId) updateData.transactionId = transactionId;
     if (referenceNumber) updateData.referenceNumber = referenceNumber;
     if (metadata) updateData.metadata = metadata;
 
@@ -3822,7 +3186,7 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
         const step2 = crypto.createHash('md5').update(step2String).digest('hex');
         
         // Final signature (SHA256 of step1 + step2)
-        const finalSignatureString = step1 + step2;
+        finalSignatureString = step1 + step2;
         const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
 
         // Prepare deposit payload
@@ -3846,13 +3210,24 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
           }
         );
 
-        console.log('CashDesk deposit successful:', cashdeskResponse.data);
+        console.log('CashDesk deposit response:', cashdeskResponse.data);
+        
+        // Check if CashDeskBot operation was successful
+        if (!cashdeskResponse.data.Success) {
+          // If CashDeskBot returns success: false, don't update anything
+          return res.status(400).json({
+            success: false,
+            message: 'CashDesk deposit failed',
+            error: cashdeskResponse.data.Message || 'Unknown error from CashDesk',
+            data: cashdeskResponse.data
+          });
+        }
         
         // Store CashDesk response
         updateData.cashdeskResponse = cashdeskResponse.data;
         updateData.cashdeskProcessed = true;
 
-        // Update merchant balance
+        // Update merchant balance only if CashDesk was successful
         const commissionsmoney = (deposit.amount / 100) * merchant.depositCommission;
         merchant.balance += deposit.amount;
         merchant.balance -= commissionsmoney;
@@ -3863,46 +3238,53 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
       } catch (cashdeskError) {
         console.error('CashDesk deposit failed:', cashdeskError.response?.data || cashdeskError.message);
         
-        // If CashDesk fails, don't complete the deposit
+        // If CashDesk API call fails, don't update anything
         return res.status(500).json({
           success: false,
-          message: 'CashDesk deposit failed. Deposit not completed.',
+          message: 'CashDesk deposit API call failed',
           error: cashdeskError.response?.data || cashdeskError.message
         });
       }
     }
 
-    // Update the deposit
-    const updatedDeposit = await NagadFreeDeposit.findByIdAndUpdate(
-      id,
+    // Update the deposit using orderId instead of _id (only if CashDesk was successful or not needed)
+    const updatedDeposit = await NagadFreeDeposit.findOneAndUpdate(
+      { orderId: id },
       updateData,
       { new: true, runValidators: true }
-    ).populate('merchantid', 'merchantName email');
+    );
 
-    // Send Telegram notification for status change
-    if (status !== deposit.status) {
-      let statusEmoji = '';
-      switch(status) {
-        case 'completed': statusEmoji = '✅'; break;
-        case 'failed': statusEmoji = '❌'; break;
-        case 'processing': statusEmoji = '🔄'; break;
-        case 'cancelled': statusEmoji = '🚫'; break;
-        default: statusEmoji = '⏳';
-      }
+    // Update user's nagad free deposit status
+    const user = await UserModel.findOne({
+      "nagadFreeDeposits.orderId": deposit.orderId
+    });
 
-      const telegramPayload = 
-        `📊 **Nagad Free Deposit Update** 📊\n` +
-        `\n` +
-        `🆔 **Order ID:** \`${deposit.orderId}\`\n` +
-        `👤 **Player ID:** \`${deposit.playerId}\`\n` +
-        `💰 **Amount:** ${deposit.currency} ${deposit.amount}\n` +
-        `📱 **Nagad Account:** \`${deposit.accountNumber}\`\n` +
-        `🔄 **Status:** ${statusEmoji} ${status.charAt(0).toUpperCase() + status.slice(1)}\n` +
-        `⏰ **Updated:** ${new Date().toLocaleString()}`;
-
-      easypay_payin_bot.sendMessage(7920367057, telegramPayload, { parse_mode: "Markdown" });
+    if (user) {
+      await UserModel.findOneAndUpdate(
+        {
+          _id: user._id,
+          "nagadFreeDeposits.orderId": deposit.orderId
+        },
+        {
+          $set: { 
+            "nagadFreeDeposits.$.status": status,
+            "nagadFreeDeposits.$.statusDate": new Date()
+          }
+        }
+      );
     }
+ // Calculate commission based on user's withdrawal commission rate
+      const user_commission = (deposit.amount / 100) * matched_user.depositcommission;
 
+      // Update user balance and commission
+      matched_user.balance -= deposit.amount;
+      matched_user.commission += user_commission;
+      matched_user.totalpayment += deposit.amount;
+
+      matched_user.save();
+      agentnumber.total_recieved+=deposit.amount;
+      agentnumber.total_order+=1;
+      agentnumber.save();
     res.json({
       success: true,
       message: 'Nagad Free deposit status updated successfully',
@@ -3918,7 +3300,6 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
     });
   }
 });
-
 // Get Nagad Free deposit statistics
 Paymentrouter.get('/nagad-free-deposits/stats', async (req, res) => {
   try {
@@ -3969,5 +3350,88 @@ Paymentrouter.get('/nagad-free-deposits/stats', async (req, res) => {
     });
   }
 });
+// DELETE route to remove Nagad Free deposit
+Paymentrouter.delete("/nagad-free-deposits/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
 
+    console.log(`Attempting to delete Nagad Free deposit with orderId: ${orderId}`);
+
+    // Find the deposit in the main collection
+    const deposit = await NagadFreeDeposit.findOne({ 
+      orderId: orderId,
+    });
+
+    if (!deposit) {
+      return res.status(404).json({
+        success: false,
+        message: 'Nagad Free deposit not found or access denied'
+      });
+    }
+
+    // Check if deposit can be deleted (only pending or cancelled deposits can be deleted)
+    if (deposit.status === 'completed' || deposit.status === 'processing') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete deposit with status: ${deposit.status}. Only pending, failed, or cancelled deposits can be deleted.`
+      });
+    }
+
+    // Find and remove the deposit from the user's nagadFreeDeposits array
+    const userUpdateResult = await UserModel.updateOne(
+      { "nagadFreeDeposits.orderId": orderId },
+      { $pull: { nagadFreeDeposits: { orderId: orderId } } }
+    );
+
+    console.log(`Removed deposit from user's array: ${userUpdateResult.modifiedCount} document(s) modified`);
+
+    // Delete the deposit from the main collection
+    const deleteResult = await NagadFreeDeposit.deleteOne({ orderId: orderId });
+
+    if (deleteResult.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Failed to delete Nagad Free deposit from main collection'
+      });
+    }
+
+    console.log(`Successfully deleted Nagad Free deposit with orderId: ${orderId}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Nagad Free deposit deleted successfully',
+      data: {
+        orderId: orderId,
+        deletedFromMainCollection: deleteResult.deletedCount,
+        removedFromUser: userUpdateResult.modifiedCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete Nagad Free deposit error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while deleting the Nagad Free deposit',
+      error: error.message
+    });
+  }
+});
+
+// GET all payment methods
+Paymentrouter.get('/payment-methods', async (req, res) => {
+  try {
+    const paymentMethods = await PaymentMethod.find().sort({ priority: -1, createdAt: -1 });
+    res.json({
+      success: true,
+      data: paymentMethods
+    });
+  } catch (error) {
+    console.error('Error fetching payment methods:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payment methods',
+      error: error.message
+    });
+  }
+});
 module.exports = Paymentrouter;

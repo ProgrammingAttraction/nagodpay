@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../../components/common/Header';
 import Sidebar from '../../components/common/Sidebar';
-import { FaCalendarAlt, FaEye, FaCheck, FaSync, FaSearch, FaTimes, FaUniversity } from 'react-icons/fa';
+import { FaCalendarAlt, FaEye, FaCheck, FaSync, FaSearch, FaTimes, FaUniversity, FaForward } from 'react-icons/fa';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
@@ -17,7 +17,7 @@ const Banktransfer = () => {
   const token = localStorage.getItem('authToken');
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
   const currentUser = JSON.parse(localStorage.getItem("userData"));
-
+  const merchantkey="28915f245e5b2f4b7637";
   // Filter states
   const [statusFilter, setStatusFilter] = useState('');
   const [bankFilter, setBankFilter] = useState('');
@@ -30,13 +30,15 @@ const Banktransfer = () => {
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
   const [currentDeposit, setCurrentDeposit] = useState(null);
   const [transactionId, setTransactionId] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [status, setStatus] = useState('pending');
   const [metadata, setMetadata] = useState('');
+  const [forwarding, setForwarding] = useState(false);
 
-  const statusOptions = ['pending', 'processing', 'completed', 'failed', 'cancelled', 'rejected'];
+  const statusOptions = ['pending', 'completed'];
   const bankOptions = ['Dutch Bangla Bank', 'UCB Bank', 'Brac Bank', 'Other'];
 
   const toggleSidebar = () => {
@@ -82,19 +84,19 @@ const Banktransfer = () => {
     
     if (bankFilter) {
       results = results.filter(deposit => 
-        deposit.bankName.toLowerCase().includes(bankFilter.toLowerCase())
+        deposit.bankName && deposit.bankName.toLowerCase().includes(bankFilter.toLowerCase())
       );
     }
     
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       results = results.filter(deposit => 
-        deposit.orderId?.toLowerCase().includes(query) || 
-        deposit.playerId?.toLowerCase().includes(query) ||
-        deposit.accountNumber?.toLowerCase().includes(query) ||
-        deposit.amount?.toString().includes(query) ||
-        deposit.transactionId?.toLowerCase().includes(query) ||
-        deposit.referenceNumber?.toLowerCase().includes(query)
+        (deposit.orderId && deposit.orderId.toLowerCase().includes(query)) || 
+        (deposit.playerId && deposit.playerId.toLowerCase().includes(query)) ||
+        (deposit.accountNumber && deposit.accountNumber.toLowerCase().includes(query)) ||
+        (deposit.amount && deposit.amount.toString().includes(query)) ||
+        (deposit.transactionId && deposit.transactionId.toLowerCase().includes(query)) ||
+        (deposit.referenceNumber && deposit.referenceNumber.toLowerCase().includes(query))
       );
     }
     
@@ -118,8 +120,14 @@ const Banktransfer = () => {
     setIsModalOpen(true);
   };
 
+  const openForwardModal = (deposit) => {
+    setCurrentDeposit(deposit);
+    setIsForwardModalOpen(true);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
+    setIsForwardModalOpen(false);
     setCurrentDeposit(null);
     setTransactionId('');
     setReferenceNumber('');
@@ -141,8 +149,10 @@ const Banktransfer = () => {
 
     try {
       setLoading(true);
+      
+      // Use the orderId in the URL path and pass the status, transactionId, referenceNumber, and metadata in the body
       const response = await axios.patch(
-        `${base_url}/api/payment/bank-transfer-deposits/${currentDeposit._id}/status`,
+        `${base_url}/api/payment/bank-deposits/${currentDeposit.orderId}/status`,
         {
           status: status,
           transactionId: transactionId,
@@ -152,7 +162,7 @@ const Banktransfer = () => {
         {
           headers: {
             Authorization: `Bearer ${token}`,
-            'x-api-key': userData.apiKey
+            'x-api-key':merchantkey
           }
         }
       );
@@ -173,9 +183,62 @@ const Banktransfer = () => {
       }
     } catch (error) {
       console.error("Error updating deposit:", error);
-      toast.error("Error updating deposit");
+      Swal.fire({
+        icon: 'error',
+        title: 'Update Failed',
+        text: error.response?.data?.message || "Error updating deposit status",
+      });
     } finally {
       setLoading(false);
+      closeModal();
+    }
+  };
+
+  const handleForwardDeposit = async () => {
+    if (!currentDeposit) return;
+
+    try {
+      setForwarding(true);
+      const response = await axios.post(
+        `${base_url}/api/payment/forward-bank-transfer-deposit`,
+        {
+          orderId: currentDeposit.orderId
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+               'x-api-key': merchantkey
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Forward Success',
+          html: `
+            <p>Bank transfer deposit forwarded to a new agent</p>
+            <p><strong>New Agent:</strong> ${response.data.newAgent.username} (${response.data.newAgent.name})</p>
+            <p><strong>Amount:</strong> ${response.data.deposit.amount} ${response.data.deposit.currency}</p>
+          `,
+        });
+        fetchBankTransferDeposits(); // Refresh data
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Forward Failed',
+          text: `${response.data.message}`,
+        });
+      }
+    } catch (error) {
+      console.error("Error forwarding deposit:", error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Forward Failed',
+        text: error.response?.data?.message || "Error forwarding deposit",
+      });
+    } finally {
+      setForwarding(false);
       closeModal();
     }
   };
@@ -291,13 +354,74 @@ const Banktransfer = () => {
             </div>
           )}
           
+          {/* Forward Deposit Modal */}
+          {isForwardModalOpen && currentDeposit && (
+            <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] bg-opacity-50 flex items-center justify-center z-[10000]">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="flex justify-between items-center border-b p-4 border-gray-200">
+                  <h3 className="text-lg font-semibold">Forward Bank Transfer Deposit</h3>
+                  <button onClick={closeModal} className="text-gray-500 cursor-pointer hover:text-gray-700">
+                    <FaTimes />
+                  </button>
+                </div>
+                
+                <div className="p-4 space-y-4">
+                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <div className="flex">
+                      <div className="ml-3">
+                        <p className="text-sm text-yellow-700">
+                          Are you sure you want to forward this deposit to another agent? This action cannot be undone.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Order ID</label>
+                      <p className="text-sm text-gray-900">{currentDeposit.orderId}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                      <p className="text-sm text-gray-900">{currentDeposit.amount} {currentDeposit.currency}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Player ID</label>
+                      <p className="text-sm text-gray-900">{currentDeposit.playerId}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bank</label>
+                      <p className="text-sm text-gray-900">{currentDeposit.bankName}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end space-x-3 pt-2">
+                    <button
+                      onClick={closeModal}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 cursor-pointer rounded-md hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleForwardDeposit}
+                      disabled={forwarding}
+                      className="px-4 py-2 bg-blue-600 text-white cursor-pointer rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {forwarding ? 'Forwarding...' : 'Forward Deposit'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="bg-white rounded-lg border-[1px] border-gray-200 shadow-sm py-4 px-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">Bank Transfer Deposits</h2>
               <button 
                 onClick={refreshData}
                 disabled={loading}
-                className="flex items-center gap-2 bg-green-600 cursor-pointer text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 bg-blue-600 cursor-pointer text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 <FaSync /> Refresh
               </button>
@@ -449,6 +573,15 @@ const Banktransfer = () => {
                                 >
                                   <FaCheck />
                                 </button>
+                                {deposit.status === 'pending' && (
+                                  <button
+                                    onClick={() => openForwardModal(deposit)}
+                                    className="p-2 bg-purple-500 cursor-pointer text-white rounded-md hover:bg-purple-600 transition-colors"
+                                    title="Forward Deposit"
+                                  >
+                                    <FaForward />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>

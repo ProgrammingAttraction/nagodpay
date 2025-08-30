@@ -8,8 +8,8 @@ function PaymentCallbackPage() {
   const base_url2 = "https://api.nagodpay.com";
   const [paymentparams] = useSearchParams();
   const navigate = useNavigate();
-  const user_info = JSON.parse(localStorage.getItem("user")) || {};
-
+  const [user_info, setUserInfo] = useState({});
+  
   const [transaction_info, set_transaction_info] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,9 +17,22 @@ function PaymentCallbackPage() {
   const [progress, setProgress] = useState(0);
   const [showProgress, setShowProgress] = useState(true);
   const [reloadCount, setReloadCount] = useState(0);
+  const [paymentProcessed, setPaymentProcessed] = useState(false);
   
   const transactionId = paymentparams.get("paymentID");
   const status = paymentparams.get("status");
+
+  // Fix: Get user info safely after component mounts
+  useEffect(() => {
+    try {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        setUserInfo(JSON.parse(userData));
+      }
+    } catch (err) {
+      console.error("Error parsing user data:", err);
+    }
+  }, []);
 
   const executePaymentCallback = async () => {
     try {
@@ -31,6 +44,7 @@ function PaymentCallbackPage() {
         customer_id: user_info?._id,
         paymentID: transactionId,
       });
+      setPaymentProcessed(true);
       return response.data;
     } catch (error) {
       console.error("Error processing payment:", error);
@@ -89,8 +103,10 @@ function PaymentCallbackPage() {
         set_transaction_info(transactionData);
         set_amount(transactionData.expectedAmount || 0);
 
-        const paymentResult = await executePaymentCallback();
-        // console.log('paymentResult', paymentResult);
+        // Only process payment if not already processed
+        if (!paymentProcessed) {
+          const paymentResult = await executePaymentCallback();
+        }
       } else {
         setError("Failed to fetch transaction details");
       }
@@ -103,13 +119,13 @@ function PaymentCallbackPage() {
   };
 
   useEffect(() => {
-    if (transactionId) {
+    if (transactionId && user_info._id) { // Wait until user_info is loaded
       user_money_info();
-    } else {
+    } else if (!transactionId) {
       setLoading(false);
       setError("No transaction ID found in URL");
     }
-  }, [transactionId]);
+  }, [transactionId, user_info._id]); // Add dependency on user_info._id
 
   const handleDepositAgain = () => {
     navigate('/payment-methods');
@@ -152,18 +168,6 @@ function PaymentCallbackPage() {
             <h2 className="text-xl font-semibold text-white mb-2">Payment Error</h2>
             <p className="text-gray-300 mb-4">{error}</p>
             <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
-              <a 
-                href="/" 
-                className="px-6 py-2 text-lg font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition duration-300"
-              >
-                Back to Home
-              </a>
-              <button 
-                onClick={user_money_info}
-                className="px-6 py-2 text-lg font-semibold text-gray-900 bg-gray-300 rounded-lg hover:bg-gray-400 transition duration-300"
-              >
-                Try Again
-              </button>
               <button 
                 onClick={handleDepositAgain}
                 className="px-6 py-2 text-lg font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition duration-300"
@@ -189,8 +193,10 @@ function PaymentCallbackPage() {
           <div className="flex justify-between items-center mb-4">
             <span className="text-lg xl:text-xl font-semibold text-white">
               Payment Status:{" "}
-              <span className={`text-${transaction_info?.status === 'completed' ? 'green' : 'red'}-500`}>
-                {transaction_info?.status || "unknown"}
+              <span className={`${transaction_info?.status === 'completed' ? 'text-green-500' : 
+                               transaction_info?.status === 'failed' ? 'text-red-500' : 
+                               transaction_info?.status === 'pending' ? 'text-yellow-500' : 'text-gray-500'}`}>
+                {transaction_info?.status ? transaction_info.status.toUpperCase() : "UNKNOWN"}
               </span>
             </span>
             <span className="text-sm text-gray-400">
@@ -201,11 +207,13 @@ function PaymentCallbackPage() {
           <div className="space-y-4">
             <div className="flex justify-between text-gray-400">
               <span>Transaction ID:</span>
-              <span className="font-medium text-white">{transaction_info?.paymentId || "N/A"}</span>
+              <span className="font-medium text-white break-all ml-4 text-right">
+                {transaction_info?.paymentId || transactionId || "N/A"}
+              </span>
             </div>
             <div className="flex justify-between text-gray-400">
               <span>Amount:</span>
-              <span className="font-medium text-white">৳{transaction_info?.expectedAmount || "0"}</span>
+              <span className="font-medium text-white">৳{transaction_info?.expectedAmount || amount || "0"}</span>
             </div>
             <div className="flex justify-between text-gray-400">
               <span>Payment Method:</span>
@@ -215,6 +223,12 @@ function PaymentCallbackPage() {
         </div>
         
         <div className="mt-6 text-center flex flex-col sm:flex-row justify-center gap-4">
+          <a 
+                onClick={handleDepositAgain}
+            className="px-6 py-2 text-[15px] font-semibold text-white cursor-pointer bg-indigo-600 rounded-[3px] hover:bg-indigo-700 transition duration-300"
+          >
+            Back to Home
+          </a>
           <button 
             onClick={handleDepositAgain}
             className="px-6 py-2 text-[15px] font-semibold text-white cursor-pointer bg-green-600 rounded-[3px] hover:bg-green-700 transition duration-300"

@@ -622,14 +622,13 @@ const Nagadfree = () => {
                 </div>
               ) : (
                 <>
-                  <div className="shadow border-b border-gray-200 rounded-lg">
+                  <div className="shadow border-[1px] border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player ID</th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nagad Account</th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -647,13 +646,10 @@ const Nagadfree = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {deposit.amount} {deposit.currency}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center">
-                              <FaPhoneAlt className="mr-1 text-blue-500" />
-                              {deposit.accountNumber}
-                            </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <StatusBadge status={deposit.status} />
                             </td>
+                
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {format(parseISO(deposit.createdAt), 'MMM dd, yyyy HH:mm')}
                             </td>
@@ -999,7 +995,7 @@ onChange={(e) => setTransactionId(e.target.value)}
               <button
                 type="button"
                 onClick={() => {
-                  deleteDeposit(currentDeposit._id);
+                  deleteDeposit(currentDeposit.orderId);
                   setShowDeleteModal(false);
                 }}
                 className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"

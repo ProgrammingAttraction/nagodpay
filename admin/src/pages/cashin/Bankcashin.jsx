@@ -162,7 +162,7 @@ const BankDeposits = () => {
   // Delete deposit
   const deleteDeposit = async (id) => {
     try {
-      await axios.delete(`${base_url}/bank-deposits/${id}`, {
+      await axios.delete(`${base_url}/api/payment/bank-deposits/${id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -260,7 +260,7 @@ const BankDeposits = () => {
             isSidebarOpen ? 'ml-[17%]' : 'ml-0'
           }`}
         >
-          <div className="bg-white rounded-lg shadow-sm py-4 px-6">
+          <div className="bg-white  py-4 px-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">Bank Deposits</h2>
               <button 
@@ -272,7 +272,7 @@ const BankDeposits = () => {
             </div>
 
             {/* Filters */}
-            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+            <div className=" mb-6">
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -395,7 +395,7 @@ const BankDeposits = () => {
                 </div>
               ) : (
                 <>
-                  <div className="shadow border-b border-gray-200 rounded-lg">
+                  <div className="shadow  border-[1px] border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
@@ -708,7 +708,7 @@ const BankDeposits = () => {
               <button
                 type="button"
                 onClick={() => {
-                  deleteDeposit(currentDeposit._id);
+                  deleteDeposit(currentDeposit.orderId);
                   setShowDeleteModal(false);
                 }}
                 className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"

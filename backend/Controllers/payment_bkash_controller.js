@@ -39,39 +39,39 @@ const CASHIER_PASS = "901276";
 const CASHIER_LOGIN = "MuktaA1";
 const CASHDESK_ID = "1177830";
 const DEFAULT_LNG = 'ru';
-const get_token_bkash = async () => {
+const get_token_bkash = async (username, password, appKey, appSecret) => {
   try {
-    const body = {
-      app_key: BKASH_APP_KEY, 
-      app_secret: BKASH_APP_SECRET_KEY
-    };
-
-    const tokenObj = await axios.post(`${BKASH_URL}/token/grant`, body, {
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        username: BKASH_USERNAME,
-        password: BKASH_PASSWORD
+    const tokenResponse = await axios.post(
+      'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/checkout/token/grant',
+      {
+        app_key: appKey,
+        app_secret: appSecret
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          username: username,
+          password: password
+        }
       }
-    });
-    // console.log('bkash-get-token-resp', tokenObj.data);
-    return tokenObj.data.id_token;
+    );
 
+    console.log('bkash-token-response', tokenResponse.data);
+    return tokenResponse.data.id_token;
+    
   } catch (error) {
-
     console.log('bkash-get-token-error', error);
-
     return null;
-  }  
-}
+  }
+};
 
 // ----------------------------bkash pament----------------------
 const payment_bkash = async (req, res) => {
   const data = req.body;
   console.log('bkash-payment-data', req.body.payerId);
-      const apiKey = req.headers['x-api-key']?req.headers['x-api-key']:'';
-    console.log(apiKey)
-    console.log(req.body)
+  const apiKey = req.headers['x-api-key'] ? req.headers['x-api-key'] : '';
+  
   if (!data.orderId || !data.payerId || !data.amount || !data.currency || !data.redirectUrl || !data.callbackUrl) {
     return res.status(200).json({
       success: false,
@@ -80,38 +80,35 @@ const payment_bkash = async (req, res) => {
     });
   }
 
-  
-  console.log("pass-condition-1");
   try {
-    
     const payinTransaction = await PayinTransaction.findOne({
       orderId: data.orderId,
     });
     
     if (payinTransaction) {
-      console.log('same order id for payment', data.orderId, payinTransaction.status);
       return res.status(200).json({
         success: false,
         orderId: data.orderId,
         message: "Transaction with duplicated order id, " + data.orderId + "."
       });  
     }
-      // ---------------------------matched-merchant------------------
-    const matched_merchant=await Merchantkey.findOne({apiKey:apiKey});
-    if(!matched_merchant){
-      return res.send({success:false,message:"Wrong merchant api key!"})
+
+    // ---------------------------matched-merchant------------------
+    const matched_merchant = await Merchantkey.findOne({ apiKey: apiKey });
+    if (!matched_merchant) {
+      return res.send({ success: false, message: "Wrong merchant api key!" })
     }
+
     // Account selection logic
-    let provoder_name = 'Bkash P2C'; // Since this is the bkash payment function
+    let provider_name = 'Bkash P2C';
     
-    // Find eligible users with sufficient balance (balance >= 50000 + expectedAmount) and at least one agent account
     const eligibleUsers = await UserModel.find({
-      balance: { $gte: 50000 + data.amount }, // Balance must be at least 50,000 + expectedAmount
-      'agentAccounts.0': { $exists: true }, // Has at least one agent account
-      status: 'active', // Only active users
-      paymentMethod: provoder_name
+      balance: { $gte: 50000 + data.amount },
+      'agentAccounts.0': { $exists: true },
+      status: 'active',
+      paymentMethod: provider_name
     });
-  console.log(eligibleUsers)
+
     if (eligibleUsers.length === 0) {
       return res.status(200).json({
         success: false,
@@ -120,22 +117,13 @@ const payment_bkash = async (req, res) => {
       });
     }
 
-    // Randomly select one user from the eligible users
     const randomIndex = Math.floor(Math.random() * eligibleUsers.length);
     const selectedAgent = eligibleUsers[randomIndex];
 
-    // Log the selected agent for debugging
-    console.log("Selected Agent:", {
-      _id: selectedAgent._id,
-      username: selectedAgent.username,
-      balance: selectedAgent.balance,
-      agentAccountsCount: selectedAgent.agentAccounts.length
-    });
-
-    // Get all active bank accounts for the selected agent
     const agentAccounts = await BankAccount.find({
       user_id: selectedAgent._id,
-      status: 'active'
+      status: 'active',
+      provider: provider_name // ADD THIS FILTER
     });
 
     if (agentAccounts.length === 0) {
@@ -146,30 +134,39 @@ const payment_bkash = async (req, res) => {
       });
     }
 
-    // Randomly select one bank account
     const randomAccountIndex = Math.floor(Math.random() * agentAccounts.length);
     const selectedAccount = agentAccounts[randomAccountIndex];
-    console.log(selectedAccount)
-    // Update BKASH credentials based on selected account
-    if (selectedAccount) {
-      BKASH_URL = 'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/checkout';
-      BKASH_USERNAME = selectedAccount.username;
-      BKASH_PASSWORD = selectedAccount.password;
-      BKASH_APP_KEY = selectedAccount.appKey;
-      BKASH_APP_SECRET_KEY = selectedAccount.appSecretKey;
+    
+    // CRITICAL: Check if credentials are present
+    if (!selectedAccount.appKey || !selectedAccount.appSecretKey || !selectedAccount.username || !selectedAccount.password) {
+      console.log('Missing credentials for account:', selectedAccount);
+      return res.status(200).json({
+        success: false,
+        orderId: data.orderId,
+        message: "Agent account missing required credentials"
+      });
     }
 
-    const token = await get_token_bkash();
+    // Get token with the selected account credentials
+    const token = await get_token_bkash(
+      selectedAccount.username,
+      selectedAccount.password,
+      selectedAccount.appKey,
+      selectedAccount.appSecretKey
+    );
+    
     if (!token) {
       console.log('bkash-token-is-null');
       return res.status(200).json({
         success: false,
         orderId: data.orderId,
-        message: "Internal Error"
+        message: "Failed to get authentication token from bKash"
       }); 
     }
-    
+
+    const BKASH_URL = 'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/checkout';
     const referenceId = nanoid(16);
+    
     const body = {
       mode: '0011', 
       payerReference: data.payerId,
@@ -184,13 +181,12 @@ const payment_bkash = async (req, res) => {
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        'x-app-key': BKASH_APP_KEY,
+        'x-app-key': selectedAccount.appKey,
         Authorization: token
       }
     });
 
     console.log('bkash-payment-create-resp', createObj.data);
-    
     
     if (createObj.data.statusCode && createObj.data.statusCode === '0000') {
       const newTransaction = await PayinTransaction.create({
@@ -206,7 +202,7 @@ const payment_bkash = async (req, res) => {
         referenceId,
         submitDate: new Date(),
         paymentType: 'p2c',
-        merchantid:matched_merchant._id
+        merchantid: matched_merchant._id
       }); 
 
       return res.status(200).json({
@@ -217,11 +213,10 @@ const payment_bkash = async (req, res) => {
         link: createObj.data.bkashURL
       });
     } else {
-      // console.log('bkash-payment-create-fail', createObj.data.errorCode, createObj.data.errorMessage);
       return res.status(200).json({
         success: false,
         orderId: data.orderId,
-        message: "Internal Error"
+        message: createObj.data.errorMessage || "Internal Error"
       }); 
     }
 

@@ -16,6 +16,7 @@ import { MdOutlineSupervisorAccount } from "react-icons/md";
 import { PiDesktopTower } from "react-icons/pi";
 import { BsBank } from "react-icons/bs";
 import { LiaCashRegisterSolid } from "react-icons/lia";
+import { MdOutlinePayments } from "react-icons/md";
 const Sidebar = ({ isOpen }) => {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState(null);
@@ -176,6 +177,19 @@ const Sidebar = ({ isOpen }) => {
           <span className="flex items-center gap-2 text-gray-100">
             <LiaChalkboardTeacherSolid className="text-[18px]" />
             Merchant Withdraw
+          </span>
+        </NavLink>
+      </div>
+           <div className="mb-3">
+        <NavLink
+          to="/dashboard/payment-methods"
+          className={({ isActive }) =>
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+          }
+        >
+          <span className="flex items-center gap-2 text-gray-100">
+            <MdOutlinePayments className="text-[18px]" />
+            Payment Methods
           </span>
         </NavLink>
       </div>

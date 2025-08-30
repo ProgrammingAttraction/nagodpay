@@ -35,10 +35,10 @@ const Payoutrequest = () => {
   const [transactionId, setTransactionId] = useState('');
   const [status, setStatus] = useState('pending');
   const [notes, setNotes] = useState('');
-  const [agentnumber,setagentnumber] = useState('');
+  const [selectedAgentAccount, setSelectedAgentAccount] = useState('');
   const statusOptions = ['pending', 'approved', 'rejected', 'success'];
   const methodOptions = ['bank', 'paypal', 'crypto', 'other'];
- console.log(agentnumber)
+
   const toggleSidebar = () => {
     setSidebarOpen((prev) => !prev);
   };
@@ -109,6 +109,7 @@ const Payoutrequest = () => {
     setTransactionId(request.transactionId || '');
     setStatus(request.status);
     setNotes(request.adminNotes || '');
+    setSelectedAgentAccount('');
     setIsModalOpen(true);
   };
 
@@ -118,36 +119,10 @@ const Payoutrequest = () => {
     setTransactionId('');
     setStatus('pending');
     setNotes('');
-  };
-
-  // Resend callback function
-  const handleResendCallback = (id) => {
-    setLoading(true);
-    axios
-      .post(`${base_url}/api/payment/resendCallbackPayout`, {
-        authEmail: currentUser.email,
-        payment_id: id,
-      })
-      .then((res) => {
-        if (res.data.message) {
-          Swal.fire({
-            icon: "info",
-            title: "Info!",
-            text: res.data.message,
-            showConfirmButton: true,
-          });
-        }
-        fetchWithdrawalRequests();
-      })
-      .catch((err) => {
-        console.log(err);
-        toast.error("Failed to resend callback");
-      })
-      .finally(() => setLoading(false));
+    setSelectedAgentAccount('');
   };
 
   const handleStatusUpdate = async () => {
-    console.log(currentRequest)
     if (!currentRequest) return;
 
     if (!status) {
@@ -155,6 +130,15 @@ const Payoutrequest = () => {
         icon: 'error',
         title: 'Oops...',
         text: 'Status is required!',
+      });
+      return;
+    }
+
+    if (!selectedAgentAccount) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: 'Please select an agent account!',
       });
       return;
     }
@@ -167,22 +151,16 @@ const Payoutrequest = () => {
         transactionId: transactionId,
         admin_name: currentUser._id,
         adminNotes: notes,
-        agentnumber
+        agentnumber: selectedAgentAccount
       });
+      
       if (response.data.success) {
         Swal.fire({
           icon: 'success',
           title: 'Update Success',
           text: `${response.data.message}`,
         });
-          handleResendCallback(currentRequest.paymentid);
-        
-        // Only resend callback if status is changed to success
-        if (status === "success") {
-          handleResendCallback(currentRequest.paymentid);
-        } else {
-          fetchWithdrawalRequests();
-        }
+        fetchWithdrawalRequests();
       } else {
         Swal.fire({
           icon: 'error',
@@ -213,51 +191,52 @@ const Payoutrequest = () => {
     setLoading(true);
     fetchWithdrawalRequests();
   };
-const handleForwardRequest = async (request) => {
-  try {
-    const result = await Swal.fire({
-      title: 'Forward Request?',
-      text: "Are you sure you want to forward this withdrawal request to another agent?",
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Yes, forward it!'
-    });
 
-    if (result.isConfirmed) {
-      setLoading(true);
-      const response = await axios.post(`${base_url}/api/payment/forward-payout`, {
-        paymentId: request.paymentid
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+  const handleForwardRequest = async (request) => {
+    try {
+      const result = await Swal.fire({
+        title: 'Forward Request?',
+        text: "Are you sure you want to forward this withdrawal request to another agent?",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, forward it!'
       });
 
-      if (response.data.success) {
-        Swal.fire(
-          'Forwarded!',
-          'The request has been forwarded to another agent.',
-          'success'
-        );
-        // Refresh the data to show updated status
-        fetchWithdrawalRequests();
-      } else {
-        throw new Error(response.data.message || 'Failed to forward request');
+      if (result.isConfirmed) {
+        setLoading(true);
+        const response = await axios.post(`${base_url}/api/payment/forward-payout`, {
+          paymentId: request.paymentid
+        }, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (response.data.success) {
+          Swal.fire(
+            'Forwarded!',
+            'The request has been forwarded to another agent.',
+            'success'
+          );
+          // Refresh the data to show updated status
+          fetchWithdrawalRequests();
+        } else {
+          throw new Error(response.data.message || 'Failed to forward request');
+        }
       }
+    } catch (error) {
+      console.error("Error forwarding request:", error);
+      Swal.fire(
+        'Error!',
+        error.message || 'Failed to forward request',
+        'error'
+      );
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Error forwarding request:", error);
-    Swal.fire(
-      'Error!',
-      error.message || 'Failed to forward request',
-      'error'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // Get current requests based on pagination
   const indexOfLastRequest = currentPage * limit;
@@ -297,22 +276,34 @@ const handleForwardRequest = async (request) => {
                       placeholder="Enter transaction ID"
                     />
                   </div>
-                    <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Agent Account</label>
-                    <input
-                      type="text"
-                      value={agentnumber}
-                      onChange={(e) => setagentnumber(e.target.value)}
-                      className="w-full p-2 border border-gray-300 outline-theme rounded-md  focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter transaction ID"
-                    />
-                  </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Agent Account *</label>
+                    <select
+                      value={selectedAgentAccount}
+                      onChange={(e) => setSelectedAgentAccount(e.target.value)}
+                      className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="">Select Agent Account</option>
+                      {userData && userData.agentAccounts && userData.agentAccounts.map((account, index) => (
+                        <option key={index} value={account.accountNumber}>
+                          {account.provider}: {account.accountNumber} ({account.shopName})
+                        </option>
+                      ))}
+                    </select>
+                    {!selectedAgentAccount && (
+                      <p className="text-red-500 text-xs mt-1">Please select an agent account</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
                       className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      required
                     >
                       <option value="pending">Pending</option>
                       <option value="success">Success</option>
@@ -340,7 +331,7 @@ const handleForwardRequest = async (request) => {
                     </button>
                     <button
                       onClick={handleStatusUpdate}
-                      disabled={loading}
+                      disabled={loading || !selectedAgentAccount}
                       className="px-4 py-2 bg-green-600 text-white cursor-pointer rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
                     >
                       {loading ? 'Updating...' : 'Update Status'}
@@ -506,14 +497,14 @@ const handleForwardRequest = async (request) => {
                                   >
                                     <FaCheck />
                                   </button>
-                          <button
-  onClick={() => handleForwardRequest(request)}
-  className="p-2 bg-orange-500 cursor-pointer text-white rounded-md hover:bg-orange-600 transition-colors"
-  title="Forward to another agent"
-  disabled={loading}
->
-  <RiShareForwardLine />
-</button>
+                                  <button
+                                    onClick={() => handleForwardRequest(request)}
+                                    className="p-2 bg-orange-500 cursor-pointer text-white rounded-md hover:bg-orange-600 transition-colors"
+                                    title="Forward to another agent"
+                                    disabled={loading}
+                                  >
+                                    <RiShareForwardLine />
+                                  </button>
                                  </>
                                 :<span className='text-gray-500'>------------------</span>}
                               
