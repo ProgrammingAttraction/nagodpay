@@ -8,7 +8,6 @@ function PaymentCallbackPage() {
   const base_url2 = "https://api.nagodpay.com";
   const [paymentparams] = useSearchParams();
   const navigate = useNavigate();
-  const [user_info, setUserInfo] = useState({});
   
   const [transaction_info, set_transaction_info] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,20 +21,12 @@ function PaymentCallbackPage() {
   const transactionId = paymentparams.get("paymentID");
   const status = paymentparams.get("status");
 
-  // Fix: Get user info safely after component mounts
-  useEffect(() => {
-    try {
-      const userData = localStorage.getItem("user");
-      if (userData) {
-        setUserInfo(JSON.parse(userData));
-      }
-    } catch (err) {
-      console.error("Error parsing user data:", err);
-    }
-  }, []);
-
   const executePaymentCallback = async () => {
     try {
+      // Get user info directly from localStorage when needed
+      const userData = localStorage.getItem("user");
+      const user_info = userData ? JSON.parse(userData) : {};
+      
       const response = await axios.post(`${base_url2}/api/payment/p2c/bkash/callback`, {
         payment_type: "Deposit",
         amount: amount,
@@ -53,14 +44,14 @@ function PaymentCallbackPage() {
     }
   };
 
+  // Progress bar effect
   useEffect(() => {
     let interval;
-    if (showProgress) {
+    if (showProgress && loading) {
       interval = setInterval(() => {
         setProgress((oldProgress) => {
           if (oldProgress >= 100) {
             clearInterval(interval);
-            setShowProgress(false);
             return 100;
           }
           return oldProgress + 30;
@@ -68,7 +59,7 @@ function PaymentCallbackPage() {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [showProgress]);
+  }, [showProgress, loading]);
 
   // Auto-reload effect
   useEffect(() => {
@@ -89,6 +80,7 @@ function PaymentCallbackPage() {
       setError(null);
       
       if (!transactionId) {
+        console.log("transactionResponse")
         setError("No transaction ID provided");
         setLoading(false);
         return;
@@ -97,7 +89,7 @@ function PaymentCallbackPage() {
       const { data: transactionResponse } = await axios.get(
         `${base_url2}/api/payment/transaction-status/${transactionId}`
       );
-        console.log(transactionResponse)
+       console.log(transactionResponse)
       if (transactionResponse.success) {
         const transactionData = transactionResponse.data;
         set_transaction_info(transactionData);
@@ -115,17 +107,18 @@ function PaymentCallbackPage() {
       setError("An error occurred while processing your payment");
     } finally {
       setLoading(false);
+      setShowProgress(false);
     }
   };
 
   useEffect(() => {
-    if (transactionId) { // Wait until user_info is loaded
+    if (transactionId) {
       user_money_info();
-    } else if (!transactionId) {
+    } else {
       setLoading(false);
       setError("No transaction ID found in URL");
     }
-  }, []); // Add dependency on user_info._id
+  }, [transactionId]);
 
   const handleDepositAgain = () => {
     navigate('/payment-methods');
@@ -134,23 +127,23 @@ function PaymentCallbackPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-gray-900 py-10">
-      <div className="text-center">
-            <h1 className='text-center text-white font-[500] text-[18px] xl:text-[20px] font-bai mb-[10px]'>
-              Payment Is Processing...
-            </h1>
-            <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden mx-auto">
-              <div
-                className="h-full bg-indigo-500 transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-            <p className="text-gray-400 mt-4">Please wait while we confirm your payment</p>
-            {reloadCount > 0 && (
-              <p className="text-gray-500 text-sm mt-2">
-                Checking status... ({reloadCount}/3)
-              </p>
-            )}
+        <div className="text-center">
+          <h1 className='text-center text-white font-[500] text-[18px] xl:text-[20px] font-bai mb-[10px]'>
+            Payment Is Processing...
+          </h1>
+          <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden mx-auto">
+            <div
+              className="h-full bg-indigo-500 transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            ></div>
           </div>
+          <p className="text-gray-400 mt-4">Please wait while we confirm your payment</p>
+          {reloadCount > 0 && (
+            <p className="text-gray-500 text-sm mt-2">
+              Checking status... ({reloadCount}/3)
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -219,12 +212,12 @@ function PaymentCallbackPage() {
         </div>
         
         <div className="mt-6 text-center flex flex-col sm:flex-row justify-center gap-4">
-          <a 
-                onClick={handleDepositAgain}
+          <button 
+            onClick={() => navigate('/')}
             className="px-6 py-2 text-[15px] font-semibold text-white cursor-pointer bg-indigo-600 rounded-[3px] hover:bg-indigo-700 transition duration-300"
           >
             Back to Home
-          </a>
+          </button>
           <button 
             onClick={handleDepositAgain}
             className="px-6 py-2 text-[15px] font-semibold text-white cursor-pointer bg-green-600 rounded-[3px] hover:bg-green-700 transition duration-300"
