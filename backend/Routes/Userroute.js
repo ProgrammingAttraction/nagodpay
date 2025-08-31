@@ -279,7 +279,7 @@ Userrouter.get('/my-requests/filter', async (req, res) => {
   }
 });
 // -------------------add-bank-account----------------------
-Userrouter.post('/add-bank-account', async (req, res) => {
+router.post('/add-bank-account', async (req, res) => {
   try {
     const { provider, accountNumber, shopName, walletType, isDefault } = req.body;
     const userId = req.user._id;
@@ -298,6 +298,24 @@ Userrouter.post('/add-bank-account', async (req, res) => {
       return res.status(400).json({ 
         success: false, 
         message: 'Invalid account number format. Must be 11 digits starting with 01' 
+      });
+    }
+
+    // NEW VALIDATION: Check if provider and account number already exist for this user
+    const existingAccount = await UserModel.findOne({
+      _id: userId,
+      'agentAccounts': {
+        $elemMatch: {
+          provider: provider,
+          accountNumber: accountNumber
+        }
+      }
+    });
+    
+    if (existingAccount) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'An account with this provider and account number already exists for this user' 
       });
     }
 

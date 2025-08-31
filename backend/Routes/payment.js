@@ -2892,21 +2892,9 @@ Paymentrouter.get("/check-nagad-free-deposit/:orderId", async (req, res) => {
 // Get single Nagad Free deposit
 Paymentrouter.get('/nagad-free-deposits/:id', async (req, res) => {
   try {
-    const apiKey = req.headers['x-api-key'];
-    const merchant = await Merchantkey.findOne({ apiKey });
-
-    if (!merchant) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid API key'
-      });
-    }
-
     const deposit = await NagadFreeDeposit.findOne({
       _id: req.params.id,
-      merchantid: merchant._id
-    }).populate('merchantid', 'merchantName email');
-    
+    })
     if (!deposit) {
       return res.status(404).json({
         success: false,
