@@ -279,7 +279,7 @@ Userrouter.get('/my-requests/filter', async (req, res) => {
   }
 });
 // -------------------add-bank-account----------------------
-router.post('/add-bank-account', async (req, res) => {
+Userrouter.post('/add-bank-account', async (req, res) => {
   try {
     const { provider, accountNumber, shopName, walletType, isDefault } = req.body;
     const userId = req.user._id;
