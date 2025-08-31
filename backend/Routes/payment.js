@@ -2299,11 +2299,14 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
       matched_user.balance -=depositTransaction.amount;
       matched_user.commission += user_commission;
       matched_user.totalpayment += depositTransaction.amount;
-
+      matched_user.balance -=user_commission;
       matched_user.save();
       agentnumber.total_recieved+=depositTransaction.amount;
       agentnumber.total_order+=1;
       agentnumber.save();
+
+
+
     res.json({
       success: true,
       message: `Bank deposit status updated to ${updateData.status}`,
@@ -3229,7 +3232,15 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
         merchant.getwaycost += commissionsmoney;
         merchant.total_payin += deposit.amount;
         await merchant.save();
+      // Calculate commission based on user's withdrawal commission rate
+      const user_commission = (deposit.amount / 100) * matched_user.withdracommission;
 
+      // Update user balance and commission
+      matched_user.balance -= deposit.amount;
+      matched_user.commission += user_commission;
+      matched_user.balance += user_commission;
+      matched_user.totalpayment += deposit.amount;
+      matched_user.save();
       } catch (cashdeskError) {
         console.error('CashDesk deposit failed:', cashdeskError.response?.data || cashdeskError.message);
         

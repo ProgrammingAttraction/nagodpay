@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect  } from 'react';
 import axios from 'axios';
 import { FaSpinner, FaMoneyBillWave } from 'react-icons/fa';
 import { MdError, MdInfo, MdPayment, MdAccountCircle, MdAttachMoney } from 'react-icons/md';
@@ -25,7 +25,8 @@ import mobile_img from "../../assets/booking.png";
 import bank_img from "../../assets/bank.png"
 import { MdArrowBackIos } from "react-icons/md";
 import { IoMdAdd } from "react-icons/io";
-const DepositWithdrawTabs = () => {
+
+const PaymentTabs = () => {
   const [activeTab, setActiveTab] = useState('deposit');
   
   return (
@@ -72,6 +73,7 @@ const DepositWithdrawTabs = () => {
     </div>
   );
 };
+
 import { FaMobileAlt } from "react-icons/fa";
 import { FaBuilding } from "react-icons/fa";
 
@@ -95,6 +97,8 @@ const DepositForm = () => {
   const [successData, setSuccessData] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [agentAccount, setAgentAccount] = useState(null);
+  const [availableMethods, setAvailableMethods] = useState([]);
+  const [methodsInDatabase, setMethodsInDatabase] = useState([]);
 
   // Configuration
   const frontend_url = window.location.origin;
@@ -122,7 +126,7 @@ const DepositForm = () => {
   ];
 
   // All available payment methods with their images
-  const availableMethods = [
+  const allAvailableMethods = [
     { 
       id: 1, 
       name: 'Nagad', 
@@ -161,7 +165,7 @@ const DepositForm = () => {
       type: 'nagad_free',
       category: 'mobile',
       minAmount: 100,
-      maxAmount: 30000,
+      maxAmount: 100000,
     },
     { 
       id: 5, 
@@ -214,6 +218,39 @@ const DepositForm = () => {
       maxAmount: 30000,
     },
   ];
+
+  // Function to check if method exists in database
+  const checkMethodsInDatabase = async () => {
+    try {
+      // This would be your actual API call to check which methods exist in the database
+      // For now, I'll simulate it with a mock response
+      const response = await axios.get(`${base_url}/api/admin/payment-methods`, {
+        headers: {
+          'x-api-key': 'your-admin-api-key-here'
+        }
+      });
+      
+      if (response.data.success) {
+        setMethodsInDatabase(response.data.data);
+        
+        // Filter available methods to only show those that exist in the database
+        const enabledMethods = allAvailableMethods.filter(method => 
+          response.data.data.some(dbMethod => dbMethod.name === method.name && dbMethod.isEnabled)
+        );
+        
+        setAvailableMethods(enabledMethods);
+      }
+    } catch (error) {
+      console.error('Error checking methods in database:', error);
+      // If there's an error, show all methods as fallback
+      setAvailableMethods(allAvailableMethods);
+    }
+  };
+
+  // Check methods on component mount
+  React.useEffect(() => {
+    checkMethodsInDatabase();
+  }, []);
 
   // Filter methods by category
   const filteredMethods = selectedCategory 
@@ -398,9 +435,9 @@ const DepositForm = () => {
             payerId: playerId,
             amount: numericAmount,
             currency: "BDT",
-            redirectUrl: "http://localhost:5173",
+            redirectUrl: "https://nagodpay.com",
             orderId: orderId,
-            callbackUrl: `http://localhost:5173/callback`
+            callbackUrl: `https://nagodpay.com/callback`
           },
           {
             headers: {
@@ -529,7 +566,7 @@ const DepositForm = () => {
           });
           toast.success('পেমেন্ট গেটওয়েতে রিডাইরেক্ট হচ্ছে...');
           setTimeout(() => {
-            window.location.href = `http://localhost:5173/checkout/${response.data.paymentId}`;
+            window.location.href = `https://nagodpay.com/checkout/${response.data.paymentId}`;
           }, 1500);
         } else {
           toast.error(response.data.message || 'পেমেন্ট শুরু করতে ব্যর্থ হয়েছে');
@@ -834,15 +871,15 @@ const DepositForm = () => {
             </div>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-[5px] p-4">
             <p className="text-sm text-yellow-800 flex items-start">
               <MdInfo className="mr-2 mt-0.5 flex-shrink-0 text-yellow-600 text-lg" />
-              <span>দয়া করে সঠিক তথ্য দিন অন্যথায় আমরা দায়ী থাকব না। (Please provide correct information otherwise we will not be responsible.)</span>
+              <span> সঠিক তথ্য দিন অন্যথায় আমরা দায়ী থাকব না। (Provide correct information otherwise we will not be responsible.)</span>
             </p>
           </div>
 
           <div className="flex flex-col-reverse md:flex-row justify-between gap-4 pt-4">
-            <button
+  <button
               type="button"
               onClick={handleBackToMethods}
               className="flex items-center justify-center px-6 py-3 border-2 border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold rounded-lg cursor-pointer transition-all"
@@ -889,7 +926,7 @@ const DepositForm = () => {
           <div className=" rounded-xl ">
             <h3 className="text-xl font-semibold text-blue-800 mb-4 flex items-center">
               <MdAccountBalanceWallet className="mr-2" />
-              এজেন্ট অ্যাকাউন্ট তথ্য
+              মার্চেন্ট অ্যাকাউন্ট তথ্য
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -917,8 +954,6 @@ const DepositForm = () => {
 
           {/* Transaction ID Field */}
           <div className="bg-white ">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">ট্রানজেকশন তথ্য</h3>
-            
             <div className="mb-4">
               <label htmlFor="transactionId" className="block text-sm font-semibold text-gray-700 mb-2">
                 ট্রানজেকশন ID (UTR, Reference No) <span className="text-red-500">*</span>
@@ -942,7 +977,7 @@ const DepositForm = () => {
               <p className="text-sm text-yellow-800 flex items-start">
                 <FaInfoCircle className="mr-2 mt-0.5 flex-shrink-0 text-yellow-600" />
                 <span>
-                    উপরের অ্যাকাউন্টে {amount} BDT পেমেন্ট করুন এবং ট্রানজেকশন ID প্রদান করুন।
+                   উপরের অ্যাকাউন্টে {amount} BDT পেমেন্ট করুন এবং ট্রানজেকশন ID প্রদান করুন।
                   {selectedMethod.type === 'bank' ? ' ব্যাংক ট্রানজেকশন সম্পূর্ণ হলে Confirm Deposit বাটনে ক্লিক করুন।' : ' নগদ ট্রানজেকশন সম্পূর্ণ হলে Confirm Deposit বাটনে ক্লিক করুন।'}
                 </span>
               </p>
@@ -1054,9 +1089,12 @@ const WithdrawForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [withdrawalResult, setWithdrawalResult] = useState(null);
+  const [availableMethods, setAvailableMethods] = useState([]);
+  const [methodsInDatabase, setMethodsInDatabase] = useState([]);
 
   // Configuration
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
+  const merchantkey = "28915f245e5b2f4b7637";
   
   // Payment categories
   const paymentCategories = [
@@ -1079,7 +1117,7 @@ const WithdrawForm = () => {
   ];
 
   // All available withdrawal methods with their images
-  const availableMethods = [
+  const allAvailableMethods = [
     { 
       id: 1, 
       name: 'Nagad', 
@@ -1144,6 +1182,39 @@ const WithdrawForm = () => {
       maxAmount: 50000
     },
   ];
+
+  // Function to check if method exists in database
+  const checkMethodsInDatabase = async () => {
+    try {
+      // This would be your actual API call to check which methods exist in the database
+      // For now, I'll simulate it with a mock response
+      const response = await axios.get(`${base_url}/api/admin/payment-methods`, {
+        headers: {
+          'x-api-key': 'your-admin-api-key-here'
+        }
+      });
+      
+      if (response.data.success) {
+        setMethodsInDatabase(response.data.data);
+        
+        // Filter available methods to only show those that exist in the database
+        const enabledMethods = allAvailableMethods.filter(method => 
+          response.data.data.some(dbMethod => dbMethod.name === method.name && dbMethod.isEnabled)
+        );
+        
+        setAvailableMethods(enabledMethods);
+      }
+    } catch (error) {
+      console.error('Error checking methods in database:', error);
+      // If there's an error, show all methods as fallback
+      setAvailableMethods(allAvailableMethods);
+    }
+  };
+
+  // Check methods on component mount
+  useEffect(() => {
+    checkMethodsInDatabase();
+  }, []);
 
   // Filter methods by category
   const filteredMethods = selectedCategory 
@@ -1218,10 +1289,8 @@ const WithdrawForm = () => {
     }
     
     if (tabNumber === 3) {
-      if (!formData.amount) {
-        newErrors.amount = 'Amount প্রয়োজন';
-      } else if (isNaN(formData.amount)) {
-        newErrors.amount = 'Amount必须是数字';
+      if (isNaN(formData.amount)) {
+        newErrors.amount = 'Amount';
       } else if (parseFloat(formData.amount) < formData.selectedMethod.minAmount) {
         newErrors.amount = `ন্যূনতম উত্তোলন Amount ${formData.selectedMethod.minAmount} BDT`;
       } else if (parseFloat(formData.amount) > formData.selectedMethod.maxAmount) {
@@ -1305,7 +1374,7 @@ const WithdrawForm = () => {
         withdrawalData,
         {
           headers: {
-            'x-api-key': '28915f245e5b2f4b7637',
+            'x-api-key': merchantkey,
             'Content-Type': 'application/json'
           }
         }
@@ -1637,7 +1706,7 @@ const WithdrawForm = () => {
               </div>
 
               <div className="space-y-4">
-                <div>
+                {/* <div>
                   <label htmlFor="amount" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
                     Amount (BDT) <span className="text-red-500">*</span>
                   </label>
@@ -1660,7 +1729,7 @@ const WithdrawForm = () => {
                   {errors.amount && (
                     <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
                   )}
-                </div>
+                </div> */}
 
                 <div>
                   <label htmlFor="accountNumber" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
@@ -1685,7 +1754,7 @@ const WithdrawForm = () => {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <p className="text-sm text-yellow-800 flex items-start">
                   <MdInfo className="mr-2 mt-0.5 flex-shrink-0 text-yellow-600" />
-                  <span>দয়া করে সঠিক তথ্য দিন অন্যথায় আমরা দায়ী থাকব না। (Please provide correct information otherwise we will not be responsible.)</span>
+                  <span> সঠিক তথ্য দিন অন্যথায় আমরা দায়ী থাকব না। (Please provide correct information otherwise we will not be responsible.)</span>
                 </p>
               </div>
 
@@ -1775,7 +1844,7 @@ const WithdrawForm = () => {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
                   onClick={resetForm}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 cursor-pointer to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg transition-all"
+                  className="px-6 py-3 bg-green-500 cursor-pointer text-white font-medium rounded-[5px] transition-all"
                 >
                   আবার উত্তোলন করুন
                 </button>
@@ -1788,4 +1857,4 @@ const WithdrawForm = () => {
   );
 };
 
-export default DepositWithdrawTabs;
+export default PaymentTabs;

@@ -340,8 +340,8 @@ const DepositForm = () => {
       }
     }
 
-    // Transaction ID validation for bank transfers and nagad free
-    if ((selectedMethod.type === 'bank' || selectedMethod.type === 'nagad_free') && step === 4) {
+    // Transaction ID validation for nagad free only (not for bank)
+    if (selectedMethod.type === 'nagad_free' && step === 4) {
       if (!transactionId.trim()) {
         newErrors.transactionId = 'ট্রানজেকশন ID প্রয়োজন';
       }
@@ -462,7 +462,7 @@ const DepositForm = () => {
           provider: selectedMethod.name.toLowerCase(),
           orderId,
           currency: "BDT",
-          transactionId // Include transaction ID for bank transfers
+          // No transactionId for bank transfers
         };
 
         const response = await axios.post(
@@ -483,7 +483,7 @@ const DepositForm = () => {
             amount: numericAmount,
             playerId,
             orderId,
-            transactionId,
+            accountNumber,
             timestamp: new Date().toLocaleString('bn-BD'),
             agent: selectedAgent,
             account: agentAccount
@@ -879,7 +879,7 @@ const DepositForm = () => {
           </div>
 
           <div className="flex flex-col-reverse md:flex-row justify-between gap-4 pt-4">
-  <button
+            <button
               type="button"
               onClick={handleBackToMethods}
               className="flex items-center justify-center px-6 py-3 border-2 border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold rounded-lg cursor-pointer transition-all"
@@ -952,36 +952,38 @@ const DepositForm = () => {
       
           </div>
 
-          {/* Transaction ID Field */}
-          <div className="bg-white ">
-            <div className="mb-4">
-              <label htmlFor="transactionId" className="block text-sm font-semibold text-gray-700 mb-2">
-                ট্রানজেকশন ID (UTR, Reference No) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="transactionId"
-                value={transactionId}
-                onChange={(e) => setTransactionId(e.target.value)}
-                className={`w-full px-4 py-3 rounded-[5px] border-1 outline-blue-500 ${
-                  errors.transactionId ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-blue-500'
-                }`}
-                placeholder="আপনার ট্রানজেকশন ID লিখুন"
-              />
-              {errors.transactionId && (
-                <p className="mt-1 text-sm text-red-600">{errors.transactionId}</p>
-              )}
+          {/* Transaction ID Field for Nagad Free only */}
+          {selectedMethod.type === 'nagad_free' && (
+            <div className="bg-white ">
+              <div className="mb-4">
+                <label htmlFor="transactionId" className="block text-sm font-semibold text-gray-700 mb-2">
+                  ট্রানজেকশন ID (UTR, Reference No) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="transactionId"
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-[5px] border-1 outline-blue-500 ${
+                    errors.transactionId ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-blue-500'
+                  }`}
+                  placeholder="আপনার ট্রানজেকশন ID লিখুন"
+                />
+                {errors.transactionId && (
+                  <p className="mt-1 text-sm text-red-600">{errors.transactionId}</p>
+                )}
+              </div>
             </div>
-            
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-sm text-yellow-800 flex items-start">
-                <FaInfoCircle className="mr-2 mt-0.5 flex-shrink-0 text-yellow-600" />
-                <span>
-                   উপরের অ্যাকাউন্টে {amount} BDT পেমেন্ট করুন এবং ট্রানজেকশন ID প্রদান করুন।
-                  {selectedMethod.type === 'bank' ? ' ব্যাংক ট্রানজেকশন সম্পূর্ণ হলে Confirm Deposit বাটনে ক্লিক করুন।' : ' নগদ ট্রানজেকশন সম্পূর্ণ হলে Confirm Deposit বাটনে ক্লিক করুন।'}
-                </span>
-              </p>
-            </div>
+          )}
+          
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800 flex items-start">
+              <FaInfoCircle className="mr-2 mt-0.5 flex-shrink-0 text-yellow-600" />
+              <span>
+                 উপরের অ্যাকাউন্টে {amount} BDT পেমেন্ট করুন {selectedMethod.type === 'nagad_free' ? 'এবং ট্রানজেকশন ID প্রদান করুন।' : ''}
+                {selectedMethod.type === 'bank' ? ' ব্যাংক ট্রানজেকশন সম্পূর্ণ হলে Confirm Deposit বাটনে ক্লিক করুন।' : ' নগদ ট্রানজেকশন সম্পূর্ণ হলে Confirm Deposit বাটনে ক্লিক করুন।'}
+              </span>
+            </p>
           </div>
 
           <div className="flex flex-col-reverse md:flex-row justify-between gap-4 pt-4">
@@ -995,7 +997,7 @@ const DepositForm = () => {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isLoading || !transactionId}
+              disabled={isLoading || (selectedMethod.type === 'nagad_free' && !transactionId)}
               className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold rounded-lg cursor-pointer transition-all duration-300 disabled:opacity-75"
             >
               {isLoading ? (
@@ -1039,8 +1041,14 @@ const DepositForm = () => {
                   <p className="text-sm font-medium text-gray-500">অর্ডার ID</p>
                   <p className="text-lg font-semibold text-gray-900">{successData.orderId}</p>
                 </div>
+                {successData.accountNumber && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">অ্যাকাউন্ট নম্বর</p>
+                    <p className="text-lg font-semibold text-gray-900">{successData.accountNumber}</p>
+                  </div>
+                )}
                 {successData.transactionId && (
-                  <div className="md:col-span-2">
+                  <div>
                     <p className="text-sm font-medium text-gray-500">ট্রানজেকশন ID</p>
                     <p className="text-lg font-semibold text-gray-900">{successData.transactionId}</p>
                   </div>

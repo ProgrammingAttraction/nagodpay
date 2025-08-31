@@ -94,11 +94,8 @@ function PaymentCallbackPage() {
         const transactionData = transactionResponse.data;
         set_transaction_info(transactionData);
         set_amount(transactionData.expectedAmount || 0);
-
-        // Only process payment if not already processed
-        if (!paymentProcessed) {
-          const paymentResult = await executePaymentCallback();
-        }
+          const { data: paymentResult } = await executePaymentCallback();
+          console.log('paymentResult', paymentResult);
       } else {
         setError("Failed to fetch transaction details");
       }
