@@ -2713,15 +2713,14 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
       currency = 'BDT',
       transactionId
     } = req.body;
-    
-    console.log(req.body)
+   console.log(req.body)
     const apiKey = req.headers['x-api-key'];
     
     // Validate required fields
-    if (!playerId || !amount || !orderId || !transactionId) {
+    if (!playerId || !amount || !orderId) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: playerId, amount, orderId, transactionId'
+        message: 'Missing required fields: playerId, amount, accountNumber, orderId'
       });
     }
 
@@ -2741,22 +2740,20 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
         message: 'Invalid API key'
       });
     }
-
-    // Check if orderId already exists
-    const existingDepositByOrderId = await NagadFreeDeposit.findOne({ orderId });
-    if (existingDepositByOrderId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Order ID already exists'
-      });
-    }
-
-    // Check if transactionId already exists
+   // Check if transactionId already exists
     const existingDepositByTransactionId = await NagadFreeDeposit.findOne({ transactionId });
     if (existingDepositByTransactionId) {
       return res.status(400).json({
         success: false,
         message: 'Transaction ID already exists'
+      });
+    }
+    // Check if orderId already exists
+    const existingDeposit = await NagadFreeDeposit.findOne({ orderId });
+    if (existingDeposit) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID already exists'
       });
     }
 
@@ -2788,7 +2785,7 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
       merchantid: merchant._id,
       status: 'pending',
       statusDate: new Date(),
-      transactionId: transactionId
+      transactionId:transactionId
     };
 
     // Save to NagadFreeDeposit model
