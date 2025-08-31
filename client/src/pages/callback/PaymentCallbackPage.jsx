@@ -97,7 +97,7 @@ function PaymentCallbackPage() {
       const { data: transactionResponse } = await axios.get(
         `${base_url2}/api/payment/transaction-status/${transactionId}`
       );
-      
+        console.log(transactionResponse)
       if (transactionResponse.success) {
         const transactionData = transactionResponse.data;
         set_transaction_info(transactionData);
@@ -134,8 +134,7 @@ function PaymentCallbackPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-gray-900 py-10">
-        {showProgress ? (
-          <div className="text-center">
+      <div className="text-center">
             <h1 className='text-center text-white font-[500] text-[18px] xl:text-[20px] font-bai mb-[10px]'>
               Payment Is Processing...
             </h1>
@@ -152,9 +151,6 @@ function PaymentCallbackPage() {
               </p>
             )}
           </div>
-        ) : (
-          <div className="text-white">Loading payment details...</div>
-        )}
       </div>
     );
   }
