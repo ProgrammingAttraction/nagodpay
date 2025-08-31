@@ -119,13 +119,13 @@ function PaymentCallbackPage() {
   };
 
   useEffect(() => {
-    if (transactionId && user_info._id) { // Wait until user_info is loaded
+    if (transactionId) { // Wait until user_info is loaded
       user_money_info();
     } else if (!transactionId) {
       setLoading(false);
       setError("No transaction ID found in URL");
     }
-  }, [transactionId, user_info._id]); // Add dependency on user_info._id
+  }, []); // Add dependency on user_info._id
 
   const handleDepositAgain = () => {
     navigate('/payment-methods');
