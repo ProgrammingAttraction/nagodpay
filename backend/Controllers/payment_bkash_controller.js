@@ -74,7 +74,9 @@ const processCashDeskDeposit = async (transaction) => {
         error: "Missing payerId or transaction amount"
       };
     }
-
+ const transaction = await PayinTransaction.findOne({
+      paymentId: transaction.paymentID
+    });
     console.log("Initiating CashDesk deposit process...");
     console.log("Payer ID:", transaction.payerId);
     console.log("Amount:", transaction.expectedAmount);
@@ -139,11 +141,14 @@ const processCashDeskDeposit = async (transaction) => {
       };
     } else {
       console.log('CashDesk deposit failed according to response');
+      transaction.status="failed";
+      transaction.save();
       return {
         success: false,
         data: cashdeskResponse.data,
         error: cashdeskResponse.data.Message || "CashDesk deposit failed"
       };
+
     }
   } catch (error) {
     const errorData = error.response ? {
