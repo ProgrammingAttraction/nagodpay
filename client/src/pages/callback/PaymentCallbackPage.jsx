@@ -64,12 +64,7 @@ function PaymentCallbackPage() {
         set_transaction_info(transactionData);
         set_amount(transactionData.expectedAmount);
 
-        const { data: userResponse } = await axios.get(`${base_url}/auth/user/${user_info?._id}`, {
-          headers: { 'Authorization': localStorage.getItem('token') }
-        });
-
-        if (userResponse) {
-          const { data: paymentResult } = await executePaymentCallback();
+       const { data: paymentResult } = await executePaymentCallback();
           console.log('paymentResult', paymentResult);
 
           const { data: createTransactionResponse } = await axios.post(`${base_url}/user/create-transaction`, {
@@ -85,7 +80,6 @@ function PaymentCallbackPage() {
           if (createTransactionResponse?.transaction) {
             set_transaction_info(prev => ({ ...prev, ...createTransactionResponse.transaction }));
           }
-        }
       }
     } catch (error) {
       console.error("Error in user_money_info:", error);
