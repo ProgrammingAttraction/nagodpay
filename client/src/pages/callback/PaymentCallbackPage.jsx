@@ -86,6 +86,7 @@ function PaymentCallbackPage() {
         console.log(`Auto-reloading, attempt ${reloadCount + 1}/3`);
         setReloadCount(prev => prev + 1);
         user_money_info();
+        executePaymentCallback();
       }, 1000);
       
       return () => clearTimeout(timer);
@@ -132,13 +133,8 @@ function PaymentCallbackPage() {
   };
 
   useEffect(() => {
-    if (transactionId) {
       user_money_info();
-    } else {
-      setLoading(false);
-      setError("No transaction ID found in URL");
-    }
-  }, [transactionId]);
+  }, []);
 
   const handleDepositAgain = () => {
     navigate('/payment-methods');
