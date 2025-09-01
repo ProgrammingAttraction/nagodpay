@@ -17,21 +17,43 @@ function PaymentCallbackPage() {
   const [showProgress, setShowProgress] = useState(true);
   const [reloadCount, setReloadCount] = useState(0);
   const [paymentProcessed, setPaymentProcessed] = useState(false);
+  const [user_info, setUserInfo] = useState(null);
   
   const transactionId = paymentparams.get("paymentID");
   const status = paymentparams.get("status");
 
-  const executePaymentCallback = async () => {
+  // Fetch user info from localStorage or context
+  const fetchUserInfo = async () => {
+    try {
+      // In a real app, you would get this from context, localStorage, or an API call
+      const userData = JSON.parse(localStorage.getItem('userInfo')) || { _id: 'user123' };
+      setUserInfo(userData);
+      return userData;
+    } catch (err) {
+      console.error("Error fetching user info:", err);
+      return null;
+    }
+  };
+
+  // This function calls your backend API which should handle the balance deduction
+  const executePaymentCallback = async (transactionData) => {
     try {
       const response = await axios.post(`${base_url2}/api/payment/p2c/bkash/callback`, {
         payment_type: "Deposit",
-        amount: amount,
-        payment_method: transaction_info?.provider || "bkash",
+        amount: transactionData?.expectedAmount || amount,
+        payment_method: transactionData?.provider || "bkash",
         status: status === "cancel" ? "failed" : status,
         customer_id: user_info?._id,
         paymentID: transactionId,
       });
-      setPaymentProcessed(true);
+      
+      if (response.data.success) {
+        setPaymentProcessed(true);
+        console.log("Balance deduction completed on server");
+      } else {
+        setError("Failed to process payment: " + (response.data.message || "Unknown error"));
+      }
+      
       return response.data;
     } catch (error) {
       console.error("Error processing payment:", error);
@@ -76,22 +98,27 @@ function PaymentCallbackPage() {
       setError(null);
       
       if (!transactionId) {
-        console.log("transactionResponse")
         setError("No transaction ID provided");
         setLoading(false);
         return;
       }
 
+      // First, get user info
+      await fetchUserInfo();
+      
+      // Then get transaction details
       const { data: transactionResponse } = await axios.get(
         `${base_url2}/api/payment/transaction-status/${transactionId}`
       );
-       console.log(transactionResponse)
+      
       if (transactionResponse) {
         const transactionData = transactionResponse.data;
         set_transaction_info(transactionData);
         set_amount(transactionData.expectedAmount || 0);
-          const { data: paymentResult } = await executePaymentCallback();
-          console.log('paymentResult', paymentResult);
+        
+        // Execute payment callback after we have transaction data
+        const paymentResult = await executePaymentCallback(transactionData);
+        console.log('Payment callback result:', paymentResult);
       } else {
         setError("Failed to fetch transaction details");
       }
@@ -201,6 +228,12 @@ function PaymentCallbackPage() {
               <span>Payment Method:</span>
               <span className="font-medium text-orange-300">{transaction_info?.provider || "N/A"}</span>
             </div>
+            <div className="flex justify-between text-gray-400">
+              <span>Balance Deduction:</span>
+              <span className="font-medium text-white">
+                {paymentProcessed ? "Completed Successfully" : "Not Processed Yet"}
+              </span>
+            </div>
           </div>
         </div>
         
@@ -209,13 +242,13 @@ function PaymentCallbackPage() {
             onClick={() => navigate('/')}
             className="px-6 py-2 text-[15px] font-semibold text-white cursor-pointer bg-indigo-600 rounded-[3px] hover:bg-indigo-700 transition duration-300"
           >
-            Back to Home
+           Deposit Again
           </button>
           <button 
             onClick={handleDepositAgain}
             className="px-6 py-2 text-[15px] font-semibold text-white cursor-pointer bg-green-600 rounded-[3px] hover:bg-green-700 transition duration-300"
           >
-            Deposit Again
+            Withdrawal Again
           </button>
         </div>
       </div>
