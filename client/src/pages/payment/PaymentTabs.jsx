@@ -189,7 +189,7 @@ const DepositForm = () => {
     },
     { 
       id: 7, 
-      name: 'BRAC Bank', 
+      name: 'Brac Bank', 
       name_bn: 'ব্র্যাক ব্যাংক',
       image: "https://play-lh.googleusercontent.com/xbBwfeUNIru5qMU0giaQIATfrt_AdMWujIhVu_M-RHG0SEVNY6lK_JQFQ_bER7k1jm8",
       type: 'bank',

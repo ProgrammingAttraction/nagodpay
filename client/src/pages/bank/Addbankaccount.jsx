@@ -66,9 +66,7 @@ const Addbankaccount = () => {
     
     if (!formData.accountNumber) {
       newErrors.accountNumber = 'Account number is required';
-    } else if (!/^01\d{9}$/.test(formData.accountNumber)) {
-      newErrors.accountNumber = 'Invalid account number format. Must be 11 digits starting with 01';
-    }
+    } 
     
     if (!formData.shopName) {
       newErrors.shopName = 'Shop name is required';
@@ -195,11 +193,10 @@ const Addbankaccount = () => {
                 <input
                   type="text"
                   className={`border rounded px-3 py-2 text-sm border-gray-200 outline-theme ${errors.accountNumber ? 'border-red-500' : ''}`}
-                  placeholder="01XXXXXXXXX (11 digits)"
+                  placeholder="Enter Number"
                   name="accountNumber"
                   value={formData.accountNumber}
                   onChange={handleChange}
-                  maxLength="11"
                 />
                 {errors.accountNumber && <span className="text-red-500 text-xs mt-1">{errors.accountNumber}</span>}
               </div>

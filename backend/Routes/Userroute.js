@@ -290,13 +290,6 @@ Userrouter.post('/add-bank-account', async (req, res) => {
     }
 
     // Validate account number format
-    const accountNumberRegex = /^01\d{9}$/;
-    if (!accountNumberRegex.test(accountNumber)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid account number format. Must be 11 digits starting with 01' 
-      });
-    }
 
     // NEW VALIDATION: Check if provider and account number already exist for this user
     const existingAccount = await UserModel.findOne({

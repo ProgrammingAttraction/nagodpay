@@ -195,25 +195,25 @@ const Dashboard = () => {
         total: formatCurrency(overviewData?.totalBankTransfer || 0)
       }
     },
-    {
-      title: 'Net Balance',
-      value: formatCurrency(overviewData?.netBalance || 0),
-      icon: <FaExchangeAlt className="w-6 h-6" />,
-      change: overviewData ? 
-        `${Math.abs(calculatePercentage(
-          overviewData.netBalance,
-          overviewData.totalIncome
-        ))}% ${overviewData.netBalance >= 0 ? 'profit' : 'loss'}` 
-        : '0%',
-      isPositive: overviewData ? overviewData.netBalance >= 0 : true,
-      gradient: overviewData && overviewData.netBalance >= 0 
-        ? 'from-green-700 to-emerald-700' 
-        : 'from-red-700 to-orange-700',
-      data: {
-        income: formatCurrency(overviewData?.totalIncome || 0),
-        expense: formatCurrency(overviewData?.totalExpense || 0)
-      }
-    }
+    // {
+    //   title: 'Net Balance',
+    //   value: formatCurrency(overviewData?.netBalance || 0),
+    //   icon: <FaExchangeAlt className="w-6 h-6" />,
+    //   change: overviewData ? 
+    //     `${Math.abs(calculatePercentage(
+    //       overviewData.netBalance,
+    //       overviewData.totalIncome
+    //     ))}% ${overviewData.netBalance >= 0 ? 'profit' : 'loss'}` 
+    //     : '0%',
+    //   isPositive: overviewData ? overviewData.netBalance >= 0 : true,
+    //   gradient: overviewData && overviewData.netBalance >= 0 
+    //     ? 'from-green-700 to-emerald-700' 
+    //     : 'from-red-700 to-orange-700',
+    //   data: {
+    //     income: formatCurrency(overviewData?.totalIncome || 0),
+    //     expense: formatCurrency(overviewData?.totalExpense || 0)
+    //   }
+    // }
   ];
 
   // Status cards data

@@ -296,12 +296,6 @@ const AgentAccountSchema = new Schema({
   accountNumber: {
     type: String,
     required: true,
-    validate: {
-      validator: function(v) {
-        return /^01\d{9}$/.test(v);
-      },
-      message: props => `${props.value} is not a valid account number!`
-    }
   },
   shopName: {
     type: String,

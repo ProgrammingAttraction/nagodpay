@@ -32,7 +32,7 @@ const Banktransfer = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
   const [currentDeposit, setCurrentDeposit] = useState(null);
-  const [transactionId, setTransactionId] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [status, setStatus] = useState('pending');
   const [metadata, setMetadata] = useState('');
@@ -95,7 +95,6 @@ const Banktransfer = () => {
         (deposit.playerId && deposit.playerId.toLowerCase().includes(query)) ||
         (deposit.accountNumber && deposit.accountNumber.toLowerCase().includes(query)) ||
         (deposit.amount && deposit.amount.toString().includes(query)) ||
-        (deposit.transactionId && deposit.transactionId.toLowerCase().includes(query)) ||
         (deposit.referenceNumber && deposit.referenceNumber.toLowerCase().includes(query))
       );
     }
@@ -113,7 +112,7 @@ const Banktransfer = () => {
 
   const openUpdateModal = (deposit) => {
     setCurrentDeposit(deposit);
-    setTransactionId(deposit.transactionId || '');
+    setSelectedAccount(deposit.referenceNumber || '');
     setReferenceNumber(deposit.referenceNumber || '');
     setStatus(deposit.status);
     setMetadata(deposit.metadata || '');
@@ -129,7 +128,7 @@ const Banktransfer = () => {
     setIsModalOpen(false);
     setIsForwardModalOpen(false);
     setCurrentDeposit(null);
-    setTransactionId('');
+    setSelectedAccount('');
     setReferenceNumber('');
     setStatus('pending');
     setMetadata('');
@@ -150,12 +149,11 @@ const Banktransfer = () => {
     try {
       setLoading(true);
       
-      // Use the orderId in the URL path and pass the status, transactionId, referenceNumber, and metadata in the body
+      // Use the orderId in the URL path and pass the status, referenceNumber, and metadata in the body
       const response = await axios.patch(
         `${base_url}/api/payment/bank-deposits/${currentDeposit.orderId}/status`,
         {
           status: status,
-          transactionId: transactionId,
           referenceNumber: referenceNumber,
           metadata: metadata
         },
@@ -258,6 +256,17 @@ const Banktransfer = () => {
     fetchBankTransferDeposits();
   };
 
+  // Get user's bank accounts
+  const getUserBankAccounts = () => {
+    if (!userData || !userData.agentAccounts) return [];
+    
+    return userData.agentAccounts.filter(account => 
+      account.provider === 'Dutch Bangla Bank' || 
+      account.provider === 'UCB Bank' || 
+      account.provider === 'Brac Bank'
+    );
+  };
+
   // Get current deposits based on pagination
   const indexOfLastDeposit = currentPage * limit;
   const indexOfFirstDeposit = indexOfLastDeposit - limit;
@@ -287,27 +296,23 @@ const Banktransfer = () => {
                 
                 <div className="p-4 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID</label>
-                    <input
-                      type="text"
-                      value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account</label>
+                    <select
+                      value={selectedAccount}
+                      onChange={(e) => {
+                        setSelectedAccount(e.target.value);
+                        setReferenceNumber(e.target.value);
+                      }}
                       className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter transaction ID"
-                    />
+                    >
+                      <option value="">Select Bank Account</option>
+                      {getUserBankAccounts().map((account) => (
+                        <option key={account._id} value={account.accountNumber}>
+                          {account.provider} - {account.accountNumber} {account.shopName ? `(${account.shopName})` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Reference Number</label>
-                    <input
-                      type="text"
-                      value={referenceNumber}
-                      onChange={(e) => setReferenceNumber(e.target.value)}
-                      className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter reference number"
-                    />
-                  </div>
-                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                     <select
@@ -321,17 +326,6 @@ const Banktransfer = () => {
                         </option>
                       ))}
                     </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Metadata</label>
-                    <textarea
-                      value={metadata}
-                      onChange={(e) => setMetadata(e.target.value)}
-                      className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      rows="3"
-                      placeholder="Any metadata about this transaction..."
-                    />
                   </div>
                   
                   <div className="flex justify-end space-x-3 pt-2">
@@ -520,6 +514,7 @@ const Banktransfer = () => {
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Amount</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Bank</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Account</th>
+                          <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Reference</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Date</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Status</th>
                           <th scope="col" className="px-6 py-3 text-left text-[14px] md:text-[15px] font-[600] text-gray-700 uppercase tracking-wider">Actions</th>
@@ -542,6 +537,9 @@ const Banktransfer = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {deposit.accountNumber}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {deposit.referenceNumber || 'N/A'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {moment(deposit.createdAt).format('DD MMM YYYY, h:mm A')}
