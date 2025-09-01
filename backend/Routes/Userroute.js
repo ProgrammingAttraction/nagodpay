@@ -13,7 +13,6 @@ Userrouter.use(authenticate);
 Userrouter.use(authorizeuser);
 
 // ----------------------------dashboard----------------------------
-// ----------------------------dashboard----------------------------
 Userrouter.get("/dashboard-data/:id", async (req, res) => {
   try {
     // Get user data first
@@ -197,7 +196,6 @@ Userrouter.get("/single-user/:id", async (req, res) => {
         res.status(500).send({ success: false, message: "Server error." });
     }
 });
-
 // --------------prepayment-request--------------------
 // Create new prepayment request
 Userrouter.post('/prepayment-request', async (req, res) => {
@@ -240,7 +238,6 @@ Userrouter.post('/prepayment-request', async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
-
 // 🔐 Get all prepayment requests for the logged-in user
 Userrouter.get('/my-requests/:email', async (req, res) => {
   try {
@@ -431,8 +428,6 @@ Userrouter.post('/add-bank-account', async (req, res) => {
     });
   }
 });
-
-
 // Get a single bank account
 Userrouter.get('/user-bank-account/:id', async (req, res) => {
   try {
@@ -460,8 +455,6 @@ Userrouter.get('/user-bank-account/:id', async (req, res) => {
     });
   }
 });
-
-
 // Get a single bank account
 Userrouter.get('/bank-account/:id', async (req, res) => {
   try {
@@ -490,7 +483,6 @@ Userrouter.get('/bank-account/:id', async (req, res) => {
     });
   }
 });
-
 // Update a bank account
 Userrouter.put('/update-bank-account/:id',async (req, res) => {
   try {
@@ -540,7 +532,6 @@ Userrouter.put('/update-bank-account/:id',async (req, res) => {
     });
   }
 });
-
 // Update bank account status (updates both BankAccount and User's agentAccount)
 Userrouter.put('/update-bank-account-status/:id', async (req, res) => {
   try {
@@ -624,7 +615,6 @@ Userrouter.put('/update-bank-account-status/:id', async (req, res) => {
     });
   }
 });
-
 // ---------------filter-payin----------------------------
 // Filter Payin transactions
 Userrouter.post('/filter-transaction', async (req, res) => {
@@ -727,7 +717,6 @@ Userrouter.get("/bank-accunts/:id",async(req,res)=>{
   }
 })
 // ---------------all-payin---------------
-
 // Get all payin transactions by user ID
 Userrouter.get('/user-payin/:userId', async (req, res) => {
   try {
@@ -771,7 +760,6 @@ console.log(transactions)
     });
   }
 });
-// Get all payout transactions assigned to the current user (agent)
 // Route to get all payout transactions for a user's agent accounts with filtering
 Userrouter.get('/user-payouts/:userId', async (req, res) => {
   try {
@@ -874,7 +862,6 @@ Userrouter.get('/user-payouts/:userId', async (req, res) => {
     });
   }
 });
-
 // Route to get all payin transactions for a user
 Userrouter.get('/user-payins/:userId', async (req, res) => {
   try {

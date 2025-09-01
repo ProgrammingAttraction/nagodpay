@@ -23,10 +23,6 @@ function PaymentCallbackPage() {
 
   const executePaymentCallback = async () => {
     try {
-      // Get user info directly from localStorage when needed
-      const userData = localStorage.getItem("user");
-      const user_info = userData ? JSON.parse(userData) : {};
-      
       const response = await axios.post(`${base_url2}/api/payment/p2c/bkash/callback`, {
         payment_type: "Deposit",
         amount: amount,
@@ -90,7 +86,7 @@ function PaymentCallbackPage() {
         `${base_url2}/api/payment/transaction-status/${transactionId}`
       );
        console.log(transactionResponse)
-      if (transactionResponse.success) {
+      if (transactionResponse) {
         const transactionData = transactionResponse.data;
         set_transaction_info(transactionData);
         set_amount(transactionData.expectedAmount || 0);
