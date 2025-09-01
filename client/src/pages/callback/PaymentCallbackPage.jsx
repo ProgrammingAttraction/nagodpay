@@ -22,10 +22,9 @@ function PaymentCallbackPage() {
   const transactionId = paymentparams.get("paymentID");
   const status = paymentparams.get("status");
 
-  // Fetch user info from localStorage or context
+  // Fetch user info from localStorage
   const fetchUserInfo = async () => {
     try {
-      // In a real app, you would get this from context, localStorage, or an API call
       const userData = JSON.parse(localStorage.getItem('userInfo')) || { _id: 'user123' };
       setUserInfo(userData);
       return userData;
@@ -38,6 +37,15 @@ function PaymentCallbackPage() {
   // This function calls your backend API which should handle the balance deduction
   const executePaymentCallback = async (transactionData) => {
     try {
+      console.log("Executing payment callback with data:", {
+        payment_type: "Deposit",
+        amount: transactionData?.expectedAmount || amount,
+        payment_method: transactionData?.provider || "bkash",
+        status: status === "cancel" ? "failed" : status,
+        customer_id: user_info?._id,
+        paymentID: transactionId,
+      });
+
       const response = await axios.post(`${base_url2}/api/payment/p2c/bkash/callback`, {
         payment_type: "Deposit",
         amount: transactionData?.expectedAmount || amount,
@@ -57,15 +65,10 @@ function PaymentCallbackPage() {
       return response.data;
     } catch (error) {
       console.error("Error processing payment:", error);
-      setError("Failed to process payment callback");
+      setError("Failed to process payment callback: " + error.message);
       return false;
     }
   };
-  useEffect(() => {
-    return () => {
-      executePaymentCallback();
-    }
-  }, [])
   
   // Progress bar effect
   useEffect(() => {
@@ -91,7 +94,6 @@ function PaymentCallbackPage() {
         console.log(`Auto-reloading, attempt ${reloadCount + 1}/3`);
         setReloadCount(prev => prev + 1);
         user_money_info();
-        executePaymentCallback();
       }, 1000);
       
       return () => clearTimeout(timer);
@@ -110,27 +112,33 @@ function PaymentCallbackPage() {
       }
 
       // First, get user info
-      await fetchUserInfo();
+      const userData = await fetchUserInfo();
       
       // Then get transaction details
+      console.log("Fetching transaction status for ID:", transactionId);
       const { data: transactionResponse } = await axios.get(
         `${base_url2}/api/payment/transaction-status/${transactionId}`
       );
       
-      if (transactionResponse) {
+      if (transactionResponse && transactionResponse.success) {
         const transactionData = transactionResponse.data;
+        console.log("Transaction data received:", transactionData);
         set_transaction_info(transactionData);
         set_amount(transactionData.expectedAmount || 0);
         
-        // Execute payment callback after we have transaction data
-        const paymentResult = await executePaymentCallback(transactionData);
-        console.log('Payment callback result:', paymentResult);
+        // Execute payment callback after we have transaction data and user info
+        if (userData) {
+          const paymentResult = await executePaymentCallback(transactionData);
+          console.log('Payment callback result:', paymentResult);
+        } else {
+          setError("User information not available");
+        }
       } else {
-        setError("Failed to fetch transaction details");
+        setError("Failed to fetch transaction details: " + (transactionResponse?.message || "Unknown error"));
       }
     } catch (error) {
       console.error("Error in user_money_info:", error);
-      setError("An error occurred while processing your payment");
+      setError("An error occurred while processing your payment: " + error.message);
     } finally {
       setLoading(false);
       setShowProgress(false);
@@ -138,12 +146,15 @@ function PaymentCallbackPage() {
   };
 
   useEffect(() => {
-      user_money_info();
-  }, []);
+    user_money_info();
+  }, [transactionId]); // Added transactionId as dependency
 
   const handleDepositAgain = () => {
     navigate('/payment-methods');
   };
+
+  // ... rest of your JSX code remains the same
+  // The loading and error UI components can stay as they are
 
   if (loading) {
     return (
