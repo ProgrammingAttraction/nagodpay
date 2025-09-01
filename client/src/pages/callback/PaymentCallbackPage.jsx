@@ -8,7 +8,6 @@ function PaymentCallbackPage() {
   const base_url2 = "https://api.nagodpay.com";
   const [paymentparams] = useSearchParams();
   const navigate = useNavigate();
-  
   const [transaction_info, set_transaction_info] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -170,6 +169,7 @@ function PaymentCallbackPage() {
   return (
     <div className="min-h-screen flex flex-col font-anek justify-center items-center bg-gray-900 py-10">
       <div className="w-full max-w-4xl px-4 sm:px-6 md:px-8">
+
         <div className="text-center mb-6">
           <h1 className="text-[20px] xl:text-3xl font-semibold text-white">Payment Status</h1>
           <p className="text-[16px] xl:text-lg text-gray-400">Your payment details are below</p>
@@ -222,6 +222,7 @@ function PaymentCallbackPage() {
             Withdraw Again
           </button>
         </div>
+         
       </div>
     </div>
   );
