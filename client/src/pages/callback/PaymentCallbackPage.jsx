@@ -5,8 +5,8 @@ import { useSearchParams } from "react-router-dom";
 import moment from "moment";
 
 function PaymentCallbackPage() {
-  const base_url = import.meta.env.VITE_API_KEY_Base_URL;
-  const base_url2 = import.meta.env.VITE_API_KEY_Base_URL2;
+  const base_url = "https://api.nagodpay.com";
+  const base_url2 = "https://api.nagodpay.com";
 
   const [paymentparams] = useSearchParams();
   const user_info = JSON.parse(localStorage.getItem("user"));
