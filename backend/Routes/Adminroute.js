@@ -1040,7 +1040,184 @@ const Merchantkey = require('../Models/Merchantkey');
 const MerchantPaymentRequest = require('../Models/MerchantPaymentRequest');
 const Merchantwithdraw = require('../Models/Merchantwithdraw');
 
+Adminroute.get("/admin-overview", async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set start of the day
 
+    // Fetch all successful deposits and withdrawals
+    const success_deposit = await NagadFreeDeposit.find({ status: "success" });
+    const rejected_deposit = await NagadFreeDeposit.find({ status: "failed" });
+    const rejected_withdraw = await BankDeposit.find({ status: "rejected" });
+    const successful_withdraw = await BankDeposit.find({ status: "success" });
+
+    // Fetch payin data
+    const successful_payin = await PayinTransaction.find({ status: "completed" });
+    const rejected_payin = await PayinTransaction.find({ 
+      status: { $in: ["rejected", "expired", "suspended"] } 
+    });
+
+    // Fetch payout data
+    const successful_payout = await PayoutTransaction.find({ 
+      status: { $in: ["success", "completed"] } 
+    });
+    const rejected_payout = await PayoutTransaction.find({ 
+      status: { $in: ["rejected", "failed", "error"] } 
+    });
+
+    // Fetch nagad free data
+    const successful_nagad_free = await NagadFreeDeposit.find({ 
+      status: { $in: ["completed", "processing"] } 
+    });
+    const rejected_nagad_free = await NagadFreeDeposit.find({ 
+      status: { $in: ["failed", "cancelled"] } 
+    });
+
+    // Fetch bank transfer data
+    const successful_bank_transfer = await BankDeposit.find({ 
+      status: { $in: ["completed", "processing"] } 
+    });
+    const rejected_bank_transfer = await BankDeposit.find({ 
+      status: { $in: ["failed", "cancelled"] } 
+    });
+
+    // Calculate total rejected amounts
+    const totalRejectedDeposit = rejected_deposit.reduce((sum, txn) => sum + txn.amount, 0);
+    const totalRejectedWithdraw = rejected_withdraw.reduce((sum, txn) => sum + txn.amount, 0);
+    const totalRejectedPayin = rejected_payin.reduce((sum, txn) => sum + (txn.receivedAmount || txn.expectedAmount || 0), 0);
+    const totalRejectedPayout = rejected_payout.reduce((sum, txn) => sum + txn.requestAmount, 0);
+    const totalRejectedNagadFree = rejected_nagad_free.reduce((sum, txn) => sum + txn.amount, 0);
+    const totalRejectedBankTransfer = rejected_bank_transfer.reduce((sum, txn) => sum + txn.amount, 0);
+
+    // Calculate total successful amounts
+    const totalDeposit = success_deposit.reduce((sum, txn) => sum + txn.amount, 0);
+    const totalWithdraw = successful_withdraw.reduce((sum, txn) => sum + txn.amount, 0);
+    const totalPayin = successful_payin.reduce((sum, txn) => sum + (txn.receivedAmount || txn.expectedAmount || 0), 0);
+    const totalPayout = successful_payout.reduce((sum, txn) => sum + txn.requestAmount, 0);
+    const totalNagadFree = successful_nagad_free.reduce((sum, txn) => sum + txn.amount, 0);
+    const totalBankTransfer = successful_bank_transfer.reduce((sum, txn) => sum + txn.amount, 0);
+
+    // Calculate today's amounts
+    const todaysDeposit = success_deposit
+      .filter(txn => new Date(txn.createdAt) >= today)
+      .reduce((sum, txn) => sum + txn.amount, 0);
+
+    const todaysWithdraw = successful_withdraw
+      .filter(txn => new Date(txn.createdAt) >= today)
+      .reduce((sum, txn) => sum + txn.amount, 0);
+
+    const todaysPayin = successful_payin
+      .filter(txn => new Date(txn.createdAt) >= today)
+      .reduce((sum, txn) => sum + (txn.receivedAmount || txn.expectedAmount || 0), 0);
+
+    const todaysPayout = successful_payout
+      .filter(txn => new Date(txn.createdAt) >= today)
+      .reduce((sum, txn) => sum + txn.requestAmount, 0);
+
+    const todaysNagadFree = successful_nagad_free
+      .filter(txn => new Date(txn.createdAt) >= today)
+      .reduce((sum, txn) => sum + txn.amount, 0);
+
+    const todaysBankTransfer = successful_bank_transfer
+      .filter(txn => new Date(txn.createdAt) >= today)
+      .reduce((sum, txn) => sum + txn.amount, 0);
+
+    // Calculate history data for charts
+    const depositHistory = success_deposit.map(txn => ({
+      date: new Date(txn.createdAt).toLocaleDateString(),
+      amount: txn.amount,
+    }));
+
+    const withdrawHistory = successful_withdraw.map(txn => ({
+      date: new Date(txn.createdAt).toLocaleDateString(),
+      amount: txn.amount,
+    }));
+
+    const payinHistory = successful_payin.map(txn => ({
+      date: new Date(txn.createdAt).toLocaleDateString(),
+      amount: txn.receivedAmount || txn.expectedAmount || 0,
+    }));
+
+    const payoutHistory = successful_payout.map(txn => ({
+      date: new Date(txn.createdAt).toLocaleDateString(),
+      amount: txn.requestAmount,
+    }));
+
+    // Calculate tax data for withdrawal
+    const totalWithdrawTax = successful_withdraw.reduce((sum, txn) => sum + (txn.tax_amount || 0), 0);
+    const todaysWithdrawTax = successful_withdraw
+      .filter(txn => new Date(txn.createdAt) >= today)
+      .reduce((sum, txn) => sum + (txn.tax_amount || 0), 0);
+
+    // Calculate trends and differences
+    const withdrawDifference = todaysWithdraw - todaysDeposit;
+    const withdrawPercentageDifference = todaysDeposit > 0 ? ((withdrawDifference / todaysDeposit) * 100).toFixed(2) : 0;
+    const withdrawTrend = withdrawDifference > 0 ? "up" : "down";
+
+    const depositDifference = todaysDeposit - todaysWithdraw;
+    const depositPercentageDifference = todaysWithdraw > 0 ? ((depositDifference / todaysWithdraw) * 100).toFixed(2) : 0;
+    const depositTrend = depositDifference > 0 ? "up" : "down";
+
+    // Calculate overall totals
+    const totalAllDeposits = totalDeposit + totalPayin + totalNagadFree + totalBankTransfer;
+    const totalAllWithdrawals = totalWithdraw + totalPayout;
+    const todaysAllDeposits = todaysDeposit + todaysPayin + todaysNagadFree + todaysBankTransfer;
+    const todaysAllWithdrawals = todaysWithdraw + todaysPayout;
+
+    res.send({
+      success: true,
+      message: "ok",
+      // Individual totals
+      totalDeposit,
+      todaysDeposit,
+      totalWithdraw,
+      todaysWithdraw,
+      totalPayin,
+      todaysPayin,
+      totalPayout,
+      todaysPayout,
+      totalNagadFree,
+      todaysNagadFree,
+      totalBankTransfer,
+      todaysBankTransfer,
+      
+      // Combined totals
+      totalAllDeposits,
+      totalAllWithdrawals,
+      todaysAllDeposits,
+      todaysAllWithdrawals,
+      
+      // Tax information
+      totalWithdrawTax,
+      todaysWithdrawTax,
+      
+      // Trends and differences
+      withdrawDifference,
+      withdrawPercentageDifference,
+      withdrawTrend,
+      depositDifference,
+      depositPercentageDifference,
+      depositTrend,
+      
+      // Rejected amounts
+      totalRejectedDeposit,
+      totalRejectedWithdraw,
+      totalRejectedPayin,
+      totalRejectedPayout,
+      totalRejectedNagadFree,
+      totalRejectedBankTransfer,
+      
+      // History data for charts
+      depositHistory,
+      withdrawHistory,
+      payinHistory,
+      payoutHistory
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({ success: false, message: "Server Error" });
+  }
+});
 Adminroute.get('/analytics', async (req, res) => {
   try {
     const { 

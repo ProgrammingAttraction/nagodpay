@@ -38,32 +38,32 @@ let BKASH_PASSWORD = 'b8t|m:1I|oF';
 let BKASH_APP_KEY = 'bMk6yA8dUSi1RjEKjURQablGtc';
 // const BKASH_APP_SECRET_KEY = 'vHqUepso0iRbToaEe4O1Vwl0b2tBDnPylSDX2hSq8g1hNd05V2Gr'; 
 let BKASH_APP_SECRET_KEY = 'qbl6yK033pPGUeKyJFs2oppUPPeNyJHZn62oOOkMaU3qA0GecnEC';
-
-const get_token_bkash = async () => {
+const get_token_bkash = async (username, password, appKey, appSecret) => {
   try {
-    const body = {
-      app_key: BKASH_APP_KEY, 
-      app_secret: BKASH_APP_SECRET_KEY
-    };
-
-    const tokenObj = await axios.post(`${BKASH_URL}/token/grant`, body, {
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        username: BKASH_USERNAME,
-        password: BKASH_PASSWORD
+    const tokenResponse = await axios.post(
+      'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/checkout/token/grant',
+      {
+        app_key: appKey,
+        app_secret: appSecret
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          username: username,
+          password: password
+        }
       }
-    });
-    // console.log('bkash-get-token-resp', tokenObj.data);
-    return tokenObj.data.id_token;
+    );
 
+    console.log('bkash-token-response', tokenResponse.data);
+    return tokenResponse.data.id_token;
+    
   } catch (error) {
-
     console.log('bkash-get-token-error', error);
-
     return null;
-  }  
-}
+  }
+};
 
 // ----------------------------bkash pament----------------------
 const payment_bkash = async (req, res) => {

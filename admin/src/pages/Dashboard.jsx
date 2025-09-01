@@ -26,59 +26,40 @@ import moment from 'moment';
 
 const Dashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [analyticsData, setAnalyticsData] = useState(null);
+  const [overviewData, setOverviewData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [period, setPeriod] = useState('month'); // 'today', 'month', 'year', 'all'
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
   const token = localStorage.getItem('authToken');
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-  const [getwaycost, setgetwaycost] = useState(0);
 
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    const fetchOverview = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`${base_url}/api/admin/analytics`, {
-          params: { period },
+        const response = await axios.get(`${base_url}/api/admin/admin-overview`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
-        console.log('Analytics response:', response.data);
-        setAnalyticsData(response.data.data);
+        console.log('Overview response:', response.data);
+        setOverviewData(response.data);
         setError(null);
       } catch (err) {
-        setError(err.response?.data?.message || 'Failed to fetch analytics');
-        console.error('Error fetching analytics:', err);
+        setError(err.response?.data?.message || 'Failed to fetch overview data');
+        console.error('Error fetching overview:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    const fetchGetwayCost = async () => {
-      try {
-        const response = await axios.get(`${base_url}/api/admin/total-getwaycost`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        setgetwaycost(response.data.totalGetwaycost || 0);
-        setError(null);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to fetch gateway cost');
-        console.error('Error fetching gateway cost:', err);
-      }
-    };
-
-    fetchAnalytics();
-    fetchGetwayCost();
-  }, [period, base_url, token]);
+    fetchOverview();
+  }, [base_url, token]);
 
   // Format currency values
   const formatCurrency = (value) => {
     if (!value) return '৳0';
-    return `৳${(value / 100).toLocaleString('en-BD')}`;
+    return `৳${value.toLocaleString('en-BD')}`;
   };
 
   // Format number with commas
@@ -93,77 +74,168 @@ const Dashboard = () => {
     return Math.round((value / total) * 100);
   };
 
+  // Prepare data for charts
+  const prepareChartData = () => {
+    if (!overviewData) return [];
+    
+    // Group by date for line charts
+    const depositMap = {};
+    const withdrawMap = {};
+    const payinMap = {};
+    const payoutMap = {};
+    const nagadFreeMap = {};
+    const bankTransferMap = {};
+    
+    // Process deposit history
+    overviewData.depositHistory.forEach(item => {
+      const date = item.date;
+      depositMap[date] = (depositMap[date] || 0) + item.amount;
+    });
+    
+    // Process withdraw history
+    overviewData.withdrawHistory.forEach(item => {
+      const date = item.date;
+      withdrawMap[date] = (withdrawMap[date] || 0) + item.amount;
+    });
+    
+    // Process payin history
+    overviewData.payinHistory.forEach(item => {
+      const date = item.date;
+      payinMap[date] = (payinMap[date] || 0) + item.amount;
+    });
+    
+    // Process payout history
+    overviewData.payoutHistory.forEach(item => {
+      const date = item.date;
+      payoutMap[date] = (payoutMap[date] || 0) + item.amount;
+    });
+    
+    // Process nagad free history
+    overviewData.nagadFreeHistory?.forEach(item => {
+      const date = item.date;
+      nagadFreeMap[date] = (nagadFreeMap[date] || 0) + item.amount;
+    });
+    
+    // Process bank transfer history
+    overviewData.bankTransferHistory?.forEach(item => {
+      const date = item.date;
+      bankTransferMap[date] = (bankTransferMap[date] || 0) + item.amount;
+    });
+    
+    // Combine all dates
+    const allDates = [...new Set([
+      ...Object.keys(depositMap),
+      ...Object.keys(withdrawMap),
+      ...Object.keys(payinMap),
+      ...Object.keys(payoutMap),
+      ...Object.keys(nagadFreeMap),
+      ...Object.keys(bankTransferMap)
+    ])].sort();
+    
+    // Create chart data
+    return allDates.map(date => ({
+      date,
+      deposit: depositMap[date] || 0,
+      withdraw: withdrawMap[date] || 0,
+      payin: payinMap[date] || 0,
+      payout: payoutMap[date] || 0,
+      nagadFree: nagadFreeMap[date] || 0,
+      bankTransfer: bankTransferMap[date] || 0,
+      total: (depositMap[date] || 0) + (payinMap[date] || 0) + (nagadFreeMap[date] || 0) + (bankTransferMap[date] || 0)
+    }));
+  };
+
   // Summary cards data
   const summaryCards = [
-    {     
-      title: 'Total Payin',
-      value: formatCurrency(analyticsData?.totals.payin.total || 0),
+    {
+      title: 'Total Deposit',
+      value: formatCurrency(overviewData?.totalDeposit || 0),
       icon: <FaBangladeshiTakaSign className="w-6 h-6" />,
-      change: analyticsData ? `${calculatePercentage(analyticsData.totals.payin.completed, analyticsData.totals.payin.total)}% completed` : '0%',
+      change: overviewData ? `${formatCurrency(overviewData.todaysDeposit)} today` : '৳0 today',
       isPositive: true,
-      gradient: 'from-indigo-500 to-blue-500',
+      gradient: 'from-blue-500 to-indigo-500',
       data: {
-        completed: formatCurrency(analyticsData?.totals.payin.completed || 0),
-        pending: formatCurrency(analyticsData?.totals.payin.pending || 0),
-        rejected: formatCurrency(analyticsData?.totals.payin.rejected || 0)
+        today: formatCurrency(overviewData?.todaysDeposit || 0),
+        total: formatCurrency(overviewData?.totalDeposit || 0)
+      }
+    },
+    {
+      title: 'Total Withdraw',
+      value: formatCurrency(overviewData?.totalWithdraw || 0),
+      icon: <FiCreditCard className="w-6 h-6" />,
+      change: overviewData ? `${formatCurrency(overviewData.todaysWithdraw)} today` : '৳0 today',
+      isPositive: true,
+      gradient: 'from-green-500 to-teal-500',
+      data: {
+        today: formatCurrency(overviewData?.todaysWithdraw || 0),
+        total: formatCurrency(overviewData?.totalWithdraw || 0)
+      }
+    },
+    {
+      title: 'Total Payin',
+      value: formatCurrency(overviewData?.totalPayin || 0),
+      icon: <FiTrendingUp className="w-6 h-6" />,
+      change: overviewData ? `${formatCurrency(overviewData.todaysPayin)} today` : '৳0 today',
+      isPositive: true,
+      gradient: 'from-purple-500 to-pink-500',
+      data: {
+        today: formatCurrency(overviewData?.todaysPayin || 0),
+        total: formatCurrency(overviewData?.totalPayin || 0)
       }
     },
     {
       title: 'Total Payout',
-      value: formatCurrency(analyticsData?.totals.payout.total || 0),
-      icon: <FiCreditCard className="w-6 h-6" />,
-      change: analyticsData ? `${calculatePercentage(analyticsData.totals.payout.success, analyticsData.totals.payout.total)}% success` : '0%',
+      value: formatCurrency(overviewData?.totalPayout || 0),
+      icon: <FiTrendingDown className="w-6 h-6" />,
+      change: overviewData ? `${formatCurrency(overviewData.todaysPayout)} today` : '৳0 today',
       isPositive: true,
-      gradient: 'from-green-500 to-teal-500',
+      gradient: 'from-amber-500 to-orange-500',
       data: {
-        success: formatCurrency(analyticsData?.totals.payout.success || 0),
-        pending: formatCurrency(analyticsData?.totals.payout.pending || 0),
-        rejected: formatCurrency(analyticsData?.totals.payout.rejected || 0)
+        today: formatCurrency(overviewData?.todaysPayout || 0),
+        total: formatCurrency(overviewData?.totalPayout || 0)
+      }
+    },
+    {
+      title: 'Nagad Free',
+      value: formatCurrency(overviewData?.totalNagadFree || 0),
+      icon: <FaBangladeshiTakaSign className="w-6 h-6" />,
+      change: overviewData ? `${formatCurrency(overviewData.todaysNagadFree)} today` : '৳0 today',
+      isPositive: true,
+      gradient: 'from-green-600 to-emerald-600',
+      data: {
+        today: formatCurrency(overviewData?.todaysNagadFree || 0),
+        total: formatCurrency(overviewData?.totalNagadFree || 0)
+      }
+    },
+    {
+      title: 'Bank Transfer',
+      value: formatCurrency(overviewData?.totalBankTransfer || 0),
+      icon: <FiCreditCard className="w-6 h-6" />,
+      change: overviewData ? `${formatCurrency(overviewData.todaysBankTransfer)} today` : '৳0 today',
+      isPositive: true,
+      gradient: 'from-blue-600 to-cyan-600',
+      data: {
+        today: formatCurrency(overviewData?.todaysBankTransfer || 0),
+        total: formatCurrency(overviewData?.totalBankTransfer || 0)
       }
     },
     {
       title: 'Net Balance',
-      value: formatCurrency(analyticsData?.totals.net || 0),
-      icon: <FiTrendingUp className="w-6 h-6" />,
-      change: analyticsData ? 
-        `${Math.abs(calculatePercentage(analyticsData.totals.net, analyticsData.totals.payin.total))}% ${analyticsData.totals.net >= 0 ? 'profit' : 'loss'}` 
+      value: formatCurrency(overviewData?.netBalance || 0),
+      icon: <FaExchangeAlt className="w-6 h-6" />,
+      change: overviewData ? 
+        `${Math.abs(calculatePercentage(
+          overviewData.netBalance,
+          overviewData.totalIncome
+        ))}% ${overviewData.netBalance >= 0 ? 'profit' : 'loss'}` 
         : '0%',
-      isPositive: analyticsData ? analyticsData.totals.net >= 0 : true,
-      gradient: analyticsData?.totals.net >= 0 ? 'from-purple-500 to-pink-500' : 'from-red-500 to-orange-500',
+      isPositive: overviewData ? overviewData.netBalance >= 0 : true,
+      gradient: overviewData && overviewData.netBalance >= 0 
+        ? 'from-green-700 to-emerald-700' 
+        : 'from-red-700 to-orange-700',
       data: {
-        payin: formatCurrency(analyticsData?.totals.payin.total || 0),
-        payout: formatCurrency(analyticsData?.totals.payout.total || 0)
-      }
-    },
-    {
-      title: 'Total Transactions',
-      value: formatNumber(analyticsData?.summary?.totalTransactions || 0),
-      icon: <FiCheckCircle className="w-6 h-6" />,
-      change: analyticsData ? 
-        `${calculatePercentage(
-          analyticsData.counts.payin.completed + analyticsData.counts.payout.success,
-          analyticsData.summary.totalTransactions
-        )}% successful` 
-        : '0%',
-      isPositive: true,
-      gradient: 'from-amber-500 to-orange-500',
-      data: {
-        successful: formatNumber(analyticsData ? 
-          (analyticsData.counts.payin.completed + analyticsData.counts.payout.success) : 0),
-        pending: formatNumber(analyticsData ? 
-          (analyticsData.counts.payin.pending + analyticsData.counts.payout.pending) : 0),
-        rejected: formatNumber(analyticsData ? 
-          (analyticsData.counts.payin.rejected + analyticsData.counts.payout.rejected) : 0)
-      }
-    },
-    {
-      title: 'Total Revenue',
-      value: formatCurrency(getwaycost || 0),
-      icon: <FiCheckCircle className="w-6 h-6" />,
-      isPositive: true,
-      gradient: 'from-amber-500 to-orange-500',
-      data: {
-        revenue: formatCurrency(getwaycost || 0)
+        income: formatCurrency(overviewData?.totalIncome || 0),
+        expense: formatCurrency(overviewData?.totalExpense || 0)
       }
     }
   ];
@@ -171,86 +243,78 @@ const Dashboard = () => {
   // Status cards data
   const statusCards = [
     {
-      title: 'Payin Status',
-      icon: <FaBangladeshiTakaSign className="text-indigo-500" />,
+      title: 'Today\'s Summary',
+      icon: <FaCalendarAlt className="text-indigo-500" />,
       data: [
-        { label: 'Completed', value: formatNumber(analyticsData?.counts.payin.completed || 0), amount: formatCurrency(analyticsData?.totals.payin.completed || 0), icon: <FiCheckCircle className="text-green-500" />, color: 'bg-green-100' },
-        { label: 'Pending', value: formatNumber(analyticsData?.counts.payin.pending || 0), amount: formatCurrency(analyticsData?.totals.payin.pending || 0), icon: <FiClock className="text-orange-500" />, color: 'bg-orange-100' },
-        { label: 'Rejected', value: formatNumber(analyticsData?.counts.payin.rejected || 0), amount: formatCurrency(analyticsData?.totals.payin.rejected || 0), icon: <FiXCircle className="text-red-500" />, color: 'bg-red-100' }
+        { label: 'Total Income', value: formatCurrency(overviewData?.todaysIncome || 0), icon: <FiTrendingUp className="text-green-500" />, color: 'bg-green-100' },
+        { label: 'Total Expense', value: formatCurrency(overviewData?.todaysExpense || 0), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Net Today', value: formatCurrency((overviewData?.todaysIncome || 0) - (overviewData?.todaysExpense || 0)), icon: <FaExchangeAlt className="text-blue-500" />, color: 'bg-blue-100' }
       ]
     },
     {
-      title: 'Payout Status',
-      icon: <FaExchangeAlt className="text-blue-500" />,
+      title: 'Rejected Transactions',
+      icon: <FiXCircle className="text-red-500" />,
       data: [
-        { label: 'Success', value: formatNumber(analyticsData?.counts.payout.success || 0), amount: formatCurrency(analyticsData?.totals.payout.success || 0), icon: <FiCheckCircle className="text-green-500" />, color: 'bg-green-100' },
-        { label: 'Pending', value: formatNumber(analyticsData?.counts.payout.pending || 0), amount: formatCurrency(analyticsData?.totals.payout.pending || 0), icon: <FiClock className="text-orange-500" />, color: 'bg-orange-100' },
-        { label: 'Rejected', value: formatNumber(analyticsData?.counts.payout.rejected || 0), amount: formatCurrency(analyticsData?.totals.payout.rejected || 0), icon: <FiXCircle className="text-red-500" />, color: 'bg-red-100' }
+        { label: 'Rejected Deposit', value: formatCurrency(overviewData?.totalRejectedDeposit || 0), icon: <FaBangladeshiTakaSign className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Rejected Withdraw', value: formatCurrency(overviewData?.totalRejectedWithdraw || 0), icon: <FiCreditCard className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Rejected Payin', value: formatCurrency(overviewData?.totalRejectedPayin || 0), icon: <FiTrendingUp className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Rejected Payout', value: formatCurrency(overviewData?.totalRejectedPayout || 0), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Rejected Nagad Free', value: formatCurrency(overviewData?.totalRejectedNagadFree || 0), icon: <FaBangladeshiTakaSign className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Rejected Bank Transfer', value: formatCurrency(overviewData?.totalRejectedBankTransfer || 0), icon: <FiCreditCard className="text-red-500" />, color: 'bg-red-100' }
       ]
     },
     {
-      title: 'Payin Summary',
-      icon: <FiTrendingUp className="text-purple-500" />,
+      title: 'Tax Information',
+      icon: <FaFileAlt className="text-purple-500" />,
       data: [
-        { label: 'Total Amount', value: formatCurrency(analyticsData?.totals.payin.total || 0), icon: <FaBangladeshiTakaSign className="text-indigo-500" />, color: 'bg-indigo-100' },
-        { label: 'Avg. Transaction', value: formatCurrency(analyticsData?.providers.payin[0]?.avgAmount || 0), icon: <FaDollarSign className="text-blue-500" />, color: 'bg-blue-100' },
-        { label: 'Total Transactions', value: formatNumber(analyticsData?.counts.payin.total || 0), icon: <FaFileAlt className="text-teal-500" />, color: 'bg-teal-100' }
+        { label: 'Total Withdraw Tax', value: formatCurrency(overviewData?.totalWithdrawTax || 0), icon: <FaDollarSign className="text-purple-500" />, color: 'bg-purple-100' },
+        { label: "Today's Withdraw Tax", value: formatCurrency(overviewData?.todaysWithdrawTax || 0), icon: <FaCalendarAlt className="text-purple-500" />, color: 'bg-purple-100' },
+        { label: 'Tax Rate', value: overviewData && overviewData.totalWithdraw > 0 ? `${calculatePercentage(overviewData.totalWithdrawTax, overviewData.totalWithdraw)}%` : '0%', icon: <FiTrendingUp className="text-purple-500" />, color: 'bg-purple-100' }
       ]
     },
     {
-      title: 'Payout Summary',
-      icon: <FiTrendingDown className="text-teal-500" />,
+      title: 'Performance Trends',
+      icon: <FiTrendingUp className="text-teal-500" />,
       data: [
-        { label: 'Total Amount', value: formatCurrency(analyticsData?.totals.payout.total || 0), icon: <FaBangladeshiTakaSign className="text-green-500" />, color: 'bg-green-100' },
-        { label: 'Avg. Transaction', value: formatCurrency(analyticsData?.providers.payout[0]?.avgAmount || 0), icon: <FaDollarSign className="text-amber-500" />, color: 'bg-amber-100' },
-        { label: 'Total Transactions', value: formatNumber(analyticsData?.counts.payout.total || 0), icon: <FaFileAlt className="text-pink-500" />, color: 'bg-pink-100' }
+        { label: 'Income Trend', value: overviewData ? `${overviewData.incomePercentageDifference}% ${overviewData.incomeTrend}` : '0%', icon: overviewData && overviewData.incomeTrend === 'up' ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && overviewData.incomeTrend === 'up' ? 'bg-green-100' : 'bg-red-100' },
+        { label: 'Expense Trend', value: overviewData ? `${overviewData.expensePercentageDifference}% ${overviewData.expenseTrend}` : '0%', icon: overviewData && overviewData.expenseTrend === 'up' ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && overviewData.expenseTrend === 'up' ? 'bg-green-100' : 'bg-red-100' },
+        { label: 'Net Flow', value: overviewData ? formatCurrency(overviewData.incomeDifference - overviewData.expenseDifference) : '৳0', icon: overviewData && (overviewData.incomeDifference - overviewData.expenseDifference) >= 0 ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && (overviewData.incomeDifference - overviewData.expenseDifference) >= 0 ? 'bg-green-100' : 'bg-red-100' }
       ]
     }
   ];
-
-  // Format trend data for charts
-  const formatTrendData = (trendData) => {
-    if (!trendData || !trendData.length) return [];
-    
-    if (period === 'today') {
-      return trendData.map(item => ({
-        time: `${item._id}:00`,
-        value: item.amount / 100
-      }));
-    } else if (period === 'month') {
-      return trendData.map(item => ({
-        time: `Day ${item._id}`,
-        value: item.amount / 100
-      }));
-    } else {
-      return trendData.map(item => ({
-        time: moment().month(item._id - 1).format('MMM'),
-        value: item.amount / 100
-      }));
-    }
-  };
 
   // Prepare pie chart data for payment breakdown
   const paymentBreakdownData = [
     { 
-      name: 'Payin', 
-      value: analyticsData ? analyticsData.totals.payin.total / 100 : 0, 
+      name: 'Deposit', 
+      value: overviewData?.totalDeposit || 0, 
       color: '#3B82F6' 
     },
     { 
-      name: 'Payout', 
-      value: analyticsData ? analyticsData.totals.payout.total / 100 : 0, 
+      name: 'Payin', 
+      value: overviewData?.totalPayin || 0, 
+      color: '#8B5CF6' 
+    },
+    { 
+      name: 'Nagad Free', 
+      value: overviewData?.totalNagadFree || 0, 
+      color: '#10B981' 
+    },
+    { 
+      name: 'Bank Transfer', 
+      value: overviewData?.totalBankTransfer || 0, 
+      color: '#06B6D4' 
+    },
+    { 
+      name: 'Withdraw', 
+      value: overviewData?.totalWithdraw || 0, 
       color: '#F59E0B' 
+    },
+    { 
+      name: 'Payout', 
+      value: overviewData?.totalPayout || 0, 
+      color: '#EF4444' 
     }
-  ];
-
-  // Prepare provider distribution data
-  const providerData = [
-    ...(analyticsData?.providers.payin.map(provider => ({
-      name: provider._id,
-      payin: provider.totalAmount / 100,
-      payout: analyticsData?.providers.payout.find(p => p._id === provider._id)?.totalAmount / 100 || 0
-    })) || [])
   ];
 
   if (loading) {
@@ -297,46 +361,18 @@ const Dashboard = () => {
         <Sidebar isOpen={isSidebarOpen} />
 
         <main className={`transition-all duration-300 flex-1 p-6 overflow-y-auto h-[90vh] ${isSidebarOpen ? 'ml-[17%]' : 'ml-0'}`}>
-          {/* Header and Period Selector */}
+          {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Payment Analytics Dashboard</h1>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Financial Overview Dashboard</h1>
               <p className="text-sm text-gray-500">
-                {analyticsData?.period ? 
-                  `Showing data from ${moment(analyticsData.period.start).format('MMM D, YYYY')} to ${moment(analyticsData.period.end).format('MMM D, YYYY')}` 
-                  : 'Loading period data...'}
+                Comprehensive view of all financial transactions and performance metrics
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2 bg-white p-1 rounded-lg shadow-sm">
-              <button 
-                onClick={() => setPeriod('today')} 
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${period === 'today' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                Today
-              </button>
-              <button 
-                onClick={() => setPeriod('month')} 
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${period === 'month' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                This Month
-              </button>
-              <button 
-                onClick={() => setPeriod('year')} 
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${period === 'year' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                This Year
-              </button>
-              <button 
-                onClick={() => setPeriod('all')} 
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${period === 'all' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                All Time
-              </button>
             </div>
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 gap-6 mb-8 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-6 mb-8 sm:grid-cols-2 lg:grid-cols-4">
             {summaryCards.map((card, index) => (
               <div 
                 key={index} 
@@ -354,7 +390,7 @@ const Dashboard = () => {
                   </div>
                   <div className="mt-4">
                     <p className="text-sm font-medium opacity-80">{card.change}</p>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       {Object.entries(card.data).map(([key, value]) => (
                         <div key={key} className="bg-white bg-opacity-10 rounded p-1 text-center">
                           <p className="text-xs opacity-80 text-gray-800 font-[700] capitalize">{key}</p>
@@ -391,9 +427,6 @@ const Dashboard = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-gray-800">{item.value}</p>
-                        {item.amount && (
-                          <p className="text-xs text-gray-500">{item.amount}</p>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -404,122 +437,23 @@ const Dashboard = () => {
 
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Payin Trend Chart */}
+            {/* Transaction Trend Chart */}
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-md font-semibold text-gray-700">Payin Trend</h2>
+                <h2 className="text-md font-semibold text-gray-700">Transaction Trends</h2>
                 <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">
-                  {analyticsData?.totals.payin.total ? formatCurrency(analyticsData.totals.payin.total) : '৳0'}
+                  {overviewData ? formatCurrency(overviewData.totalIncome) : '৳0'} total income
                 </span>
               </div>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
-                    data={formatTrendData(analyticsData?.trends.payin)} 
+                  <AreaChart 
+                    data={prepareChartData()} 
                     margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis 
-                      dataKey="time" 
-                      tick={{ fontSize: 12 }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis 
-                      tickFormatter={(val) => `৳${val}`} 
-                      tick={{ fontSize: 12 }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip 
-                      contentStyle={{
-                        borderRadius: '8px',
-                        border: 'none',
-                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                      }}
-                      formatter={(value) => [`৳${value}`, "Amount"]} 
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#3B82F6"
-                      strokeWidth={3}
-                      dot={{ r: 4, strokeWidth: 2, stroke: '#3B82F6', fill: '#fff' }}
-                      activeDot={{ r: 6, strokeWidth: 2, stroke: '#3B82F6', fill: '#fff' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Payout Trend Chart */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-md font-semibold text-gray-700">Payout Trend</h2>
-                <span className="text-xs bg-amber-50 text-amber-600 px-2 py-1 rounded-full">
-                  {analyticsData?.totals.payout.total ? formatCurrency(analyticsData.totals.payout.total) : '৳0'}
-                </span>
-              </div>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
-                    data={formatTrendData(analyticsData?.trends.payout)} 
-                    margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis 
-                      dataKey="time" 
-                      tick={{ fontSize: 12 }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis 
-                      tickFormatter={(val) => `৳${val}`} 
-                      tick={{ fontSize: 12 }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip 
-                      contentStyle={{
-                        borderRadius: '8px',
-                        border: 'none',
-                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                      }}
-                      formatter={(value) => [`৳${value}`, "Amount"]} 
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#F59E0B"
-                      strokeWidth={3}
-                      dot={{ r: 4, strokeWidth: 2, stroke: '#F59E0B', fill: '#fff' }}
-                      activeDot={{ r: 6, strokeWidth: 2, stroke: '#F59E0B', fill: '#fff' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          {/* Provider Distribution and Payment Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Provider Distribution */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-md font-semibold text-gray-700">Provider Distribution</h2>
-                <span className="text-xs bg-green-50 text-green-600 px-2 py-1 rounded-full">
-                  {analyticsData?.providers.payin.length || 0} providers
-                </span>
-              </div>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={providerData} 
-                    margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis 
-                      dataKey="name" 
+                      dataKey="date" 
                       tick={{ fontSize: 12 }}
                       tickLine={false}
                       axisLine={false}
@@ -543,21 +477,47 @@ const Dashboard = () => {
                         paddingTop: '20px'
                       }}
                     />
-                    <Bar 
-                      dataKey="payin" 
-                      name="Payin" 
-                      fill="#3B82F6" 
-                      radius={[4, 4, 0, 0]} 
-                      barSize={24}
+                    <Area
+                      type="monotone"
+                      dataKey="deposit"
+                      stackId="1"
+                      stroke="#3B82F6"
+                      fill="#3B82F6"
+                      fillOpacity={0.2}
+                      strokeWidth={2}
+                      name="Deposit"
                     />
-                    <Bar 
-                      dataKey="payout" 
-                      name="Payout" 
-                      fill="#F59E0B" 
-                      radius={[4, 4, 0, 0]} 
-                      barSize={24}
+                    <Area
+                      type="monotone"
+                      dataKey="payin"
+                      stackId="1"
+                      stroke="#8B5CF6"
+                      fill="#8B5CF6"
+                      fillOpacity={0.2}
+                      strokeWidth={2}
+                      name="Payin"
                     />
-                  </BarChart>
+                    <Area
+                      type="monotone"
+                      dataKey="nagadFree"
+                      stackId="1"
+                      stroke="#10B981"
+                      fill="#10B981"
+                      fillOpacity={0.2}
+                      strokeWidth={2}
+                      name="Nagad Free"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="bankTransfer"
+                      stackId="1"
+                      stroke="#06B6D4"
+                      fill="#06B6D4"
+                      fillOpacity={0.2}
+                      strokeWidth={2}
+                      name="Bank Transfer"
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
@@ -567,8 +527,15 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-semibold text-gray-700">Payment Breakdown</h2>
                 <span className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded-full">
-                  {analyticsData ? 
-                    formatCurrency(analyticsData.totals.payin.total + analyticsData.totals.payout.total) + ' total'
+                  {overviewData ? 
+                    formatCurrency(
+                      (overviewData.totalDeposit || 0) + 
+                      (overviewData.totalPayin || 0) + 
+                      (overviewData.totalNagadFree || 0) + 
+                      (overviewData.totalBankTransfer || 0) + 
+                      (overviewData.totalWithdraw || 0) + 
+                      (overviewData.totalPayout || 0)
+                    ) + ' total'
                     : '৳0 total'}
                 </span>
               </div>
@@ -607,12 +574,12 @@ const Dashboard = () => {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="flex justify-center gap-4 mt-2">
+                <div className="flex justify-center gap-4 mt-2 flex-wrap">
                   {paymentBreakdownData.map((entry, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }}></span>
                       <span className="text-xs font-medium text-gray-600">
-                        {entry.name}: {formatCurrency(entry.value * 100)}
+                        {entry.name}: {formatCurrency(entry.value)}
                       </span>
                     </div>
                   ))}
@@ -621,73 +588,219 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Top Accounts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Top Payin Accounts */}
+          {/* Additional Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Income Sources */}
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <h2 className="text-md font-semibold text-gray-700 mb-4">Top Payin Accounts</h2>
-              <div className="space-y-4">
-                {analyticsData?.topAccounts.payin && analyticsData.topAccounts.payin.length > 0 ? (
-                  analyticsData.topAccounts.payin.map((account, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                      <div className="flex items-center space-x-3">
-                        <div className="bg-indigo-100 p-2 rounded-lg">
-                          <FiUserPlus className="text-indigo-600" />
-                        </div>
-                        <span className="font-medium text-sm text-gray-700">
-                          {account._id || 'Unknown Account'}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-bold block text-gray-800">
-                          {formatCurrency(account.totalAmount)}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {account.count} transaction{account.count !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <FiCheckCircle className="mx-auto text-gray-300 text-3xl mb-2" />
-                    <p className="text-gray-500">No payin accounts data</p>
-                  </div>
-                )}
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-md font-semibold text-gray-700">Income Sources</h2>
+                <span className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full">
+                  {overviewData ? formatCurrency(overviewData.totalIncome) : '৳0'} total
+                </span>
+              </div>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={prepareChartData()} 
+                    margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis 
+                      tickFormatter={(val) => `৳${val}`} 
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        borderRadius: '8px',
+                        border: 'none',
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                      }}
+                      formatter={(value) => [`৳${value}`, "Amount"]} 
+                    />
+                    <Legend 
+                      wrapperStyle={{
+                        paddingTop: '20px'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="deposit" 
+                      name="Deposit" 
+                      fill="#3B82F6" 
+                      radius={[4, 4, 0, 0]} 
+                      barSize={20}
+                    />
+                    <Bar 
+                      dataKey="payin" 
+                      name="Payin" 
+                      fill="#8B5CF6" 
+                      radius={[4, 4, 0, 0]} 
+                      barSize={20}
+                    />
+                    <Bar 
+                      dataKey="nagadFree" 
+                      name="Nagad Free" 
+                      fill="#10B981" 
+                      radius={[4, 4, 0, 0]} 
+                      barSize={20}
+                    />
+                    <Bar 
+                      dataKey="bankTransfer" 
+                      name="Bank Transfer" 
+                      fill="#06B6D4" 
+                      radius={[4, 4, 0, 0]} 
+                      barSize={20}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Top Payout Accounts */}
+            {/* Expense Comparison */}
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <h2 className="text-md font-semibold text-gray-700 mb-4">Top Payout Accounts</h2>
-              <div className="space-y-4">
-                {analyticsData?.topAccounts.payout && analyticsData.topAccounts.payout.length > 0 ? (
-                  analyticsData.topAccounts.payout.map((account, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                      <div className="flex items-center space-x-3">
-                        <div className="bg-amber-100 p-2 rounded-lg">
-                          <FiUserPlus className="text-amber-600" />
-                        </div>
-                        <span className="font-medium text-sm text-gray-700">
-                          {account._id || 'Unknown Account'}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-bold block text-gray-800">
-                          {formatCurrency(account.totalAmount)}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {account.count} transaction{account.count !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <FiCreditCard className="mx-auto text-gray-300 text-3xl mb-2" />
-                    <p className="text-gray-500">No payout accounts data</p>
-                  </div>
-                )}
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-md font-semibold text-gray-700">Expense Comparison</h2>
+                <span className="text-xs bg-red-50 text-red-600 px-2 py-1 rounded-full">
+                  {overviewData ? formatCurrency(overviewData.totalExpense) : '৳0'} total
+                </span>
+              </div>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={prepareChartData()} 
+                    margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis 
+                      tickFormatter={(val) => `৳${val}`} 
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        borderRadius: '8px',
+                        border: 'none',
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                      }}
+                      formatter={(value) => [`৳${value}`, "Amount"]} 
+                    />
+                    <Legend 
+                      wrapperStyle={{
+                        paddingTop: '20px'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="withdraw" 
+                      name="Withdraw" 
+                      fill="#F59E0B" 
+                      radius={[4, 4, 0, 0]} 
+                      barSize={20}
+                    />
+                    <Bar 
+                      dataKey="payout" 
+                      name="Payout" 
+                      fill="#EF4444" 
+                      radius={[4, 4, 0, 0]} 
+                      barSize={20}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 mb-6">
+            <h2 className="text-md font-semibold text-gray-700 mb-4">Recent Activity Summary</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-blue-800">Today's Income</h3>
+                  <FiTrendingUp className="text-blue-600" />
+                </div>
+                <p className="text-2xl font-bold text-blue-900 mt-2">
+                  {formatCurrency(overviewData?.todaysIncome || 0)}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  {overviewData ? 
+                    `${calculatePercentage(
+                      overviewData.todaysIncome,
+                      overviewData.totalIncome
+                    )}% of total income` 
+                    : '0% of total income'}
+                </p>
+              </div>
+              
+              <div className="bg-orange-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-orange-800">Today's Expense</h3>
+                  <FiTrendingDown className="text-orange-600" />
+                </div>
+                <p className="text-2xl font-bold text-orange-900 mt-2">
+                  {formatCurrency(overviewData?.todaysExpense || 0)}
+                </p>
+                <p className="text-xs text-orange-600 mt-1">
+                  {overviewData ? 
+                    `${calculatePercentage(
+                      overviewData.todaysExpense,
+                      overviewData.totalExpense
+                    )}% of total expense` 
+                    : '0% of total expense'}
+                </p>
+              </div>
+              
+              <div className="bg-green-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-green-800">Today's Net</h3>
+                  <FaExchangeAlt className="text-green-600" />
+                </div>
+                <p className="text-2xl font-bold text-green-900 mt-2">
+                  {formatCurrency(
+                    (overviewData?.todaysIncome || 0) - (overviewData?.todaysExpense || 0)
+                  )}
+                </p>
+                <p className="text-xs text-green-600 mt-1">
+                  {overviewData ? 
+                    `${Math.abs(calculatePercentage(
+                      (overviewData.todaysIncome - overviewData.todaysExpense),
+                      overviewData.todaysIncome
+                    ))}% ${(overviewData.todaysIncome - overviewData.todaysExpense) >= 0 ? 'profit' : 'loss'}` 
+                    : '0%'}
+                </p>
+              </div>
+              
+              <div className="bg-red-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-red-800">Today's Rejected</h3>
+                  <FiXCircle className="text-red-600" />
+                </div>
+                <p className="text-2xl font-bold text-red-900 mt-2">
+                  {formatCurrency(
+                    (overviewData?.totalRejectedDeposit || 0) + 
+                    (overviewData?.totalRejectedWithdraw || 0) + 
+                    (overviewData?.totalRejectedPayin || 0) + 
+                    (overviewData?.totalRejectedPayout || 0) +
+                    (overviewData?.totalRejectedNagadFree || 0) +
+                    (overviewData?.totalRejectedBankTransfer || 0)
+                  )}
+                </p>
+                <p className="text-xs text-red-600 mt-1">
+                  Total rejected transactions
+                </p>
               </div>
             </div>
           </div>
