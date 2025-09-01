@@ -239,7 +239,7 @@ function PaymentCallbackPage() {
         
         <div className="mt-6 text-center flex flex-col sm:flex-row justify-center gap-4">
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/payment-methods')}
             className="px-6 py-2 text-[15px] font-semibold text-white cursor-pointer bg-indigo-600 rounded-[3px] hover:bg-indigo-700 transition duration-300"
           >
            Deposit Again
