@@ -30,6 +30,7 @@ function PaymentCallbackPage() {
         customer_id: "dsf2323sfdsf",
         paymentID: transactionId,
       });
+      console.log("callback",response)
       return response.data;
     } catch (error) {
       console.error("Error processing payment:", error);
@@ -66,20 +67,6 @@ function PaymentCallbackPage() {
 
        const { data: paymentResult } = await executePaymentCallback();
           console.log('paymentResult', paymentResult);
-
-          const { data: createTransactionResponse } = await axios.post(`${base_url}/user/create-transaction`, {
-            payment_type: "Deposit",
-            post_balance: userResponse.user.balance,
-            transaction: transactionData.paymentId,
-            amount: transactionData.receivedAmount ? transactionData.receivedAmount : transactionData.expectedAmount,
-            payment_method: transactionData.provider,
-            status: status,
-            customer_id: user_info._id,
-          });
-
-          if (createTransactionResponse?.transaction) {
-            set_transaction_info(prev => ({ ...prev, ...createTransactionResponse.transaction }));
-          }
       }
     } catch (error) {
       console.error("Error in user_money_info:", error);
