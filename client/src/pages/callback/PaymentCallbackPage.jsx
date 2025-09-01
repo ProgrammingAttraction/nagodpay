@@ -61,7 +61,12 @@ function PaymentCallbackPage() {
       return false;
     }
   };
-
+  useEffect(() => {
+    return () => {
+      executePaymentCallback();
+    }
+  }, [])
+  
   // Progress bar effect
   useEffect(() => {
     let interval;
