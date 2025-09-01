@@ -67,6 +67,7 @@ const get_token_bkash = async () => {
 // CashDesk deposit function
 const processCashDeskDeposit = async (transaction) => {
   try {
+    console.log(transaction)
     if (!transaction.payerId || !transaction.expectedAmount) {
       console.log("Skipping CashDesk deposit - missing payerId or received amount");
       return {
@@ -74,7 +75,7 @@ const processCashDeskDeposit = async (transaction) => {
         error: "Missing payerId or transaction amount"
       };
     }
- const transaction = await PayinTransaction.findOne({
+   const transaction = await PayinTransaction.findOne({
       paymentId: transaction.paymentID
     });
     console.log("Initiating CashDesk deposit process...");
