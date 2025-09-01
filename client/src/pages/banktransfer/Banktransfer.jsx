@@ -571,15 +571,7 @@ const Banktransfer = () => {
                                 >
                                   <FaCheck />
                                 </button>
-                                {deposit.status === 'pending' && (
-                                  <button
-                                    onClick={() => openForwardModal(deposit)}
-                                    className="p-2 bg-purple-500 cursor-pointer text-white rounded-md hover:bg-purple-600 transition-colors"
-                                    title="Forward Deposit"
-                                  >
-                                    <FaForward />
-                                  </button>
-                                )}
+                           
                               </div>
                             </td>
                           </tr>

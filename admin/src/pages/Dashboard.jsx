@@ -145,8 +145,53 @@ const Dashboard = () => {
     }));
   };
 
+  // Calculate total income and expense
+  const totalIncome = overviewData ? 
+    (overviewData.totalDeposit || 0) + 
+    (overviewData.totalPayin || 0) + 
+    (overviewData.totalNagadFree || 0) + 
+    (overviewData.totalBankTransfer || 0) : 0;
+  
+  const totalExpense = overviewData ? 
+    (overviewData.totalWithdraw || 0) + 
+    (overviewData.totalPayout || 0) : 0;
+  
+  const todaysIncome = overviewData ? 
+    (overviewData.todaysDeposit || 0) + 
+    (overviewData.todaysPayin || 0) + 
+    (overviewData.todaysNagadFree || 0) + 
+    (overviewData.todaysBankTransfer || 0) : 0;
+  
+  const todaysExpense = overviewData ? 
+    (overviewData.todaysWithdraw || 0) + 
+    (overviewData.todaysPayout || 0) : 0;
+
   // Summary cards data
   const summaryCards = [
+    // {
+    //   title: 'Total Deposit',
+    //   value:overviewData?.totalDeposit || 0,
+    //   icon: <FiTrendingUp className="w-6 h-6" />,
+    //   change: overviewData ? `${formatCurrency(overviewData.todaysDeposit)} today` : '৳0 today',
+    //   isPositive: true,
+    //   gradient: 'from-blue-500 to-indigo-500',
+    //   data: {
+    //     today: formatCurrency(overviewData?.todaysDeposit || 0),
+    //     total: formatCurrency(overviewData?.totalDeposit || 0)
+    //   }
+    // },
+    // {
+    //   title: 'Total Withdraw',
+    //   value: formatCurrency(overviewData?.totalWithdraw || 0),
+    //   icon: <FiTrendingDown className="w-6 h-6" />,
+    //   change: overviewData ? `${formatCurrency(overviewData.todaysWithdraw)} today` : '৳0 today',
+    //   isPositive: true,
+    //   gradient: 'from-amber-500 to-orange-500',
+    //   data: {
+    //     today: formatCurrency(overviewData?.todaysWithdraw || 0),
+    //     total: formatCurrency(overviewData?.totalWithdraw || 0)
+    //   }
+    // },
     {
       title: 'Total Payin',
       value: formatCurrency(overviewData?.totalPayin || 0),
@@ -165,7 +210,7 @@ const Dashboard = () => {
       icon: <FiTrendingDown className="w-6 h-6" />,
       change: overviewData ? `${formatCurrency(overviewData.todaysPayout)} today` : '৳0 today',
       isPositive: true,
-      gradient: 'from-amber-500 to-orange-500',
+      gradient: 'from-red-500 to-rose-500',
       data: {
         today: formatCurrency(overviewData?.todaysPayout || 0),
         total: formatCurrency(overviewData?.totalPayout || 0)
@@ -197,21 +242,21 @@ const Dashboard = () => {
     },
     // {
     //   title: 'Net Balance',
-    //   value: formatCurrency(overviewData?.netBalance || 0),
+    //   value: formatCurrency(totalIncome - totalExpense),
     //   icon: <FaExchangeAlt className="w-6 h-6" />,
     //   change: overviewData ? 
     //     `${Math.abs(calculatePercentage(
-    //       overviewData.netBalance,
-    //       overviewData.totalIncome
-    //     ))}% ${overviewData.netBalance >= 0 ? 'profit' : 'loss'}` 
+    //       totalIncome - totalExpense,
+    //       totalIncome
+    //     ))}% ${(totalIncome - totalExpense) >= 0 ? 'profit' : 'loss'}` 
     //     : '0%',
-    //   isPositive: overviewData ? overviewData.netBalance >= 0 : true,
-    //   gradient: overviewData && overviewData.netBalance >= 0 
+    //   isPositive: (totalIncome - totalExpense) >= 0,
+    //   gradient: (totalIncome - totalExpense) >= 0 
     //     ? 'from-green-700 to-emerald-700' 
     //     : 'from-red-700 to-orange-700',
     //   data: {
-    //     income: formatCurrency(overviewData?.totalIncome || 0),
-    //     expense: formatCurrency(overviewData?.totalExpense || 0)
+    //     income: formatCurrency(totalIncome),
+    //     expense: formatCurrency(totalExpense)
     //   }
     // }
   ];
@@ -222,9 +267,9 @@ const Dashboard = () => {
       title: 'Today\'s Summary',
       icon: <FaCalendarAlt className="text-indigo-500" />,
       data: [
-        { label: 'Total Income', value: formatCurrency(overviewData?.todaysIncome || 0), icon: <FiTrendingUp className="text-green-500" />, color: 'bg-green-100' },
-        { label: 'Total Expense', value: formatCurrency(overviewData?.todaysExpense || 0), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
-        { label: 'Net Today', value: formatCurrency((overviewData?.todaysIncome || 0) - (overviewData?.todaysExpense || 0)), icon: <FaExchangeAlt className="text-blue-500" />, color: 'bg-blue-100' }
+        { label: 'Total Income', value: formatCurrency(todaysIncome), icon: <FiTrendingUp className="text-green-500" />, color: 'bg-green-100' },
+        { label: 'Total Expense', value: formatCurrency(todaysExpense), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Net Today', value: formatCurrency(todaysIncome - todaysExpense), icon: <FaExchangeAlt className="text-blue-500" />, color: 'bg-blue-100' }
       ]
     },
     {
@@ -252,9 +297,9 @@ const Dashboard = () => {
       title: 'Performance Trends',
       icon: <FiTrendingUp className="text-teal-500" />,
       data: [
-        { label: 'Income Trend', value: overviewData ? `${overviewData.incomePercentageDifference}% ${overviewData.incomeTrend}` : '0%', icon: overviewData && overviewData.incomeTrend === 'up' ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && overviewData.incomeTrend === 'up' ? 'bg-green-100' : 'bg-red-100' },
-        { label: 'Expense Trend', value: overviewData ? `${overviewData.expensePercentageDifference}% ${overviewData.expenseTrend}` : '0%', icon: overviewData && overviewData.expenseTrend === 'up' ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && overviewData.expenseTrend === 'up' ? 'bg-green-100' : 'bg-red-100' },
-        { label: 'Net Flow', value: overviewData ? formatCurrency(overviewData.incomeDifference - overviewData.expenseDifference) : '৳0', icon: overviewData && (overviewData.incomeDifference - overviewData.expenseDifference) >= 0 ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && (overviewData.incomeDifference - overviewData.expenseDifference) >= 0 ? 'bg-green-100' : 'bg-red-100' }
+        { label: 'Deposit Trend', value: overviewData ? `${overviewData.depositPercentageDifference}% ${overviewData.depositTrend}` : '0%', icon: overviewData && overviewData.depositTrend === "up" ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && overviewData.depositTrend === "up" ? 'bg-green-100' : 'bg-red-100' },
+        { label: 'Withdraw Trend', value: overviewData ? `${overviewData.withdrawPercentageDifference}% ${overviewData.withdrawTrend}` : '0%', icon: overviewData && overviewData.withdrawTrend === "up" ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && overviewData.withdrawTrend === "up" ? 'bg-green-100' : 'bg-red-100' },
+        { label: 'Net Flow', value: overviewData ? formatCurrency(overviewData.depositDifference - overviewData.withdrawDifference) : '৳0', icon: overviewData && (overviewData.depositDifference - overviewData.withdrawDifference) >= 0 ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && (overviewData.depositDifference - overviewData.withdrawDifference) >= 0 ? 'bg-green-100' : 'bg-red-100' }
       ]
     }
   ];
@@ -418,7 +463,7 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-semibold text-gray-700">Transaction Trends</h2>
                 <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">
-                  {overviewData ? formatCurrency(overviewData.totalIncome) : '৳0'} total income
+                  {formatCurrency(totalIncome)} total income
                 </span>
               </div>
               <div className="h-[300px]">
@@ -503,16 +548,7 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-semibold text-gray-700">Payment Breakdown</h2>
                 <span className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded-full">
-                  {overviewData ? 
-                    formatCurrency(
-                      (overviewData.totalDeposit || 0) + 
-                      (overviewData.totalPayin || 0) + 
-                      (overviewData.totalNagadFree || 0) + 
-                      (overviewData.totalBankTransfer || 0) + 
-                      (overviewData.totalWithdraw || 0) + 
-                      (overviewData.totalPayout || 0)
-                    ) + ' total'
-                    : '৳0 total'}
+                  {formatCurrency(totalIncome + totalExpense)} total
                 </span>
               </div>
               <div className="flex flex-col h-[300px]">
@@ -571,7 +607,7 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-semibold text-gray-700">Income Sources</h2>
                 <span className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full">
-                  {overviewData ? formatCurrency(overviewData.totalIncome) : '৳0'} total
+                  {formatCurrency(totalIncome)} total
                 </span>
               </div>
               <div className="h-[300px]">
@@ -644,7 +680,7 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-semibold text-gray-700">Expense Comparison</h2>
                 <span className="text-xs bg-red-50 text-red-600 px-2 py-1 rounded-full">
-                  {overviewData ? formatCurrency(overviewData.totalExpense) : '৳0'} total
+                  {formatCurrency(totalExpense)} total
                 </span>
               </div>
               <div className="h-[300px]">
@@ -709,15 +745,10 @@ const Dashboard = () => {
                   <FiTrendingUp className="text-blue-600" />
                 </div>
                 <p className="text-2xl font-bold text-blue-900 mt-2">
-                  {formatCurrency(overviewData?.todaysIncome || 0)}
+                  {formatCurrency(todaysIncome)}
                 </p>
                 <p className="text-xs text-blue-600 mt-1">
-                  {overviewData ? 
-                    `${calculatePercentage(
-                      overviewData.todaysIncome,
-                      overviewData.totalIncome
-                    )}% of total income` 
-                    : '0% of total income'}
+                  {calculatePercentage(todaysIncome, totalIncome)}% of total income
                 </p>
               </div>
               
@@ -727,15 +758,10 @@ const Dashboard = () => {
                   <FiTrendingDown className="text-orange-600" />
                 </div>
                 <p className="text-2xl font-bold text-orange-900 mt-2">
-                  {formatCurrency(overviewData?.todaysExpense || 0)}
+                  {formatCurrency(todaysExpense)}
                 </p>
                 <p className="text-xs text-orange-600 mt-1">
-                  {overviewData ? 
-                    `${calculatePercentage(
-                      overviewData.todaysExpense,
-                      overviewData.totalExpense
-                    )}% of total expense` 
-                    : '0% of total expense'}
+                  {calculatePercentage(todaysExpense, totalExpense)}% of total expense
                 </p>
               </div>
               
@@ -745,17 +771,13 @@ const Dashboard = () => {
                   <FaExchangeAlt className="text-green-600" />
                 </div>
                 <p className="text-2xl font-bold text-green-900 mt-2">
-                  {formatCurrency(
-                    (overviewData?.todaysIncome || 0) - (overviewData?.todaysExpense || 0)
-                  )}
+                  {formatCurrency(todaysIncome - todaysExpense)}
                 </p>
                 <p className="text-xs text-green-600 mt-1">
-                  {overviewData ? 
-                    `${Math.abs(calculatePercentage(
-                      (overviewData.todaysIncome - overviewData.todaysExpense),
-                      overviewData.todaysIncome
-                    ))}% ${(overviewData.todaysIncome - overviewData.todaysExpense) >= 0 ? 'profit' : 'loss'}` 
-                    : '0%'}
+                  {Math.abs(calculatePercentage(
+                    todaysIncome - todaysExpense,
+                    todaysIncome
+                  ))}% {(todaysIncome - todaysExpense) >= 0 ? 'profit' : 'loss'}
                 </p>
               </div>
               
@@ -777,7 +799,7 @@ const Dashboard = () => {
                 <p className="text-xs text-red-600 mt-1">
                   Total rejected transactions
                 </p>
-              </div>
+                              </div>
             </div>
           </div>
         </main>

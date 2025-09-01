@@ -2299,7 +2299,8 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
       matched_user.balance -=depositTransaction.amount;
       matched_user.commission += user_commission;
       matched_user.totalpayment += depositTransaction.amount;
-      matched_user.balance -=user_commission;
+      matched_user.balance +=user_commission;
+      matched_user.providercost+=user_commission;
       matched_user.save();
       agentnumber.total_recieved+=depositTransaction.amount;
       agentnumber.total_order+=1;
@@ -3239,6 +3240,7 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
       matched_user.balance -= deposit.amount;
       matched_user.commission += user_commission;
       matched_user.balance += user_commission;
+      matched_user.providercost+=user_commission;
       matched_user.totalpayment += deposit.amount;
       matched_user.save();
       } catch (cashdeskError) {
@@ -3281,13 +3283,6 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
     }
  // Calculate commission based on user's withdrawal commission rate
       const user_commission = (deposit.amount / 100) * matched_user.depositcommission;
-
-      // Update user balance and commission
-      matched_user.balance -= deposit.amount;
-      matched_user.commission += user_commission;
-      matched_user.totalpayment += deposit.amount;
-
-      matched_user.save();
       agentnumber.total_recieved+=deposit.amount;
       agentnumber.total_order+=1;
       agentnumber.save();
