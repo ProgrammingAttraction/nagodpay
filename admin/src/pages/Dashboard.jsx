@@ -148,30 +148,6 @@ const Dashboard = () => {
   // Summary cards data
   const summaryCards = [
     {
-      title: 'Total Deposit',
-      value: formatCurrency(overviewData?.totalDeposit || 0),
-      icon: <FaBangladeshiTakaSign className="w-6 h-6" />,
-      change: overviewData ? `${formatCurrency(overviewData.todaysDeposit)} today` : '৳0 today',
-      isPositive: true,
-      gradient: 'from-blue-500 to-indigo-500',
-      data: {
-        today: formatCurrency(overviewData?.todaysDeposit || 0),
-        total: formatCurrency(overviewData?.totalDeposit || 0)
-      }
-    },
-    {
-      title: 'Total Withdraw',
-      value: formatCurrency(overviewData?.totalWithdraw || 0),
-      icon: <FiCreditCard className="w-6 h-6" />,
-      change: overviewData ? `${formatCurrency(overviewData.todaysWithdraw)} today` : '৳0 today',
-      isPositive: true,
-      gradient: 'from-green-500 to-teal-500',
-      data: {
-        today: formatCurrency(overviewData?.todaysWithdraw || 0),
-        total: formatCurrency(overviewData?.totalWithdraw || 0)
-      }
-    },
-    {
       title: 'Total Payin',
       value: formatCurrency(overviewData?.totalPayin || 0),
       icon: <FiTrendingUp className="w-6 h-6" />,
