@@ -13,7 +13,222 @@ const Cashdesk = require('../Models/Cashdesk');
 // Protect all admin routes
 // Adminroute.use(authenticate);
 // Adminroute.use(authorizeAdmin);
+// Add this route to your existing Adminroute
+Adminroute.get('/transaction-totals', async (req, res) => {
+  try {
+    const { 
+      startDate, 
+      endDate, 
+      merchantId, 
+      provider, 
+      currency 
+    } = req.query;
 
+    // Build base query for date filtering
+    const dateQuery = {};
+    if (startDate || endDate) {
+      dateQuery.createdAt = {};
+      if (startDate) dateQuery.createdAt.$gte = new Date(startDate);
+      if (endDate) dateQuery.createdAt.$lte = new Date(endDate);
+    }
+
+    // Build merchant query if specified
+    const merchantQuery = merchantId ? { merchantid: merchantId } : {};
+
+    // Build provider query if specified
+    const providerQuery = provider ? { provider: new RegExp(provider, 'i') } : {};
+
+    // Build currency query if specified
+    const currencyQuery = currency ? { currency: currency.toUpperCase() } : {};
+
+    // Combine all queries
+    const combinedQuery = {
+      ...dateQuery,
+      ...merchantQuery,
+      ...providerQuery,
+      ...currencyQuery
+    };
+
+    // Execute all queries in parallel for better performance
+    const [
+      payinTransactions,
+      payoutTransactions,
+      nagadDeposits,
+      bankDeposits,
+      successfulPayins,
+      successfulPayouts,
+      successfulNagadDeposits,
+      successfulBankDeposits
+    ] = await Promise.all([
+      // All transactions
+      PayinTransaction.find(combinedQuery),
+      PayoutTransaction.find(combinedQuery),
+      NagadFreeDeposit.find(combinedQuery),
+      BankDeposit.find(combinedQuery),
+      
+      // Successful transactions only
+      PayinTransaction.find({ ...combinedQuery, status: 'completed' }),
+      PayoutTransaction.find({ 
+        ...combinedQuery, 
+        status: { $in: ['success', 'completed'] } 
+      }),
+      NagadFreeDeposit.find({ 
+        ...combinedQuery, 
+        status: { $in: ['completed', 'processing', 'success'] } 
+      }),
+      BankDeposit.find({ 
+        ...combinedQuery, 
+        status: { $in: ['completed', 'processing', 'success'] } 
+      })
+    ]);
+
+    // Helper function to calculate amount based on transaction type
+    const getPayinAmount = (txn) => txn.receivedAmount || txn.expectedAmount || 0;
+    const getPayoutAmount = (txn) => txn.requestAmount || txn.sentAmount || 0;
+    const getDepositAmount = (txn) => txn.amount || 0;
+
+    // Calculate totals for all transactions
+    const totalPayinAmount = payinTransactions.reduce((sum, txn) => sum + getPayinAmount(txn), 0);
+    const totalPayoutAmount = payoutTransactions.reduce((sum, txn) => sum + getPayoutAmount(txn), 0);
+    const totalNagadDepositAmount = nagadDeposits.reduce((sum, txn) => sum + getDepositAmount(txn), 0);
+    const totalBankDepositAmount = bankDeposits.reduce((sum, txn) => sum + getDepositAmount(txn), 0);
+
+    // Calculate totals for successful transactions only
+    const totalSuccessfulPayinAmount = successfulPayins.reduce((sum, txn) => sum + getPayinAmount(txn), 0);
+    const totalSuccessfulPayoutAmount = successfulPayouts.reduce((sum, txn) => sum + getPayoutAmount(txn), 0);
+    const totalSuccessfulNagadDepositAmount = successfulNagadDeposits.reduce((sum, txn) => sum + getDepositAmount(txn), 0);
+    const totalSuccessfulBankDepositAmount = successfulBankDeposits.reduce((sum, txn) => sum + getDepositAmount(txn), 0);
+
+    // Calculate transaction counts
+    const totalTransactions = {
+      payin: payinTransactions.length,
+      payout: payoutTransactions.length,
+      nagadDeposit: nagadDeposits.length,
+      bankDeposit: bankDeposits.length,
+      total: payinTransactions.length + payoutTransactions.length + 
+             nagadDeposits.length + bankDeposits.length
+    };
+
+    const successfulTransactions = {
+      payin: successfulPayins.length,
+      payout: successfulPayouts.length,
+      nagadDeposit: successfulNagadDeposits.length,
+      bankDeposit: successfulBankDeposits.length,
+      total: successfulPayins.length + successfulPayouts.length + 
+             successfulNagadDeposits.length + successfulBankDeposits.length
+    };
+
+    // Calculate success rates
+    const successRates = {
+      payin: totalTransactions.payin > 0 
+        ? (successfulTransactions.payin / totalTransactions.payin) * 100 
+        : 0,
+      payout: totalTransactions.payout > 0 
+        ? (successfulTransactions.payout / totalTransactions.payout) * 100 
+        : 0,
+      nagadDeposit: totalTransactions.nagadDeposit > 0 
+        ? (successfulTransactions.nagadDeposit / totalTransactions.nagadDeposit) * 100 
+        : 0,
+      bankDeposit: totalTransactions.bankDeposit > 0 
+        ? (successfulTransactions.bankDeposit / totalTransactions.bankDeposit) * 100 
+        : 0,
+      overall: totalTransactions.total > 0 
+        ? (successfulTransactions.total / totalTransactions.total) * 100 
+        : 0
+    };
+
+    // Calculate net amounts (deposits - withdrawals)
+    const netAmount = (totalSuccessfulPayinAmount + totalSuccessfulNagadDepositAmount + 
+                      totalSuccessfulBankDepositAmount) - totalSuccessfulPayoutAmount;
+
+    // Group by provider for detailed breakdown
+    const payinByProvider = {};
+    payinTransactions.forEach(txn => {
+      const provider = txn.provider || 'unknown';
+      if (!payinByProvider[provider]) {
+        payinByProvider[provider] = { count: 0, amount: 0, successfulCount: 0, successfulAmount: 0 };
+      }
+      payinByProvider[provider].count++;
+      payinByProvider[provider].amount += getPayinAmount(txn);
+      
+      if (txn.status === 'completed') {
+        payinByProvider[provider].successfulCount++;
+        payinByProvider[provider].successfulAmount += getPayinAmount(txn);
+      }
+    });
+
+    const payoutByProvider = {};
+    payoutTransactions.forEach(txn => {
+      const provider = txn.provider || 'unknown';
+      if (!payoutByProvider[provider]) {
+        payoutByProvider[provider] = { count: 0, amount: 0, successfulCount: 0, successfulAmount: 0 };
+      }
+      payoutByProvider[provider].count++;
+      payoutByProvider[provider].amount += getPayoutAmount(txn);
+      
+      if (['success', 'completed'].includes(txn.status)) {
+        payoutByProvider[provider].successfulCount++;
+        payoutByProvider[provider].successfulAmount += getPayoutAmount(txn);
+      }
+    });
+
+    // Prepare response
+    const response = {
+      success: true,
+      data: {
+        totals: {
+          // All transactions (including failed)
+          allTransactions: {
+            payin: totalPayinAmount,
+            payout: totalPayoutAmount,
+            nagadDeposit: totalNagadDepositAmount,
+            bankDeposit: totalBankDepositAmount,
+            total: totalPayinAmount + totalPayoutAmount + 
+                   totalNagadDepositAmount + totalBankDepositAmount
+          },
+          // Successful transactions only
+          successfulTransactions: {
+            payin: totalSuccessfulPayinAmount,
+            payout: totalSuccessfulPayoutAmount,
+            nagadDeposit: totalSuccessfulNagadDepositAmount,
+            bankDeposit: totalSuccessfulBankDepositAmount,
+            total: totalSuccessfulPayinAmount + totalSuccessfulPayoutAmount + 
+                   totalSuccessfulNagadDepositAmount + totalSuccessfulBankDepositAmount,
+            net: netAmount
+          }
+        },
+        counts: {
+          allTransactions: totalTransactions,
+          successfulTransactions: successfulTransactions
+        },
+        successRates: Object.fromEntries(
+          Object.entries(successRates).map(([key, value]) => [key, Math.round(value * 100) / 100])
+        ),
+        breakdown: {
+          payinByProvider,
+          payoutByProvider
+        },
+        filters: {
+          startDate: startDate || 'not specified',
+          endDate: endDate || 'not specified',
+          merchantId: merchantId || 'not specified',
+          provider: provider || 'not specified',
+          currency: currency || 'not specified'
+        }
+      }
+    };
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('Error fetching transaction totals:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch transaction totals',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
 // Get all users
 Adminroute.get('/users', adminController.getAllUsers);
 

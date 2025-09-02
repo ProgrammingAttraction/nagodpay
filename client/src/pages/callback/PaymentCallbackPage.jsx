@@ -16,6 +16,7 @@ function PaymentCallbackPage() {
   const [showProgress, setShowProgress] = useState(true);
   const [reloadCount, setReloadCount] = useState(0);
   const [paymentProcessed, setPaymentProcessed] = useState(false);
+  const [countdown, setCountdown] = useState(5); // Countdown state
   
   const transactionId = paymentparams.get("paymentID");
   const status = paymentparams.get("status");
@@ -42,6 +43,19 @@ function PaymentCallbackPage() {
       return false;
     }
   };
+
+  // Countdown effect for auto-reload
+  useEffect(() => {
+    if (!loading && transaction_info && countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    } else if (countdown === 0) {
+      window.location.reload();
+    }
+  }, [countdown, loading, transaction_info]);
 
   // Progress bar effect
   useEffect(() => {
@@ -204,6 +218,19 @@ function PaymentCallbackPage() {
             <div className="flex justify-between text-gray-400">
               <span>Payment Method:</span>
               <span className="font-medium text-orange-300">{transaction_info?.provider || "N/A"}</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Countdown Timer */}
+        <div className="mt-6 text-center">
+          <div className="inline-flex items-center justify-center px-4 py-2 bg-gray-800 rounded-lg">
+            <div className="flex items-center">
+              <span className="text-gray-400 mr-2">Page will reload in</span>
+              <div className="w-10 h-10 flex items-center justify-center bg-indigo-600 rounded-full">
+                <span className="text-white font-bold text-lg">{countdown}</span>
+              </div>
+              <span className="text-gray-400 ml-2">seconds</span>
             </div>
           </div>
         </div>

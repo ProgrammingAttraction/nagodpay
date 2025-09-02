@@ -38,6 +38,8 @@ import Bankcashin from './pages/cashin/Bankcashin'
 import MerchantWithdrawals from './pages/merchantwithdraw/Merchantwithdrwals'
 import Nagadfree from './pages/nagad_free/Nagadfree'
 import Paymentmethods from './pages/paymentmethods/Paymentmethods'
+import Subadminlogin from './pages/Subadminlogin'
+import Subadmindashbaord from './pages/subadmin/Subadmindashbaord'
 
 const ProtectedRoute = ({ children }) => {
   // Check if user data exists in localStorage
@@ -58,11 +60,17 @@ const App = () => {
       <Routes>
         {/* Public route - accessible without authentication */}
         <Route exact path="/login" element={<Login />} />
+        <Route exact path="/subadmin-login" element={<Subadminlogin />} />
         
         {/* Protected routes - require authentication */}
         <Route exact path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }/>
+                <Route exact path="/subadmin-dashboard" element={
+          <ProtectedRoute>
+            <Subadmindashbaord />
           </ProtectedRoute>
         }/>
                 {/* Protected routes - require authentication */}

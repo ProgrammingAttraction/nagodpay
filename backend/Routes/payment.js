@@ -927,7 +927,7 @@ Paymentrouter.post("/paymentSubmit", async (req, res) => {
 });
 
 Paymentrouter.post("/changePayoutStatus", async (req, res) => {
-  const { id, status, payment_id, transactionId, admin_name } = req.body;
+  const { id, status, payment_id,agentnumber, transactionId, admin_name } = req.body;
   console.log("payut",req.body)
   const requestTime = new Date().toLocaleString('en-US', {
     year: 'numeric',
@@ -941,7 +941,7 @@ Paymentrouter.post("/changePayoutStatus", async (req, res) => {
   console.log(`Request received at: ${requestTime}`);
   console.log(id, status, transactionId);
 
-  if (!status || !transactionId) {
+  if (!status) {
     return res.status(400).json({ message: 'Please check all fields' });
   }
   console.log(status);
@@ -957,27 +957,27 @@ Paymentrouter.post("/changePayoutStatus", async (req, res) => {
       });
     }
 
-    const forwardedSms = await ForwardedSms.findOne({
-      transactionId: transactionId,
-      transactionAmount: transaction.requestAmount,
-      transactionType: "payout"
-    });
+    // const forwardedSms = await ForwardedSms.findOne({
+    //   transactionId: transactionId,
+    //   transactionAmount: transaction.requestAmount,
+    //   transactionType: "payout"
+    // });
 
-    if (!forwardedSms) {
-      return res.status(200).json({
-        success: false,
-        type: "tid",
-        message: "Transaction ID is not valid.",
-      });
-    }
+    // if (!forwardedSms) {
+    //   return res.status(200).json({
+    //     success: false,
+    //     type: "tid",
+    //     message: "Transaction ID is not valid.",
+    //   });
+    // }
 
-    if (forwardedSms.status === "used") {
-      return res.status(200).json({
-        success: false,
-        type: "tid",
-        message: "Transaction ID is already used.",
-      });
-    }
+    // if (forwardedSms.status === "used") {
+    //   return res.status(200).json({
+    //     success: false,
+    //     type: "tid",
+    //     message: "Transaction ID is already used.",
+    //   });
+    // }
 
     // ---------------------------UPDATE-USER-DATA---------------------
  // Find the user with a withdrawal request matching the paymentId
@@ -1013,11 +1013,11 @@ if (!userWithdraw) {
   }
 }
 
-    if (status === "success") {
-      // Update ForwardedSms status to "used"
-      forwardedSms.status = "used";
-      await forwardedSms.save();
-    }
+    // if (status === "success") {
+    //   // Update ForwardedSms status to "used"
+    //   forwardedSms.status = "used";
+    //   await forwardedSms.save();
+    // }
 
     // // Update the transaction status
     transaction.status = status;
@@ -1031,16 +1031,15 @@ if (!userWithdraw) {
         $set: {
           transactionId: transactionId,
           createdAt: requestTime,
-          sentAmount: forwardedSms.transactionAmount,
-          update_by: admin_name,
-          agent_account: forwardedSms.agentAccount
+          sentAmount: transaction.requestAmount,
+          agent_account: agentnumber
         },
       }
     );
 
     // // Find the user who owns the agent account used for this transaction
     const user = await UserModel.findOne({ 
-      "agentAccounts.accountNumber": forwardedSms.agentAccount 
+      "agentAccounts.accountNumber": agentnumber
     });
     
     if (!user) {
@@ -1053,22 +1052,22 @@ if (!userWithdraw) {
       console.log("User:", user)
       
       // Calculate commission based on user's withdrawal commission rate
-      const user_commission = (forwardedSms.transactionAmount / 100) * user.withdracommission;
+      const user_commission = (transaction.requestAmount / 100) * user.withdracommission;
 
       // Update user balance and commission
-      user.balance += forwardedSms.transactionAmount;
+      user.balance += transaction.requestAmount;
       user.commission += user_commission;
       user.balance += user_commission;
-      user.totalpayout += forwardedSms.transactionAmount;
+      user.totalpayout += transaction.requestAmount;
 
       // Add the withdrawal to the user's withdrawals array
       const newWithdrawal = {
-        amount: forwardedSms.transactionAmount,
+        amount: transaction.requestAmount,
         currency: transaction.currency || "BDT",
         date: new Date(),
-        transactionId: forwardedSms.transactionId,
+        transactionId:"",
         status: "success",
-        method: forwardedSms.provider || "unknown",
+        method: transaction.provider || "unknown",
         notes: `Withdrawal to ${transaction.payeeAccount}`,
         processedBy: admin_name || "system"
       };

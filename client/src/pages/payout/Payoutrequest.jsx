@@ -267,17 +267,6 @@ const Payoutrequest = () => {
                 
                 <div className="p-4 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID</label>
-                    <input
-                      type="text"
-                      value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
-                      className="w-full p-2 border border-gray-300 outline-theme rounded-md  focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter transaction ID"
-                    />
-                  </div>
-                  
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Agent Account *</label>
                     <select
                       value={selectedAgentAccount}
@@ -309,17 +298,6 @@ const Payoutrequest = () => {
                       <option value="success">Success</option>
                       <option value="rejected">Rejected</option>
                     </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Admin Notes</label>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full p-2 border border-gray-300 outline-theme rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      rows="3"
-                      placeholder="Any notes about this transaction..."
-                    />
                   </div>
                   
                   <div className="flex justify-end space-x-3 pt-2">
