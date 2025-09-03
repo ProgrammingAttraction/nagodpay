@@ -1397,6 +1397,8 @@ const WithdrawForm = () => {
         });
         setActiveTab(4); // Success tab
       }else{
+        setActiveTab(4); // Success tab
+
         setWithdrawalResult({
         success: false,
         message:response.data.message,
