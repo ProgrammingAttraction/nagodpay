@@ -195,7 +195,7 @@ const DepositForm = () => {
       type: 'bank',
       category: 'bank',
       minAmount: 100,
-      maxAmount: 30000,
+      maxAmount: 200000,
     },
     { 
       id: 8, 
@@ -205,7 +205,7 @@ const DepositForm = () => {
       type: 'bank',
       category: 'bank',
       minAmount: 100,
-      maxAmount: 30000,
+      maxAmount: 200000,
     },
     { 
       id: 9, 
@@ -215,7 +215,7 @@ const DepositForm = () => {
       type: 'bank',
       category: 'bank',
       minAmount: 100,
-      maxAmount: 30000,
+      maxAmount: 200000,
     },
   ];
 
@@ -1170,7 +1170,7 @@ const WithdrawForm = () => {
       image: "https://play-lh.googleusercontent.com/xbBwfeUNIru5qMU0giaQIATfrt_AdMWujIhVu_M-RHG0SEVNY6lK_JQFQ_bER7k1jm8",
       category: 'bank',
       minAmount: 200,
-      maxAmount: 50000
+      maxAmount: 200000
     },
     { 
       id: 8, 
@@ -1179,7 +1179,7 @@ const WithdrawForm = () => {
       image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8e4SixYh3d4Me6HuncJHAA60BCGS6HFx-kQ&s",
       category: 'bank',
       minAmount: 200,
-      maxAmount: 50000
+      maxAmount: 200000
     },
     { 
       id: 9, 
@@ -1188,7 +1188,7 @@ const WithdrawForm = () => {
       image: "https://upload.wikimedia.org/wikipedia/en/thumb/b/b9/Logo_of_United_Commercial_Bank.svg/800px-Logo_of_United_Commercial_Bank.svg.png",
       category: 'bank',
       minAmount: 200,
-      maxAmount: 50000
+      maxAmount: 200000
     },
   ];
 
