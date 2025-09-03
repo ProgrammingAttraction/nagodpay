@@ -370,7 +370,7 @@ const Subadmindashbaord = () => {
         {/* Provider Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Payin Providers */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          {/* <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <FiShoppingBag className="mr-2 text-green-500" />
               Deposit Providers
@@ -380,7 +380,7 @@ const Subadmindashbaord = () => {
                 <ProviderCard key={provider} provider={provider} data={data} type="payin" />
               ))}
             </div>
-          </div>
+          </div> */}
 
           {/* Payout Providers */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
