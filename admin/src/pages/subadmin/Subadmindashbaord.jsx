@@ -4,7 +4,7 @@ import {
   FiLogOut, FiUsers, FiDollarSign, FiTrendingUp, FiActivity, 
   FiCreditCard, FiDatabase, FiBarChart2, FiLoader, FiCalendar,
   FiArrowUp, FiArrowDown, FiPieChart, FiLayers, FiShoppingBag,
-  FiRefreshCw, FiSettings
+  FiRefreshCw, FiSettings, FiFilter, FiX
 } from 'react-icons/fi';
 import { 
   FaMoneyBillWave, FaExchangeAlt, FaUserTie, FaPercentage,
@@ -19,18 +19,36 @@ const Subadmindashbaord = () => {
   const [timeRange, setTimeRange] = useState('all');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState({});
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
-  const navigate=useNavigate();
+  const navigate = useNavigate();
+  
+  // Filter options state
+  const [filterOptions, setFilterOptions] = useState({
+    transactionType: '',
+    provider: '',
+    status: '',
+    minAmount: '',
+    maxAmount: '',
+    startDate: '',
+    endDate: ''
+  });
+
   // Fetch data from the transaction-totals API route
   useEffect(() => {
     fetchDashboardData();
-  }, [timeRange]);
+  }, [timeRange, appliedFilters]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       let url = `${base_url}/api/admin/transaction-totals`;
       
+      // Build query parameters
+      const params = new URLSearchParams();
+      
+      // Time range filter
       if (timeRange !== 'all') {
         const now = new Date();
         let startDate;
@@ -53,8 +71,21 @@ const Subadmindashbaord = () => {
         }
         
         if (startDate) {
-          url += `?startDate=${startDate.toISOString()}&endDate=${new Date().toISOString()}`;
+          params.append('startDate', startDate.toISOString());
+          params.append('endDate', new Date().toISOString());
         }
+      }
+      
+      // Custom filters
+      Object.entries(appliedFilters).forEach(([key, value]) => {
+        if (value) {
+          params.append(key, value);
+        }
+      });
+      
+      // Add params to URL if any exist
+      if (params.toString()) {
+        url += `?${params.toString()}`;
       }
       
       const response = await axios.get(url);
@@ -69,13 +100,39 @@ const Subadmindashbaord = () => {
     }
   };
 
+  const handleFilterChange = (key, value) => {
+    setFilterOptions(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const applyFilters = () => {
+    setAppliedFilters({...filterOptions});
+    setShowFilters(false);
+  };
+
+  const clearFilters = () => {
+    setFilterOptions({
+      transactionType: '',
+      provider: '',
+      status: '',
+      minAmount: '',
+      maxAmount: '',
+      startDate: '',
+      endDate: ''
+    });
+    setAppliedFilters({});
+    setShowFilters(false);
+  };
+
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDashboardData();
   };
 
   const handleLogout = () => {
-      navigate("/dashboard");
+    navigate("/dashboard");
   };
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend, percentage }) => (
@@ -161,6 +218,152 @@ const Subadmindashbaord = () => {
     );
   };
 
+  const FilterPanel = () => (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+          <FiFilter className="mr-2 text-blue-500" />
+          Filter Data
+        </h3>
+        <button 
+          onClick={() => setShowFilters(false)}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <FiX size={20} />
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
+          <select 
+            value={filterOptions.transactionType}
+            onChange={(e) => handleFilterChange('transactionType', e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">All Types</option>
+            <option value="payin">Payin</option>
+            <option value="payout">Payout</option>
+            <option value="nagadDeposit">Nagad Deposit</option>
+            <option value="bankDeposit">Bank Deposit</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+          <select 
+            value={filterOptions.provider}
+            onChange={(e) => handleFilterChange('provider', e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">All Providers</option>
+            <option value="nagad">Nagad</option>
+            <option value="bkash">bKash</option>
+            <option value="rocket">Rocket</option>
+            <option value="bank">Bank</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <select 
+            value={filterOptions.status}
+            onChange={(e) => handleFilterChange('status', e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">All Status</option>
+            <option value="success">Success</option>
+            <option value="failed">Failed</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Min Amount</label>
+          <input 
+            type="number"
+            value={filterOptions.minAmount}
+            onChange={(e) => handleFilterChange('minAmount', e.target.value)}
+            placeholder="Min amount"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Max Amount</label>
+          <input 
+            type="number"
+            value={filterOptions.maxAmount}
+            onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
+            placeholder="Max amount"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+          <input 
+            type="date"
+            value={filterOptions.startDate}
+            onChange={(e) => handleFilterChange('startDate', e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+          <input 
+            type="date"
+            value={filterOptions.endDate}
+            onChange={(e) => handleFilterChange('endDate', e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      </div>
+      
+      <div className="flex justify-end space-x-3">
+        <button 
+          onClick={clearFilters}
+          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+        >
+          Clear All
+        </button>
+        <button 
+          onClick={applyFilters}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+        >
+          Apply Filters
+        </button>
+      </div>
+      
+      {/* Applied filters indicator */}
+      {Object.values(appliedFilters).some(value => value) && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <p className="text-sm font-medium text-gray-700 mb-2">Applied Filters:</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(appliedFilters).map(([key, value]) => (
+              value && (
+                <span key={key} className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                  {key}: {value}
+                  <button 
+                    onClick={() => {
+                      const newFilters = {...appliedFilters};
+                      delete newFilters[key];
+                      setAppliedFilters(newFilters);
+                    }}
+                    className="ml-2 text-blue-600 hover:text-blue-800"
+                  >
+                    <FiX size={14} />
+                  </button>
+                </span>
+              )
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   if (loading && !refreshing) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -229,6 +432,20 @@ const Subadmindashbaord = () => {
             
             <div className="flex items-center space-x-4">
               <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition duration-200 flex items-center"
+                title="Filter data"
+              >
+                <FiFilter className="mr-1" />
+                Filters
+                {Object.values(appliedFilters).some(value => value) && (
+                  <span className="ml-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {Object.values(appliedFilters).filter(value => value).length}
+                  </span>
+                )}
+              </button>
+              
+              <button
                 onClick={handleRefresh}
                 disabled={refreshing}
                 className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition duration-200"
@@ -241,7 +458,7 @@ const Subadmindashbaord = () => {
                 onClick={handleLogout}
                 className="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg flex items-center transition duration-200"
               >
-                Dashbaord
+                Dashboard
               </button>
             </div>
           </div>
@@ -250,6 +467,9 @@ const Subadmindashbaord = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
+        {/* Show filter panel when toggled */}
+        {showFilters && <FilterPanel />}
+        
         {/* Filters and Controls */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
@@ -275,7 +495,8 @@ const Subadmindashbaord = () => {
             </div>
           </div>
         </div>
-    {/* Transaction Counts */}
+
+        {/* Transaction Counts */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
           <h3 className="text-lg font-semibold text-gray-800 mb-6">Transaction Overview</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -316,6 +537,7 @@ const Subadmindashbaord = () => {
             </div>
           </div>
         </div>
+        
         {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
@@ -406,19 +628,6 @@ const Subadmindashbaord = () => {
 
         {/* Provider Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 mb-8">
-          {/* Payin Providers */}
-          {/* <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <FiShoppingBag className="mr-2 text-green-500" />
-              Deposit Providers
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(breakdown.payinByProvider).map(([provider, data]) => (
-                <ProviderCard key={provider} provider={provider} data={data} type="payin" />
-              ))}
-            </div>
-          </div> */}
-
           {/* Payout Providers */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
@@ -432,8 +641,6 @@ const Subadmindashbaord = () => {
             </div>
           </div>
         </div>
-
-    
       </main>
 
       {/* Footer */}

@@ -20,7 +20,7 @@ import {
   Area
 } from 'recharts';
 import { FaBangladeshiTakaSign } from "react-icons/fa6";
-import { FiUserPlus, FiClock, FiCheckCircle, FiXCircle, FiTrendingUp, FiTrendingDown, FiCreditCard } from "react-icons/fi";
+import { FiUserPlus, FiClock, FiCheckCircle, FiXCircle, FiTrendingUp, FiTrendingDown, FiCreditCard, FiCalendar, FiFilter } from "react-icons/fi";
 import axios from 'axios';
 import moment from 'moment';
 
@@ -29,32 +29,64 @@ const Dashboard = () => {
   const [overviewData, setOverviewData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [dateRange, setDateRange] = useState({
+    startDate: moment().subtract(7, 'days').format('YYYY-MM-DD'),
+    endDate: moment().format('YYYY-MM-DD')
+  });
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [filteredData, setFilteredData] = useState(null);
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
   const token = localStorage.getItem('authToken');
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   useEffect(() => {
-    const fetchOverview = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get(`${base_url}/api/admin/admin-overview`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        console.log('Overview response:', response.data);
-        setOverviewData(response.data);
-        setError(null);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to fetch overview data');
-        console.error('Error fetching overview:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchOverview();
-  }, [base_url, token]);
+  }, [base_url, token, dateRange]);
+
+  const fetchOverview = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${base_url}/api/admin/admin-overview`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate
+        }
+      });
+      console.log('Overview response:', response.data);
+      setOverviewData(response.data);
+      setFilteredData(response.data);
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch overview data');
+      console.error('Error fetching overview:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDateChange = (e) => {
+    const { name, value } = e.target;
+    setDateRange(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const applyDateFilter = () => {
+    setShowDateFilter(false);
+    fetchOverview();
+  };
+
+  const resetDateFilter = () => {
+    setDateRange({
+      startDate: moment().subtract(7, 'days').format('YYYY-MM-DD'),
+      endDate: moment().format('YYYY-MM-DD')
+    });
+    setShowDateFilter(false);
+  };
 
   // Format currency values
   const formatCurrency = (value) => {
@@ -76,7 +108,7 @@ const Dashboard = () => {
 
   // Prepare data for charts
   const prepareChartData = () => {
-    if (!overviewData) return [];
+    if (!filteredData) return [];
     
     // Group by date for line charts
     const depositMap = {};
@@ -87,37 +119,37 @@ const Dashboard = () => {
     const bankTransferMap = {};
     
     // Process deposit history
-    overviewData.depositHistory.forEach(item => {
+    filteredData.depositHistory.forEach(item => {
       const date = item.date;
       depositMap[date] = (depositMap[date] || 0) + item.amount;
     });
     
     // Process withdraw history
-    overviewData.withdrawHistory.forEach(item => {
+    filteredData.withdrawHistory.forEach(item => {
       const date = item.date;
       withdrawMap[date] = (withdrawMap[date] || 0) + item.amount;
     });
     
     // Process payin history
-    overviewData.payinHistory.forEach(item => {
+    filteredData.payinHistory.forEach(item => {
       const date = item.date;
       payinMap[date] = (payinMap[date] || 0) + item.amount;
     });
     
     // Process payout history
-    overviewData.payoutHistory.forEach(item => {
+    filteredData.payoutHistory.forEach(item => {
       const date = item.date;
       payoutMap[date] = (payoutMap[date] || 0) + item.amount;
     });
     
     // Process nagad free history
-    overviewData.nagadFreeHistory?.forEach(item => {
+    filteredData.nagadFreeHistory?.forEach(item => {
       const date = item.date;
       nagadFreeMap[date] = (nagadFreeMap[date] || 0) + item.amount;
     });
     
     // Process bank transfer history
-    overviewData.bankTransferHistory?.forEach(item => {
+    filteredData.bankTransferHistory?.forEach(item => {
       const date = item.date;
       bankTransferMap[date] = (bankTransferMap[date] || 0) + item.amount;
     });
@@ -146,158 +178,115 @@ const Dashboard = () => {
   };
 
   // Calculate total income and expense
-  const totalIncome = overviewData ? 
-    (overviewData.totalDeposit || 0) + 
-    (overviewData.totalPayin || 0) + 
-    (overviewData.totalNagadFree || 0) + 
-    (overviewData.totalBankTransfer || 0) : 0;
+  const totalIncome = filteredData ? 
+    (filteredData.totalDeposit || 0) + 
+    (filteredData.totalPayin || 0) + 
+    (filteredData.totalNagadFree || 0) + 
+    (filteredData.totalBankTransfer || 0) : 0;
   
-  const totalExpense = overviewData ? 
-    (overviewData.totalWithdraw || 0) + 
-    (overviewData.totalPayout || 0) : 0;
+  const totalExpense = filteredData ? 
+    (filteredData.totalWithdraw || 0) + 
+    (filteredData.totalPayout || 0) : 0;
   
-  const todaysIncome = overviewData ? 
-    (overviewData.todaysDeposit || 0) + 
-    (overviewData.todaysPayin || 0) + 
-    (overviewData.todaysNagadFree || 0) + 
-    (overviewData.todaysBankTransfer || 0) : 0;
+  const todaysIncome = filteredData ? 
+    (filteredData.todaysDeposit || 0) + 
+    (filteredData.todaysPayin || 0) + 
+    (filteredData.todaysNagadFree || 0) + 
+    (filteredData.todaysBankTransfer || 0) : 0;
   
-  const todaysExpense = overviewData ? 
-    (overviewData.todaysWithdraw || 0) + 
-    (overviewData.todaysPayout || 0) : 0;
+  const todaysExpense = filteredData ? 
+    (filteredData.todaysWithdraw || 0) + 
+    (filteredData.todaysPayout || 0) : 0;
 
   // Summary cards data
   const summaryCards = [
-    // {
-    //   title: 'Total Deposit',
-    //   value:overviewData?.totalDeposit || 0,
-    //   icon: <FiTrendingUp className="w-6 h-6" />,
-    //   change: overviewData ? `${formatCurrency(overviewData.todaysDeposit)} today` : '৳0 today',
-    //   isPositive: true,
-    //   gradient: 'from-blue-500 to-indigo-500',
-    //   data: {
-    //     today: formatCurrency(overviewData?.todaysDeposit || 0),
-    //     total: formatCurrency(overviewData?.totalDeposit || 0)
-    //   }
-    // },
-    // {
-    //   title: 'Total Withdraw',
-    //   value: formatCurrency(overviewData?.totalWithdraw || 0),
-    //   icon: <FiTrendingDown className="w-6 h-6" />,
-    //   change: overviewData ? `${formatCurrency(overviewData.todaysWithdraw)} today` : '৳0 today',
-    //   isPositive: true,
-    //   gradient: 'from-amber-500 to-orange-500',
-    //   data: {
-    //     today: formatCurrency(overviewData?.todaysWithdraw || 0),
-    //     total: formatCurrency(overviewData?.totalWithdraw || 0)
-    //   }
-    // },
     {
       title: 'Total Payin',
-      value: formatCurrency(overviewData?.totalPayin || 0),
+      value: formatCurrency(filteredData?.totalPayin || 0),
       icon: <FiTrendingUp className="w-6 h-6" />,
-      change: overviewData ? `${formatCurrency(overviewData.todaysPayin)} today` : '৳0 today',
+      change: filteredData ? `${formatCurrency(filteredData.todaysPayin)} today` : '৳0 today',
       isPositive: true,
       gradient: 'from-purple-500 to-pink-500',
       data: {
-        today: formatCurrency(overviewData?.todaysPayin || 0),
-        total: formatCurrency(overviewData?.totalPayin || 0)
+        today: formatCurrency(filteredData?.todaysPayin || 0),
+        total: formatCurrency(filteredData?.totalPayin || 0)
       }
     },
     {
       title: 'Total Payout',
-      value: formatCurrency(overviewData?.totalPayout || 0),
+      value: formatCurrency(filteredData?.totalPayout || 0),
       icon: <FiTrendingDown className="w-6 h-6" />,
-      change: overviewData ? `${formatCurrency(overviewData.todaysPayout)} today` : '৳0 today',
+      change: filteredData ? `${formatCurrency(filteredData.todaysPayout)} today` : '৳0 today',
       isPositive: true,
       gradient: 'from-red-500 to-rose-500',
       data: {
-        today: formatCurrency(overviewData?.todaysPayout || 0),
-        total: formatCurrency(overviewData?.totalPayout || 0)
+        today: formatCurrency(filteredData?.todaysPayout || 0),
+        total: formatCurrency(filteredData?.totalPayout || 0)
       }
     },
     {
       title: 'Nagad Free',
-      value: formatCurrency(overviewData?.totalNagadFree || 0),
+      value: formatCurrency(filteredData?.totalNagadFree || 0),
       icon: <FaBangladeshiTakaSign className="w-6 h-6" />,
-      change: overviewData ? `${formatCurrency(overviewData.todaysNagadFree)} today` : '৳0 today',
+      change: filteredData ? `${formatCurrency(filteredData.todaysNagadFree)} today` : '৳0 today',
       isPositive: true,
       gradient: 'from-green-600 to-emerald-600',
       data: {
-        today: formatCurrency(overviewData?.todaysNagadFree || 0),
-        total: formatCurrency(overviewData?.totalNagadFree || 0)
+        today: formatCurrency(filteredData?.todaysNagadFree || 0),
+        total: formatCurrency(filteredData?.totalNagadFree || 0)
       }
     },
     {
       title: 'Bank Transfer',
-      value: formatCurrency(overviewData?.totalBankTransfer || 0),
+      value: formatCurrency(filteredData?.totalBankTransfer || 0),
       icon: <FiCreditCard className="w-6 h-6" />,
-      change: overviewData ? `${formatCurrency(overviewData.todaysBankTransfer)} today` : '৳0 today',
+      change: filteredData ? `${formatCurrency(filteredData.todaysBankTransfer)} today` : '৳0 today',
       isPositive: true,
       gradient: 'from-blue-600 to-cyan-600',
       data: {
-        today: formatCurrency(overviewData?.todaysBankTransfer || 0),
-        total: formatCurrency(overviewData?.totalBankTransfer || 0)
+        today: formatCurrency(filteredData?.todaysBankTransfer || 0),
+        total: formatCurrency(filteredData?.totalBankTransfer || 0)
       }
     },
-    // {
-    //   title: 'Net Balance',
-    //   value: formatCurrency(totalIncome - totalExpense),
-    //   icon: <FaExchangeAlt className="w-6 h-6" />,
-    //   change: overviewData ? 
-    //     `${Math.abs(calculatePercentage(
-    //       totalIncome - totalExpense,
-    //       totalIncome
-    //     ))}% ${(totalIncome - totalExpense) >= 0 ? 'profit' : 'loss'}` 
-    //     : '0%',
-    //   isPositive: (totalIncome - totalExpense) >= 0,
-    //   gradient: (totalIncome - totalExpense) >= 0 
-    //     ? 'from-green-700 to-emerald-700' 
-    //     : 'from-red-700 to-orange-700',
-    //   data: {
-    //     income: formatCurrency(totalIncome),
-    //     expense: formatCurrency(totalExpense)
-    //   }
-    // }
   ];
 
   // Status cards data
   const statusCards = [
     {
-      title: 'Today\'s Summary',
+      title: 'Period Summary',
       icon: <FaCalendarAlt className="text-indigo-500" />,
       data: [
-        { label: 'Total Income', value: formatCurrency(todaysIncome), icon: <FiTrendingUp className="text-green-500" />, color: 'bg-green-100' },
-        { label: 'Total Expense', value: formatCurrency(todaysExpense), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
-        { label: 'Net Today', value: formatCurrency(todaysIncome - todaysExpense), icon: <FaExchangeAlt className="text-blue-500" />, color: 'bg-blue-100' }
+        { label: 'Total Income', value: formatCurrency(totalIncome), icon: <FiTrendingUp className="text-green-500" />, color: 'bg-green-100' },
+        { label: 'Total Expense', value: formatCurrency(totalExpense), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Net Period', value: formatCurrency(totalIncome - totalExpense), icon: <FaExchangeAlt className="text-blue-500" />, color: 'bg-blue-100' }
       ]
     },
     {
       title: 'Rejected Transactions',
       icon: <FiXCircle className="text-red-500" />,
       data: [
-        { label: 'Rejected Payin', value: formatCurrency(overviewData?.totalRejectedPayin || 0), icon: <FiTrendingUp className="text-red-500" />, color: 'bg-red-100' },
-        { label: 'Rejected Payout', value: formatCurrency(overviewData?.totalRejectedPayout || 0), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
-        { label: 'Rejected Nagad Free', value: formatCurrency(overviewData?.totalRejectedNagadFree || 0), icon: <FaBangladeshiTakaSign className="text-red-500" />, color: 'bg-red-100' },
-        { label: 'Rejected Bank Transfer', value: formatCurrency(overviewData?.totalRejectedBankTransfer || 0), icon: <FiCreditCard className="text-red-500" />, color: 'bg-red-100' }
+        { label: 'Rejected Payin', value: formatCurrency(filteredData?.totalRejectedPayin || 0), icon: <FiTrendingUp className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Rejected Payout', value: formatCurrency(filteredData?.totalRejectedPayout || 0), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Rejected Nagad Free', value: formatCurrency(filteredData?.totalRejectedNagadFree || 0), icon: <FaBangladeshiTakaSign className="text-red-500" />, color: 'bg-red-100' },
+        { label: 'Rejected Bank Transfer', value: formatCurrency(filteredData?.totalRejectedBankTransfer || 0), icon: <FiCreditCard className="text-red-500" />, color: 'bg-red-100' }
       ]
     },
     {
       title: 'Tax Information',
       icon: <FaFileAlt className="text-purple-500" />,
       data: [
-        { label: 'Total Withdraw Tax', value: formatCurrency(overviewData?.totalWithdrawTax || 0), icon: <FaDollarSign className="text-purple-500" />, color: 'bg-purple-100' },
-        { label: "Today's Withdraw Tax", value: formatCurrency(overviewData?.todaysWithdrawTax || 0), icon: <FaCalendarAlt className="text-purple-500" />, color: 'bg-purple-100' },
-        { label: 'Tax Rate', value: overviewData && overviewData.totalWithdraw > 0 ? `${calculatePercentage(overviewData.totalWithdrawTax, overviewData.totalWithdraw)}%` : '0%', icon: <FiTrendingUp className="text-purple-500" />, color: 'bg-purple-100' }
+        { label: 'Total Withdraw Tax', value: formatCurrency(filteredData?.totalWithdrawTax || 0), icon: <FaDollarSign className="text-purple-500" />, color: 'bg-purple-100' },
+        { label: "Period Withdraw Tax", value: formatCurrency(filteredData?.todaysWithdrawTax || 0), icon: <FaCalendarAlt className="text-purple-500" />, color: 'bg-purple-100' },
+        { label: 'Tax Rate', value: filteredData && filteredData.totalWithdraw > 0 ? `${calculatePercentage(filteredData.totalWithdrawTax, filteredData.totalWithdraw)}%` : '0%', icon: <FiTrendingUp className="text-purple-500" />, color: 'bg-purple-100' }
       ]
     },
     {
       title: 'Performance Trends',
       icon: <FiTrendingUp className="text-teal-500" />,
       data: [
-        { label: 'Deposit Trend', value: overviewData ? `${overviewData.depositPercentageDifference}% ${overviewData.depositTrend}` : '0%', icon: overviewData && overviewData.depositTrend === "up" ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && overviewData.depositTrend === "up" ? 'bg-green-100' : 'bg-red-100' },
-        { label: 'Withdraw Trend', value: overviewData ? `${overviewData.withdrawPercentageDifference}% ${overviewData.withdrawTrend}` : '0%', icon: overviewData && overviewData.withdrawTrend === "up" ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && overviewData.withdrawTrend === "up" ? 'bg-green-100' : 'bg-red-100' },
-        { label: 'Net Flow', value: overviewData ? formatCurrency(overviewData.depositDifference - overviewData.withdrawDifference) : '৳0', icon: overviewData && (overviewData.depositDifference - overviewData.withdrawDifference) >= 0 ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: overviewData && (overviewData.depositDifference - overviewData.withdrawDifference) >= 0 ? 'bg-green-100' : 'bg-red-100' }
+        { label: 'Deposit Trend', value: filteredData ? `${filteredData.depositPercentageDifference}% ${filteredData.depositTrend}` : '0%', icon: filteredData && filteredData.depositTrend === "up" ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: filteredData && filteredData.depositTrend === "up" ? 'bg-green-100' : 'bg-red-100' },
+        { label: 'Withdraw Trend', value: filteredData ? `${filteredData.withdrawPercentageDifference}% ${filteredData.withdrawTrend}` : '0%', icon: filteredData && filteredData.withdrawTrend === "up" ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: filteredData && filteredData.withdrawTrend === "up" ? 'bg-green-100' : 'bg-red-100' },
+        { label: 'Net Flow', value: filteredData ? formatCurrency(filteredData.depositDifference - filteredData.withdrawDifference) : '৳0', icon: filteredData && (filteredData.depositDifference - filteredData.withdrawDifference) >= 0 ? <FiTrendingUp className="text-green-500" /> : <FiTrendingDown className="text-red-500" />, color: filteredData && (filteredData.depositDifference - filteredData.withdrawDifference) >= 0 ? 'bg-green-100' : 'bg-red-100' }
       ]
     }
   ];
@@ -306,32 +295,32 @@ const Dashboard = () => {
   const paymentBreakdownData = [
     { 
       name: 'Deposit', 
-      value: overviewData?.totalDeposit || 0, 
+      value: filteredData?.totalDeposit || 0, 
       color: '#3B82F6' 
     },
     { 
       name: 'Payin', 
-      value: overviewData?.totalPayin || 0, 
+      value: filteredData?.totalPayin || 0, 
       color: '#8B5CF6' 
     },
     { 
       name: 'Nagad Free', 
-      value: overviewData?.totalNagadFree || 0, 
+      value: filteredData?.totalNagadFree || 0, 
       color: '#10B981' 
     },
     { 
       name: 'Bank Transfer', 
-      value: overviewData?.totalBankTransfer || 0, 
+      value: filteredData?.totalBankTransfer || 0, 
       color: '#06B6D4' 
     },
     { 
       name: 'Withdraw', 
-      value: overviewData?.totalWithdraw || 0, 
+      value: filteredData?.totalWithdraw || 0, 
       color: '#F59E0B' 
     },
     { 
       name: 'Payout', 
-      value: overviewData?.totalPayout || 0, 
+      value: filteredData?.totalPayout || 0, 
       color: '#EF4444' 
     }
   ];
@@ -387,6 +376,80 @@ const Dashboard = () => {
               <p className="text-sm text-gray-500">
                 Comprehensive view of all financial transactions and performance metrics
               </p>
+            </div>
+            <div className="relative">
+              <button 
+                onClick={() => setShowDateFilter(!showDateFilter)}
+                className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <FiFilter className="text-gray-600" />
+                <span>Date Filter</span>
+                <FiCalendar className="text-gray-600" />
+              </button>
+              
+              {showDateFilter && (
+                <div className="absolute right-0 top-12 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-10 w-80">
+                  <h3 className="font-semibold mb-3">Select Date Range</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        name="startDate"
+                        value={dateRange.startDate}
+                        onChange={handleDateChange}
+                        className="w-full p-2 border border-gray-300 rounded-md"
+                        max={dateRange.endDate}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        name="endDate"
+                        value={dateRange.endDate}
+                        onChange={handleDateChange}
+                        className="w-full p-2 border border-gray-300 rounded-md"
+                        min={dateRange.startDate}
+                        max={moment().format('YYYY-MM-DD')}
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={applyDateFilter}
+                        className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors"
+                      >
+                        Apply Filter
+                      </button>
+                      <button
+                        onClick={resetDateFilter}
+                        className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Date Range Display */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FiCalendar className="text-indigo-600" />
+                <span className="text-indigo-700 font-medium">Selected Date Range:</span>
+                <span className="text-indigo-900">
+                  {moment(dateRange.startDate).format('MMM D, YYYY')} - {moment(dateRange.endDate).format('MMM D, YYYY')}
+                </span>
+              </div>
+              <button 
+                onClick={() => setShowDateFilter(true)}
+                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+              >
+                Change Dates
+              </button>
             </div>
           </div>
 
@@ -735,69 +798,69 @@ const Dashboard = () => {
 
           {/* Recent Activity */}
           <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 mb-6">
-            <h2 className="text-md font-semibold text-gray-700 mb-4">Recent Activity Summary</h2>
+            <h2 className="text-md font-semibold text-gray-700 mb-4">Period Activity Summary</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-blue-800">Today's Income</h3>
+                  <h3 className="text-sm font-medium text-blue-800">Period Income</h3>
                   <FiTrendingUp className="text-blue-600" />
                 </div>
                 <p className="text-2xl font-bold text-blue-900 mt-2">
-                  {formatCurrency(todaysIncome)}
+                  {formatCurrency(totalIncome)}
                 </p>
                 <p className="text-xs text-blue-600 mt-1">
-                  {calculatePercentage(todaysIncome, totalIncome)}% of total income
+                  {calculatePercentage(totalIncome, totalIncome)}% of total income
                 </p>
               </div>
               
               <div className="bg-orange-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-orange-800">Today's Expense</h3>
+                  <h3 className="text-sm font-medium text-orange-800">Period Expense</h3>
                   <FiTrendingDown className="text-orange-600" />
                 </div>
                 <p className="text-2xl font-bold text-orange-900 mt-2">
-                  {formatCurrency(todaysExpense)}
+                  {formatCurrency(totalExpense)}
                 </p>
                 <p className="text-xs text-orange-600 mt-1">
-                  {calculatePercentage(todaysExpense, totalExpense)}% of total expense
+                  {calculatePercentage(totalExpense, totalExpense)}% of total expense
                 </p>
               </div>
               
               <div className="bg-green-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-green-800">Today's Net</h3>
+                  <h3 className="text-sm font-medium text-green-800">Period Net</h3>
                   <FaExchangeAlt className="text-green-600" />
                 </div>
                 <p className="text-2xl font-bold text-green-900 mt-2">
-                  {formatCurrency(todaysIncome - todaysExpense)}
+                  {formatCurrency(totalIncome - totalExpense)}
                 </p>
                 <p className="text-xs text-green-600 mt-1">
                   {Math.abs(calculatePercentage(
-                    todaysIncome - todaysExpense,
-                    todaysIncome
-                  ))}% {(todaysIncome - todaysExpense) >= 0 ? 'profit' : 'loss'}
+                    totalIncome - totalExpense,
+                    totalIncome
+                  ))}% {(totalIncome - totalExpense) >= 0 ? 'profit' : 'loss'}
                 </p>
               </div>
               
               <div className="bg-red-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-red-800">Today's Rejected</h3>
+                  <h3 className="text-sm font-medium text-red-800">Period Rejected</h3>
                   <FiXCircle className="text-red-600" />
                 </div>
                 <p className="text-2xl font-bold text-red-900 mt-2">
                   {formatCurrency(
-                    (overviewData?.totalRejectedDeposit || 0) + 
-                    (overviewData?.totalRejectedWithdraw || 0) + 
-                    (overviewData?.totalRejectedPayin || 0) + 
-                    (overviewData?.totalRejectedPayout || 0) +
-                    (overviewData?.totalRejectedNagadFree || 0) +
-                    (overviewData?.totalRejectedBankTransfer || 0)
+                    (filteredData?.totalRejectedDeposit || 0) + 
+                    (filteredData?.totalRejectedWithdraw || 0) + 
+                    (filteredData?.totalRejectedPayin || 0) + 
+                    (filteredData?.totalRejectedPayout || 0) +
+                    (filteredData?.totalRejectedNagadFree || 0) +
+                    (filteredData?.totalRejectedBankTransfer || 0)
                   )}
                 </p>
                 <p className="text-xs text-red-600 mt-1">
                   Total rejected transactions
                 </p>
-                              </div>
+              </div>
             </div>
           </div>
         </main>
