@@ -435,7 +435,7 @@ const Dashboard = () => {
           </div>
 
           {/* Date Range Display */}
-          <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-6">
+          <div className="bg-indigo-50 border z-[10000] border-indigo-100 rounded-lg p-3 mb-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FiCalendar className="text-indigo-600" />
