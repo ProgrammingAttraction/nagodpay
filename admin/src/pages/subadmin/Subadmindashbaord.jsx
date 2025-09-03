@@ -275,7 +275,47 @@ const Subadmindashbaord = () => {
             </div>
           </div>
         </div>
-
+    {/* Transaction Counts */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-800 mb-6">Transaction Overview</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="text-center p-5 bg-green-50 rounded-xl border border-green-100">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 text-green-600 rounded-full mb-3">
+                <FiShoppingBag className="text-xl" />
+              </div>
+              <h4 className="font-semibold text-green-800">Payin</h4>
+              <p className="text-2xl font-bold text-gray-800">{counts.successfulTransactions.payin}/{counts.allTransactions.payin}</p>
+              <p className="text-sm text-green-600">Successful/Total</p>
+            </div>
+            
+            <div className="text-center p-5 bg-blue-50 rounded-xl border border-blue-100">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 text-blue-600 rounded-full mb-3">
+                <FaExchangeAlt className="text-xl" />
+              </div>
+              <h4 className="font-semibold text-blue-800">Payout</h4>
+              <p className="text-2xl font-bold text-gray-800">{counts.successfulTransactions.payout}/{counts.allTransactions.payout}</p>
+              <p className="text-sm text-blue-600">Successful/Total</p>
+            </div>
+            
+            <div className="text-center p-5 bg-purple-50 rounded-xl border border-purple-100">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 text-purple-600 rounded-full mb-3">
+                <FiDatabase className="text-xl" />
+              </div>
+              <h4 className="font-semibold text-purple-800">Nagad Deposit</h4>
+              <p className="text-2xl font-bold text-gray-800">{counts.successfulTransactions.nagadDeposit}/{counts.allTransactions.nagadDeposit}</p>
+              <p className="text-sm text-purple-600">Successful/Total</p>
+            </div>
+            
+            <div className="text-center p-5 bg-orange-50 rounded-xl border border-orange-100">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-orange-100 text-orange-600 rounded-full mb-3">
+                <FiCreditCard className="text-xl" />
+              </div>
+              <h4 className="font-semibold text-orange-800">Bank Deposit</h4>
+              <p className="text-2xl font-bold text-gray-800">{counts.successfulTransactions.bankDeposit}/{counts.allTransactions.bankDeposit}</p>
+              <p className="text-sm text-orange-600">Successful/Total</p>
+            </div>
+          </div>
+        </div>
         {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
@@ -365,7 +405,7 @@ const Subadmindashbaord = () => {
         </div>
 
         {/* Provider Breakdown */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 mb-8">
           {/* Payin Providers */}
           {/* <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
@@ -393,47 +433,7 @@ const Subadmindashbaord = () => {
           </div>
         </div>
 
-        {/* Transaction Counts */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
-          <h3 className="text-lg font-semibold text-gray-800 mb-6">Transaction Overview</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="text-center p-5 bg-green-50 rounded-xl border border-green-100">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 text-green-600 rounded-full mb-3">
-                <FiShoppingBag className="text-xl" />
-              </div>
-              <h4 className="font-semibold text-green-800">Payin</h4>
-              <p className="text-2xl font-bold text-gray-800">{counts.successfulTransactions.payin}/{counts.allTransactions.payin}</p>
-              <p className="text-sm text-green-600">Successful/Total</p>
-            </div>
-            
-            <div className="text-center p-5 bg-blue-50 rounded-xl border border-blue-100">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 text-blue-600 rounded-full mb-3">
-                <FaExchangeAlt className="text-xl" />
-              </div>
-              <h4 className="font-semibold text-blue-800">Payout</h4>
-              <p className="text-2xl font-bold text-gray-800">{counts.successfulTransactions.payout}/{counts.allTransactions.payout}</p>
-              <p className="text-sm text-blue-600">Successful/Total</p>
-            </div>
-            
-            <div className="text-center p-5 bg-purple-50 rounded-xl border border-purple-100">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 text-purple-600 rounded-full mb-3">
-                <FiDatabase className="text-xl" />
-              </div>
-              <h4 className="font-semibold text-purple-800">Nagad Deposit</h4>
-              <p className="text-2xl font-bold text-gray-800">{counts.successfulTransactions.nagadDeposit}/{counts.allTransactions.nagadDeposit}</p>
-              <p className="text-sm text-purple-600">Successful/Total</p>
-            </div>
-            
-            <div className="text-center p-5 bg-orange-50 rounded-xl border border-orange-100">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-orange-100 text-orange-600 rounded-full mb-3">
-                <FiCreditCard className="text-xl" />
-              </div>
-              <h4 className="font-semibold text-orange-800">Bank Deposit</h4>
-              <p className="text-2xl font-bold text-gray-800">{counts.successfulTransactions.bankDeposit}/{counts.allTransactions.bankDeposit}</p>
-              <p className="text-sm text-orange-600">Successful/Total</p>
-            </div>
-          </div>
-        </div>
+    
       </main>
 
       {/* Footer */}
