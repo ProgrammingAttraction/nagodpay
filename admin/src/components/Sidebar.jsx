@@ -45,7 +45,7 @@ const Sidebar = ({ isOpen }) => {
 
   return (
     <aside
-      className={`transition-all duration-300 fixed w-[50%] md:w-[30%] lg:w-[20%] xl:w-[17%] h-full z-[999] border-r border-indigo-900 text-sm shadow-lg pt-[12vh] p-4 ${
+      className={`transition-all duration-300 fixed w-[50%] md:w-[30%] lg:w-[20%] xl:w-[17%] h-full z-[999] border-r border-indigo-900 text-sm shadow-lg pt-[12vh] overflow-y-auto p-4 ${
         isOpen ? 'left-0 top-0' : 'left-[-120%] top-0'
       } bg-gradient-to-b from-indigo-950 to-indigo-900 text-white`}
     >
