@@ -186,7 +186,7 @@ Paymentrouter.post("/payout", async (req, res) => {
       cashdeskid: parseInt(CASHDESK_ID),
       lng: 'ru',
       code: paymentId,
-      confirm: confirm
+      confirm: confirm 
     };
 
     // 6. Call CashDeskBot API
@@ -1157,13 +1157,6 @@ Paymentrouter.post("/callbackSms", async (req, res) => {
   console.log('---callback_sms---');
   let data = req.body;
   console.log(data);
-
-  // Fake message detection system
-  const isFakeMessage = detectFakeMessage(data);
-  if (isFakeMessage) {
-    console.log('⚠️ Fake message detected:', data);
-    return res.status(200).json({ success: false, message: 'Fake message detected' });
-  }
 
   let text = data?.text?.toString() || '';
   let provider = data?.from?.toLowerCase();
