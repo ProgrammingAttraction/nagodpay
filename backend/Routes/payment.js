@@ -2715,7 +2715,8 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
       amount,
       orderId,
       currency = 'BDT',
-      transactionId
+      transactionId,
+      agentAccount
     } = req.body;
    console.log(req.body)
     const apiKey = req.headers['x-api-key'];
@@ -2760,25 +2761,21 @@ Paymentrouter.post('/nagad-free-deposit', async (req, res) => {
         message: 'Order ID already exists'
       });
     }
-
+    const matchedaccount=await BankAccount.findOne({accountNumber:agentAccount});
+    console.log("agent",matchedaccount)
     // Find all agent users with active status, online status, and "Nagad Free" in paymentMethod
-    const eligibleAgents = await UserModel.find({
-      is_admin: false,
-      status: 'active',
-      currentstatus: "online",
-      paymentMethod: "Nagad Free", // Only agents with Nagad Free in their payment methods
-      'agentAccounts.0': { $exists: true }, // Has at least one agent account
-    }).select('_id username name balance agentAccounts nagadFreeDeposits paymentMethod');
+    const eligibleAgents = await UserModel.findById({_id:matchedaccount.user_id});
+    console.log("eligibleAgents",eligibleAgents)
 
-    if (eligibleAgents.length === 0) {
-      return res.status(400).json({
+    if (!eligibleAgents) {
+      return res.json({
         success: false,
         message: "No available agents with Nagad Free payment method to process this deposit.",
       });
     }
 
     // Randomly select an agent
-    const randomAgent = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];
+    const randomAgent =eligibleAgents;
     
     // Create new Nagad Free deposit data
     const nagadFreeDepositData = {
