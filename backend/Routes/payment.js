@@ -152,14 +152,15 @@ Paymentrouter.post("/payout", async (req, res) => {
         currentstatus: "online",
         'agentAccounts.0': { $exists: true }, // Has at least one agent account
       }).select('_id balance agentAccounts withdrawalRequests');
-
+        console.log("eligibleAgents323",eligibleAgents)
       if (eligibleAgents.length === 0) {
-        return res.status(200).json({
+        return res.json({
           success: false,
           orderId: req.body.orderId,
           message: "No available agents with sufficient balance to process this payout.",
         });
       }
+      
     const existcode = await PayoutTransaction.findOne({ paymentId });
     if (existcode) {
       return res.send({ success: false, message: "Already withdrawal code used!" });
