@@ -10,6 +10,7 @@ import {
   FaMoneyBillWave, FaExchangeAlt, FaUserTie, FaPercentage,
   FaRegCheckCircle, FaRegTimesCircle, FaChevronDown
 } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 
 const Subadmindashbaord = () => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -19,7 +20,7 @@ const Subadmindashbaord = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
-
+  const navigate=useNavigate();
   // Fetch data from the transaction-totals API route
   useEffect(() => {
     fetchDashboardData();
@@ -74,10 +75,7 @@ const Subadmindashbaord = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userData');
-
-    window.location.href = '/subadmin-login';
+      navigate("/dashboard");
   };
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend, percentage }) => (
@@ -243,8 +241,7 @@ const Subadmindashbaord = () => {
                 onClick={handleLogout}
                 className="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg flex items-center transition duration-200"
               >
-                <FiLogOut className="mr-2" />
-                Logout
+                Dashbaord
               </button>
             </div>
           </div>

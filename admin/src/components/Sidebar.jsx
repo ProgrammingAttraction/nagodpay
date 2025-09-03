@@ -224,6 +224,15 @@ const Sidebar = ({ isOpen }) => {
             Cash Desk
           </span>
         </NavLink>
+          <NavLink
+         to="/subadmin-dashboard"
+          className={ ` flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`}
+        >
+          <span className="flex items-center gap-2 text-gray-100">
+            <PiDesktopTower className="text-[18px]" />
+            Cash Desk Transaction
+          </span>
+        </NavLink>
       {/* Sidebar Menus */}
       {[
        
