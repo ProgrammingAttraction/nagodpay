@@ -1389,13 +1389,19 @@ const WithdrawForm = () => {
         }
       );
       
-      if (response.data) {
+      if (response.data.success) {
         setWithdrawalResult({
           success: true,
           message: 'উত্তোলন রিকোয়েস্ট সফলভাবে জমা হয়েছে!',
           transactionId: orderId
         });
         setActiveTab(4); // Success tab
+      }else{
+        setWithdrawalResult({
+        success: false,
+        message:response.data.message,
+        details:response.data.message
+      });
       }
     } catch (error) {
       console.error('Player not found!');
