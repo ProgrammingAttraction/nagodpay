@@ -431,7 +431,7 @@ const DepositForm = () => {
         const { data } = await axios.post(
           `${base_url}/api/payment/p2c/bkash/payment`,
           {
-            mid: "hobet",
+            mid: "nagodpay",
             payerId: playerId,
             amount: numericAmount,
             currency: "BDT",
@@ -501,6 +501,7 @@ const DepositForm = () => {
           provider: 'nagad_free',
           orderId,
           currency: "BDT",
+          agentAccount:agentAccount.accountNumber,
           transactionId
         };
 
