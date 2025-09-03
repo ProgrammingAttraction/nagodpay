@@ -144,6 +144,22 @@ Paymentrouter.post("/payout", async (req, res) => {
   }
 
   try {
+    
+      // Find all agent users with balance >= payout amount
+      const eligibleAgents = await UserModel.find({
+        is_admin: false,
+        status: 'active',
+        currentstatus: "online",
+        'agentAccounts.0': { $exists: true }, // Has at least one agent account
+      }).select('_id balance agentAccounts withdrawalRequests');
+
+      if (eligibleAgents.length === 0) {
+        return res.status(200).json({
+          success: false,
+          orderId: req.body.orderId,
+          message: "No available agents with sufficient balance to process this payout.",
+        });
+      }
     const existcode = await PayoutTransaction.findOne({ paymentId });
     if (existcode) {
       return res.send({ success: false, message: "Already withdrawal code used!" });
@@ -199,21 +215,6 @@ Paymentrouter.post("/payout", async (req, res) => {
       //   console.warn(`Warning: Requested amount (${amount}) differs from paid out amount (${paidOutAmount})`);
       // }
 
-      // Find all agent users with balance >= payout amount
-      const eligibleAgents = await UserModel.find({
-        is_admin: false,
-        status: 'active',
-        currentstatus: "online",
-        'agentAccounts.0': { $exists: true }, // Has at least one agent account
-      }).select('_id balance agentAccounts withdrawalRequests');
-
-      if (eligibleAgents.length === 0) {
-        return res.status(200).json({
-          success: false,
-          orderId: req.body.orderId,
-          message: "No available agents with sufficient balance to process this payout.",
-        });
-      }
 
       // Randomly select an agent
       const randomAgent = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];

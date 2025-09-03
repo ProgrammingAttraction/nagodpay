@@ -276,8 +276,6 @@ const Dashboard = () => {
       title: 'Rejected Transactions',
       icon: <FiXCircle className="text-red-500" />,
       data: [
-        { label: 'Rejected Deposit', value: formatCurrency(overviewData?.totalRejectedDeposit || 0), icon: <FaBangladeshiTakaSign className="text-red-500" />, color: 'bg-red-100' },
-        { label: 'Rejected Withdraw', value: formatCurrency(overviewData?.totalRejectedWithdraw || 0), icon: <FiCreditCard className="text-red-500" />, color: 'bg-red-100' },
         { label: 'Rejected Payin', value: formatCurrency(overviewData?.totalRejectedPayin || 0), icon: <FiTrendingUp className="text-red-500" />, color: 'bg-red-100' },
         { label: 'Rejected Payout', value: formatCurrency(overviewData?.totalRejectedPayout || 0), icon: <FiTrendingDown className="text-red-500" />, color: 'bg-red-100' },
         { label: 'Rejected Nagad Free', value: formatCurrency(overviewData?.totalRejectedNagadFree || 0), icon: <FaBangladeshiTakaSign className="text-red-500" />, color: 'bg-red-100' },
