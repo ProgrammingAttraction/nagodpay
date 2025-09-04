@@ -21,3 +21,23 @@
           scrollbar-width: none;  /* Firefox */
     }
   }
+/* width */
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+    background: #211D56;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+    background: #0D46A0;
+    border-radius: 5px;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+    background: #0D46A0;
+}

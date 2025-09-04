@@ -20,7 +20,7 @@ import {
   Area
 } from 'recharts';
 import { FaBangladeshiTakaSign } from "react-icons/fa6";
-import { FiUserPlus, FiClock, FiCheckCircle, FiXCircle, FiTrendingUp, FiTrendingDown, FiCreditCard, FiCalendar, FiFilter } from "react-icons/fi";
+import { FiUserPlus, FiClock, FiCheckCircle, FiXCircle, FiTrendingUp, FiTrendingDown, FiCreditCard, FiCalendar, FiFilter, FiX } from "react-icons/fi";
 import axios from 'axios';
 import moment from 'moment';
 
@@ -386,57 +386,77 @@ const Dashboard = () => {
                 <span>Date Filter</span>
                 <FiCalendar className="text-gray-600" />
               </button>
-              
-              {showDateFilter && (
-                <div className="absolute right-0 top-12 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-10 w-80">
-                  <h3 className="font-semibold mb-3">Select Date Range</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                      <input
-                        type="date"
-                        name="startDate"
-                        value={dateRange.startDate}
-                        onChange={handleDateChange}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                        max={dateRange.endDate}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                      <input
-                        type="date"
-                        name="endDate"
-                        value={dateRange.endDate}
-                        onChange={handleDateChange}
-                        className="w-full p-2 border border-gray-300 rounded-md"
-                        min={dateRange.startDate}
-                        max={moment().format('YYYY-MM-DD')}
-                      />
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        onClick={applyDateFilter}
-                        className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors"
-                      >
-                        Apply Filter
-                      </button>
-                      <button
-                        onClick={resetDateFilter}
-                        className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Date Range Display */}
-          <div className="bg-indigo-50 border z-[10000] border-indigo-100 rounded-lg p-3 mb-6">
-            <div className="flex items-center justify-between">
+          {/* Date Filter Panel - Toggleable */}
+          {showDateFilter && (
+            <div className="bg-white rounded-xl p-5 shadow-lg border border-gray-200 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Filter by Date Range</h3>
+                <button 
+                  onClick={() => setShowDateFilter(false)}
+                  className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <FiX className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    name="startDate"
+                    value={dateRange.startDate}
+                    onChange={handleDateChange}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    max={dateRange.endDate}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    name="endDate"
+                    value={dateRange.endDate}
+                    onChange={handleDateChange}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    min={dateRange.startDate}
+                    max={moment().format('YYYY-MM-DD')}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={applyDateFilter}
+                  className="flex-1 bg-indigo-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <FiFilter className="w-4 h-4" />
+                  Apply Filter
+                </button>
+                <button
+                  onClick={resetDateFilter}
+                  className="flex-1 bg-gray-200 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors flex items-center justify-center gap-2"
+                >
+                  <FiX className="w-4 h-4" />
+                  Reset Filter
+                </button>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <FiCalendar className="text-indigo-500" />
+                  <span>Current range: {moment(dateRange.startDate).format('MMM D, YYYY')} - {moment(dateRange.endDate).format('MMM D, YYYY')}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Date Range Display - Always visible */}
+          <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <FiCalendar className="text-indigo-600" />
                 <span className="text-indigo-700 font-medium">Selected Date Range:</span>
@@ -446,8 +466,9 @@ const Dashboard = () => {
               </div>
               <button 
                 onClick={() => setShowDateFilter(true)}
-                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center gap-1"
               >
+                <FiFilter className="w-4 h-4" />
                 Change Dates
               </button>
             </div>
@@ -783,16 +804,15 @@ const Dashboard = () => {
                       radius={[4, 4, 0, 0]} 
                       barSize={20}
                     />
-                    <Bar 
-                      dataKey="payout" 
-                      name="Payout" 
-                      fill="#EF4444" 
-                      radius={[4, 4, 0, 0]} 
-                      barSize={20}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                                   <Bar 
+                    dataKey="payout" 
+                    name="Payout" 
+                    fill="#EF4444" 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={20}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
@@ -862,6 +882,7 @@ const Dashboard = () => {
                 </p>
               </div>
             </div>
+          </div>
           </div>
         </main>
       </div>
