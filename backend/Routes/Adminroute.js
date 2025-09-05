@@ -2338,319 +2338,319 @@ Adminroute.patch('/withdraw-requests/:id/status', async (req, res) => {
 });
 
 
-// GET all cashdesk configurations
-Adminroute.get('/cashdesk', async (req, res) => {
-  try {
-    const { page = 1, limit = 10, search, isActive } = req.query;
-    const skip = (page - 1) * limit;
+// // GET all cashdesk configurations
+// Adminroute.get('/cashdesk', async (req, res) => {
+//   try {
+//     const { page = 1, limit = 10, search, isActive } = req.query;
+//     const skip = (page - 1) * limit;
     
-    // Build query
-    const query = {};
+//     // Build query
+//     const query = {};
     
-    if (search) {
-      query.$or = [
-        { cashdeskId: { $regex: search, $options: 'i' } },
-        { cashdesk: { $regex: search, $options: 'i' } },
-        { cashierLogin: { $regex: search, $options: 'i' } }
-      ];
-    }
+//     if (search) {
+//       query.$or = [
+//         { cashdeskId: { $regex: search, $options: 'i' } },
+//         { cashdesk: { $regex: search, $options: 'i' } },
+//         { cashierLogin: { $regex: search, $options: 'i' } }
+//       ];
+//     }
     
-    if (isActive !== undefined) {
-      query.isActive = isActive === 'true';
-    }
+//     if (isActive !== undefined) {
+//       query.isActive = isActive === 'true';
+//     }
     
-    // Get cashdesks with pagination
-    const cashdesks = await Cashdesk.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+//     // Get cashdesks with pagination
+//     const cashdesks = await Cashdesk.find(query)
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(parseInt(limit));
     
-    // Get total count
-    const total = await Cashdesk.countDocuments(query);
+//     // Get total count
+//     const total = await Cashdesk.countDocuments(query);
     
-    res.json({
-      success: true,
-      data: cashdesks,
-      pagination: {
-        total,
-        totalPages: Math.ceil(total / limit),
-        currentPage: parseInt(page),
-        itemsPerPage: parseInt(limit)
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching cashdesks:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch cashdesk configurations',
-      error: error.message
-    });
-  }
-});
+//     res.json({
+//       success: true,
+//       data: cashdesks,
+//       pagination: {
+//         total,
+//         totalPages: Math.ceil(total / limit),
+//         currentPage: parseInt(page),
+//         itemsPerPage: parseInt(limit)
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error fetching cashdesks:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch cashdesk configurations',
+//       error: error.message
+//     });
+//   }
+// });
 
-// GET single cashdesk configuration by ID
-Adminroute.get('/cashdesk/:id', async (req, res) => {
-  try {
-    const cashdesk = await Cashdesk.findById(req.params.id);
+// // GET single cashdesk configuration by ID
+// Adminroute.get('/cashdesk/:id', async (req, res) => {
+//   try {
+//     const cashdesk = await Cashdesk.findById(req.params.id);
     
-    if (!cashdesk) {
-      return res.status(404).json({
-        success: false,
-        message: 'Cashdesk configuration not found'
-      });
-    }
+//     if (!cashdesk) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Cashdesk configuration not found'
+//       });
+//     }
     
-    res.json({
-      success: true,
-      data: cashdesk
-    });
-  } catch (error) {
-    console.error('Error fetching cashdesk:', error);
+//     res.json({
+//       success: true,
+//       data: cashdesk
+//     });
+//   } catch (error) {
+//     console.error('Error fetching cashdesk:', error);
     
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid cashdesk ID format'
-      });
-    }
+//     if (error.name === 'CastError') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid cashdesk ID format'
+//       });
+//     }
     
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch cashdesk configuration',
-      error: error.message
-    });
-  }
-});
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch cashdesk configuration',
+//       error: error.message
+//     });
+//   }
+// });
 
-// POST create new cashdesk configuration
-Adminroute.post('/cashdesk', async (req, res) => {
-  try {
-    const {
-      cashdeskId,
-      cashdesk,
-      cashdeskHash,
-      cashierPass,
-      cashierLogin,
-      cashdeskApiBase,
-      defaultLng
-    } = req.body;
+// // POST create new cashdesk configuration
+// Adminroute.post('/cashdesk', async (req, res) => {
+//   try {
+//     const {
+//       cashdeskId,
+//       cashdesk,
+//       cashdeskHash,
+//       cashierPass,
+//       cashierLogin,
+//       cashdeskApiBase,
+//       defaultLng
+//     } = req.body;
     
-    // Check if cashdeskId already exists
-    const existingCashdesk = await Cashdesk.findOne({ cashdeskId });
-    if (existingCashdesk) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cashdesk ID already exists'
-      });
-    }
+//     // Check if cashdeskId already exists
+//     const existingCashdesk = await Cashdesk.findOne({ cashdeskId });
+//     if (existingCashdesk) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Cashdesk ID already exists'
+//       });
+//     }
     
-    // Create new cashdesk
-    const newCashdesk = new Cashdesk({
-      cashdeskId,
-      cashdesk,
-      cashdeskHash,
-      cashierPass,
-      cashierLogin,
-      cashdeskApiBase,
-      defaultLng
-    });
+//     // Create new cashdesk
+//     const newCashdesk = new Cashdesk({
+//       cashdeskId,
+//       cashdesk,
+//       cashdeskHash,
+//       cashierPass,
+//       cashierLogin,
+//       cashdeskApiBase,
+//       defaultLng
+//     });
     
-    const savedCashdesk = await newCashdesk.save();
+//     const savedCashdesk = await newCashdesk.save();
     
-    res.status(201).json({
-      success: true,
-      message: 'Cashdesk configuration created successfully',
-      data: savedCashdesk
-    });
-  } catch (error) {
-    console.error('Error creating cashdesk:', error);
+//     res.status(201).json({
+//       success: true,
+//       message: 'Cashdesk configuration created successfully',
+//       data: savedCashdesk
+//     });
+//   } catch (error) {
+//     console.error('Error creating cashdesk:', error);
     
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors
-      });
-    }
+//     if (error.name === 'ValidationError') {
+//       const errors = Object.values(error.errors).map(err => err.message);
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Validation failed',
+//         errors
+//       });
+//     }
     
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create cashdesk configuration',
-      error: error.message
-    });
-  }
-});
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to create cashdesk configuration',
+//       error: error.message
+//     });
+//   }
+// });
 
-// PUT update cashdesk configuration
-Adminroute.put('/cashdesk/:id', async (req, res) => {
-  try {
-    const {
-      cashdeskId,
-      cashdesk,
-      cashdeskHash,
-      cashierPass,
-      cashierLogin,
-      cashdeskApiBase,
-      defaultLng,
-      isActive
-    } = req.body;
+// // PUT update cashdesk configuration
+// Adminroute.put('/cashdesk/:id', async (req, res) => {
+//   try {
+//     const {
+//       cashdeskId,
+//       cashdesk,
+//       cashdeskHash,
+//       cashierPass,
+//       cashierLogin,
+//       cashdeskApiBase,
+//       defaultLng,
+//       isActive
+//     } = req.body;
     
-    // Check if cashdeskId already exists (excluding current document)
-    if (cashdeskId) {
-      const existingCashdesk = await Cashdesk.findOne({
-        cashdeskId,
-        _id: { $ne: req.params.id }
-      });
+//     // Check if cashdeskId already exists (excluding current document)
+//     if (cashdeskId) {
+//       const existingCashdesk = await Cashdesk.findOne({
+//         cashdeskId,
+//         _id: { $ne: req.params.id }
+//       });
       
-      if (existingCashdesk) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cashdesk ID already exists'
-        });
-      }
-    }
+//       if (existingCashdesk) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Cashdesk ID already exists'
+//         });
+//       }
+//     }
     
-    const updateData = {};
-    if (cashdeskId) updateData.cashdeskId = cashdeskId;
-    if (cashdesk) updateData.cashdesk = cashdesk;
-    if (cashdeskHash) updateData.cashdeskHash = cashdeskHash;
-    if (cashierPass) updateData.cashierPass = cashierPass;
-    if (cashierLogin) updateData.cashierLogin = cashierLogin;
-    if (cashdeskApiBase) updateData.cashdeskApiBase = cashdeskApiBase;
-    if (defaultLng) updateData.defaultLng = defaultLng;
-    if (isActive !== undefined) updateData.isActive = isActive;
+//     const updateData = {};
+//     if (cashdeskId) updateData.cashdeskId = cashdeskId;
+//     if (cashdesk) updateData.cashdesk = cashdesk;
+//     if (cashdeskHash) updateData.cashdeskHash = cashdeskHash;
+//     if (cashierPass) updateData.cashierPass = cashierPass;
+//     if (cashierLogin) updateData.cashierLogin = cashierLogin;
+//     if (cashdeskApiBase) updateData.cashdeskApiBase = cashdeskApiBase;
+//     if (defaultLng) updateData.defaultLng = defaultLng;
+//     if (isActive !== undefined) updateData.isActive = isActive;
     
-    const updatedCashdesk = await Cashdesk.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { 
-        new: true,
-        runValidators: true
-      }
-    );
+//     const updatedCashdesk = await Cashdesk.findByIdAndUpdate(
+//       req.params.id,
+//       updateData,
+//       { 
+//         new: true,
+//         runValidators: true
+//       }
+//     );
     
-    if (!updatedCashdesk) {
-      return res.status(404).json({
-        success: false,
-        message: 'Cashdesk configuration not found'
-      });
-    }
+//     if (!updatedCashdesk) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Cashdesk configuration not found'
+//       });
+//     }
     
-    res.json({
-      success: true,
-      message: 'Cashdesk configuration updated successfully',
-      data: updatedCashdesk
-    });
-  } catch (error) {
-    console.error('Error updating cashdesk:', error);
+//     res.json({
+//       success: true,
+//       message: 'Cashdesk configuration updated successfully',
+//       data: updatedCashdesk
+//     });
+//   } catch (error) {
+//     console.error('Error updating cashdesk:', error);
     
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors
-      });
-    }
+//     if (error.name === 'ValidationError') {
+//       const errors = Object.values(error.errors).map(err => err.message);
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Validation failed',
+//         errors
+//       });
+//     }
     
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid cashdesk ID format'
-      });
-    }
+//     if (error.name === 'CastError') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid cashdesk ID format'
+//       });
+//     }
     
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update cashdesk configuration',
-      error: error.message
-    });
-  }
-});
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to update cashdesk configuration',
+//       error: error.message
+//     });
+//   }
+// });
 
-// DELETE cashdesk configuration
-Adminroute.delete('/cashdesk/:id', async (req, res) => {
-  try {
-    const deletedCashdesk = await Cashdesk.findByIdAndDelete(req.params.id);
+// // DELETE cashdesk configuration
+// Adminroute.delete('/cashdesk/:id', async (req, res) => {
+//   try {
+//     const deletedCashdesk = await Cashdesk.findByIdAndDelete(req.params.id);
     
-    if (!deletedCashdesk) {
-      return res.status(404).json({
-        success: false,
-        message: 'Cashdesk configuration not found'
-      });
-    }
+//     if (!deletedCashdesk) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Cashdesk configuration not found'
+//       });
+//     }
     
-    res.json({
-      success: true,
-      message: 'Cashdesk configuration deleted successfully',
-      data: deletedCashdesk
-    });
-  } catch (error) {
-    console.error('Error deleting cashdesk:', error);
+//     res.json({
+//       success: true,
+//       message: 'Cashdesk configuration deleted successfully',
+//       data: deletedCashdesk
+//     });
+//   } catch (error) {
+//     console.error('Error deleting cashdesk:', error);
     
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid cashdesk ID format'
-      });
-    }
+//     if (error.name === 'CastError') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid cashdesk ID format'
+//       });
+//     }
     
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete cashdesk configuration',
-      error: error.message
-    });
-  }
-});
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to delete cashdesk configuration',
+//       error: error.message
+//     });
+//   }
+// });
 
-// PATCH toggle cashdesk status
-Adminroute.patch('/cashdesk/:id/status', async (req, res) => {
-  try {
-    const { isActive } = req.body;
+// // PATCH toggle cashdesk status
+// Adminroute.patch('/cashdesk/:id/status', async (req, res) => {
+//   try {
+//     const { isActive } = req.body;
     
-    if (typeof isActive !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        message: 'isActive must be a boolean value'
-      });
-    }
+//     if (typeof isActive !== 'boolean') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'isActive must be a boolean value'
+//       });
+//     }
     
-    const updatedCashdesk = await Cashdesk.findByIdAndUpdate(
-      req.params.id,
-      { isActive },
-      { new: true }
-    );
+//     const updatedCashdesk = await Cashdesk.findByIdAndUpdate(
+//       req.params.id,
+//       { isActive },
+//       { new: true }
+//     );
     
-    if (!updatedCashdesk) {
-      return res.status(404).json({
-        success: false,
-        message: 'Cashdesk configuration not found'
-      });
-    }
+//     if (!updatedCashdesk) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Cashdesk configuration not found'
+//       });
+//     }
     
-    res.json({
-      success: true,
-      message: `Cashdesk ${isActive ? 'activated' : 'deactivated'} successfully`,
-      data: updatedCashdesk
-    });
-  } catch (error) {
-    console.error('Error updating cashdesk status:', error);
+//     res.json({
+//       success: true,
+//       message: `Cashdesk ${isActive ? 'activated' : 'deactivated'} successfully`,
+//       data: updatedCashdesk
+//     });
+//   } catch (error) {
+//     console.error('Error updating cashdesk status:', error);
     
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid cashdesk ID format'
-      });
-    }
+//     if (error.name === 'CastError') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid cashdesk ID format'
+//       });
+//     }
     
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update cashdesk status',
-      error: error.message
-    });
-  }
-});
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to update cashdesk status',
+//       error: error.message
+//     });
+//   }
+// });
 
 const PaymentMethod = require('../Models/PaymentMethod'); // Add this import at the top with other models
 const NagadFreeDeposit = require('../Models/NagadFreeDeposit');
