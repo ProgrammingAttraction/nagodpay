@@ -12,8 +12,6 @@ const CashDeskConfigSchema = new mongoose.Schema({
   cashdeskApiBase: { type: String, required: true },
   defaultLng: { type: String, default: 'en' },
   isActive: { type: Boolean, default: false },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
 // Ensure only one active configuration exists
@@ -82,7 +80,7 @@ const getAllConfigs = async () => {
   }
 };
 
-const createConfig = async (configData, userId) => {
+const createConfig = async (configData) => {
   const session = await CashDeskConfig.startSession();
   session.startTransaction();
   
@@ -99,8 +97,6 @@ const createConfig = async (configData, userId) => {
     // Create new configuration
     const config = new CashDeskConfig({
       ...configData,
-      createdBy: userId,
-      updatedBy: userId
     });
     
     await config.save({ session });
@@ -127,7 +123,7 @@ const createConfig = async (configData, userId) => {
   }
 };
 
-const updateConfig = async (id, configData, userId) => {
+const updateConfig = async (id, configData) => {
   const session = await CashDeskConfig.startSession();
   session.startTransaction();
   
@@ -145,9 +141,7 @@ const updateConfig = async (id, configData, userId) => {
     const config = await CashDeskConfig.findByIdAndUpdate(
       id,
       {
-        ...configData,
-        updatedBy: userId
-      },
+        ...configData      },
       { new: true, runValidators: true, session }
     );
     
@@ -266,7 +260,6 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const configData = req.body;
-    const userId = req.user._id;
     
     // Validate required fields
     const requiredFields = ['cashdeskId', 'cashdesk', 'cashdeskHash', 'cashierPass', 'cashierLogin', 'cashdeskApiBase'];
@@ -279,7 +272,7 @@ router.post('/', async (req, res) => {
       });
     }
     
-    const config = await createConfig(configData, userId);
+    const config = await createConfig(configData);
     res.status(201).json({ 
       success: true, 
       message: 'CashDesk configuration created successfully', 
