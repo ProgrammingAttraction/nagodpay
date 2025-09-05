@@ -36,6 +36,9 @@ const getActiveConfig = async () => {
   
   try {
     // Get the active configuration
+        const allConfigs = await CashDeskConfig.find();
+    console.log('All configs:', allConfigs);
+    
     const config = await CashDeskConfig.findOne({ isActive: true }).lean();
     console.log("config",config)
     if (!config) {
