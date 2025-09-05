@@ -79,94 +79,54 @@ const getAllConfigs = async () => {
     throw error;
   }
 };
-
+// createConfig (no sessions)
 const createConfig = async (configData) => {
-  const session = await CashDeskConfig.startSession();
-  session.startTransaction();
-  
   try {
-    // If this is being set as active, deactivate all others
     if (configData.isActive) {
-      await CashDeskConfig.updateMany(
-        { isActive: true },
-        { isActive: false },
-        { session }
-      );
+      await CashDeskConfig.updateMany({ isActive: true }, { $set: { isActive: false } });
     }
-    
-    // Create new configuration
-    const config = new CashDeskConfig(configData);
-    
-    await config.save({ session });
-    
-    // Commit transaction
-    await session.commitTransaction();
-    session.endSession();
-    
-    // Clear cache
-    cachedConfig = null;
-    lastFetchTime = 0;
-    
+    const config = await CashDeskConfig.create(configData);
+
+    cachedConfig = null; lastFetchTime = 0;
     return config;
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
-    if (error.code === 11000) {
-      throw new Error('CashDesk ID already exists');
-    }
-    
-    console.error('Error creating CashDesk configuration:', error);
+    if (error.code === 11000) throw new Error('CashDesk ID already exists');
     throw error;
   }
 };
 
 const updateConfig = async (id, configData) => {
-  const session = await CashDeskConfig.startSession();
-  session.startTransaction();
-  
   try {
-    // If this is being set as active, deactivate all others
     if (configData.isActive) {
-      await CashDeskConfig.updateMany(
-        { isActive: true, _id: { $ne: id } },
-        { isActive: false },
-        { session }
-      );
+      await CashDeskConfig.updateMany({ isActive: true, _id: { $ne: id } }, { $set: { isActive: false } });
     }
-    
-    // Update configuration
     const config = await CashDeskConfig.findByIdAndUpdate(
-      id,
-      configData,
-      { new: true, runValidators: true, session }
+      id, configData, { new: true, runValidators: true }
     );
-    
-    if (!config) {
-      throw new Error('CashDesk configuration not found');
-    }
-    
-    // Commit transaction
-    await session.commitTransaction();
-    session.endSession();
-    
-    // Clear cache
-    cachedConfig = null;
-    lastFetchTime = 0;
-    
+    if (!config) throw new Error('CashDesk configuration not found');
+
+    cachedConfig = null; lastFetchTime = 0;
     return config;
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
-    if (error.code === 11000) {
-      throw new Error('CashDesk ID already exists');
-    }
-    
-    console.error('Error updating CashDesk configuration:', error);
+    if (error.code === 11000) throw new Error('CashDesk ID already exists');
     throw error;
   }
 };
+
+const toggleStatus = async (id) => {
+  const config = await CashDeskConfig.findById(id);
+  if (!config) throw new Error('CashDesk configuration not found');
+
+  if (!config.isActive) {
+    await CashDeskConfig.updateMany({ isActive: true }, { $set: { isActive: false } });
+  }
+  config.isActive = !config.isActive;
+  await config.save();
+
+  cachedConfig = null; lastFetchTime = 0;
+  return config;
+};
+
 
 const deleteConfig = async (id) => {
   try {
@@ -191,48 +151,6 @@ const deleteConfig = async (id) => {
   }
 };
 
-const toggleStatus = async (id) => {
-  const session = await CashDeskConfig.startSession();
-  session.startTransaction();
-  
-  try {
-    const config = await CashDeskConfig.findById(id);
-    
-    if (!config) {
-      throw new Error('CashDesk configuration not found');
-    }
-    
-    // If activating this config, deactivate all others
-    if (!config.isActive) {
-      await CashDeskConfig.updateMany(
-        { isActive: true },
-        { isActive: false },
-        { session }
-      );
-    }
-    
-    // Toggle status
-    config.isActive = !config.isActive;
-    
-    await config.save({ session });
-    
-    // Commit transaction
-    await session.commitTransaction();
-    session.endSession();
-    
-    // Clear cache
-    cachedConfig = null;
-    lastFetchTime = 0;
-    
-    return config;
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    
-    console.error('Error toggling CashDesk configuration status:', error);
-    throw error;
-  }
-};
 
 // API Routes
 router.get('/active', async (req, res) => {
