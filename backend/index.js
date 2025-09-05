@@ -52,6 +52,7 @@ app.use('/api/admin', Adminroute);
 app.use('/api/user',Userrouter);
 app.use('/api/payment',Paymentrouter);
 app.use('/api/merchant',Merchantrouter);
+app.use('/api/admin/cashdesk', require("./Routes/cashDeskConfig").router);
 
 // NEW: cashdesk route
 app.use('/api/cashdesk', CashdeskRouter);

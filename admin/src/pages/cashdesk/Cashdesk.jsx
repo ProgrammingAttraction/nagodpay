@@ -15,7 +15,8 @@ const Cashdesk = () => {
     cashierPass: '',
     cashierLogin: '',
     cashdeskApiBase: '',
-    defaultLng: ''
+    defaultLng: 'en',
+    isActive: false
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,7 +35,6 @@ const Cashdesk = () => {
   const fetchCashdesks = async () => {
     try {
       setIsLoading(true);
-      // Replace with your actual API endpoint
       const response = await axios.get(`${base_url}/api/admin/cashdesk`);
       if (response.data.success) {
         setCashdesks(response.data.data);
@@ -48,10 +48,10 @@ const Cashdesk = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     });
     
     // Clear error when user types
@@ -66,41 +66,34 @@ const Cashdesk = () => {
   const validateForm = () => {
     const newErrors = {};
     
-    // Cashdesk ID validation
     if (!formData.cashdeskId.trim()) {
       newErrors.cashdeskId = 'Cashdesk ID is required';
     }
     
-    // Cashdesk validation
     if (!formData.cashdesk.trim()) {
       newErrors.cashdesk = 'Cashdesk is required';
     }
     
-    // Cashdesk Hash validation
     if (!formData.cashdeskHash.trim()) {
       newErrors.cashdeskHash = 'Cashdesk Hash is required';
     }
     
-    // Cashier Password validation
     if (!formData.cashierPass.trim()) {
       newErrors.cashierPass = 'Cashier Password is required';
     } else if (formData.cashierPass.length < 6) {
       newErrors.cashierPass = 'Password must be at least 6 characters';
     }
     
-    // Cashier Login validation
     if (!formData.cashierLogin.trim()) {
       newErrors.cashierLogin = 'Cashier Login is required';
     }
     
-    // API Base URL validation
     if (!formData.cashdeskApiBase.trim()) {
       newErrors.cashdeskApiBase = 'API Base URL is required';
     } else if (!/^https?:\/\/.+\..+/.test(formData.cashdeskApiBase)) {
       newErrors.cashdeskApiBase = 'Please enter a valid URL';
     }
     
-    // Default Language validation
     if (!formData.defaultLng.trim()) {
       newErrors.defaultLng = 'Default Language is required';
     } else if (formData.defaultLng.length !== 2) {
@@ -125,10 +118,8 @@ const Cashdesk = () => {
       let response;
       
       if (isEditing) {
-        // Update existing cashdesk
         response = await axios.put(`${base_url}/api/admin/cashdesk/${currentCashdeskId}`, formData);
       } else {
-        // Create new cashdesk
         response = await axios.post(`${base_url}/api/admin/cashdesk`, formData);
       }
       
@@ -140,7 +131,6 @@ const Cashdesk = () => {
           confirmButtonColor: '#4361ee',
         });
         
-        // Reset form and refresh data
         resetForm();
         fetchCashdesks();
       }
@@ -148,7 +138,6 @@ const Cashdesk = () => {
       console.error('Error submitting form:', error);
       
       if (error.response?.data?.errors) {
-        // Display validation errors
         error.response.data.errors.forEach(err => {
           toast.error(err);
         });
@@ -168,12 +157,12 @@ const Cashdesk = () => {
       cashierPass: cashdesk.cashierPass,
       cashierLogin: cashdesk.cashierLogin,
       cashdeskApiBase: cashdesk.cashdeskApiBase,
-      defaultLng: cashdesk.defaultLng
+      defaultLng: cashdesk.defaultLng,
+      isActive: cashdesk.isActive
     });
     setCurrentCashdeskId(cashdesk._id);
     setIsEditing(true);
     
-    // Scroll to form
     document.getElementById('cashdesk-form').scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -199,10 +188,8 @@ const Cashdesk = () => {
             'success'
           );
           
-          // Refresh data
           fetchCashdesks();
           
-          // If we were editing the deleted item, reset the form
           if (currentCashdeskId === id) {
             resetForm();
           }
@@ -238,48 +225,12 @@ const Cashdesk = () => {
       cashierPass: '',
       cashierLogin: '',
       cashdeskApiBase: '',
-      defaultLng: ''
+      defaultLng: 'en',
+      isActive: false
     });
     setErrors({});
     setIsEditing(false);
     setCurrentCashdeskId(null);
-  };
-
-  const handleClearAll = async () => {
-    const result = await Swal.fire({
-      title: 'Clear All Cashdesks?',
-      text: "This will delete ALL cashdesk configurations. This action cannot be undone!",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, clear all!',
-      reverseButtons: true
-    });
-    
-    if (result.isConfirmed) {
-      try {
-        // Delete all cashdesks one by one
-        const deletePromises = cashdesks.map(cashdesk => 
-          axios.delete(`${base_url}/api/admin/cashdesk/${cashdesk._id}`)
-        );
-        
-        await Promise.all(deletePromises);
-        
-        Swal.fire(
-          'Cleared!',
-          'All cashdesk configurations have been deleted.',
-          'success'
-        );
-        
-        // Refresh data and reset form
-        setCashdesks([]);
-        resetForm();
-      } catch (error) {
-        console.error('Error clearing all cashdesks:', error);
-        toast.error('Failed to clear all cashdesk configurations');
-      }
-    }
   };
 
   return (
@@ -323,7 +274,6 @@ const Cashdesk = () => {
             </div>
             
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Cashdesk ID Field */}
               <div>
                 <label htmlFor="cashdeskId" className="block text-sm font-medium text-gray-700 mb-1">
                   Cashdesk ID *
@@ -345,7 +295,6 @@ const Cashdesk = () => {
                 )}
               </div>
               
-              {/* Cashdesk Field */}
               <div>
                 <label htmlFor="cashdesk" className="block text-sm font-medium text-gray-700 mb-1">
                   Cashdesk Name *
@@ -366,7 +315,6 @@ const Cashdesk = () => {
                 )}
               </div>
               
-              {/* Cashdesk Hash Field */}
               <div>
                 <label htmlFor="cashdeskHash" className="block text-sm font-medium text-gray-700 mb-1">
                   Cashdesk Hash *
@@ -387,7 +335,6 @@ const Cashdesk = () => {
                 )}
               </div>
               
-              {/* Cashier Password Field */}
               <div>
                 <label htmlFor="cashierPass" className="block text-sm font-medium text-gray-700 mb-1">
                   Cashier Password *
@@ -408,7 +355,6 @@ const Cashdesk = () => {
                 )}
               </div>
               
-              {/* Cashier Login Field */}
               <div>
                 <label htmlFor="cashierLogin" className="block text-sm font-medium text-gray-700 mb-1">
                   Cashier Login *
@@ -429,7 +375,6 @@ const Cashdesk = () => {
                 )}
               </div>
               
-              {/* API Base URL Field */}
               <div>
                 <label htmlFor="cashdeskApiBase" className="block text-sm font-medium text-gray-700 mb-1">
                   API Base URL *
@@ -450,7 +395,6 @@ const Cashdesk = () => {
                 )}
               </div>
               
-              {/* Default Language Field */}
               <div>
                 <label htmlFor="defaultLng" className="block text-sm font-medium text-gray-700 mb-1">
                   Default Language *
@@ -472,7 +416,20 @@ const Cashdesk = () => {
                 )}
               </div>
               
-              {/* Submit Button */}
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  name="isActive"
+                  checked={formData.isActive}
+                  onChange={handleChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                  Set as active configuration
+                </label>
+              </div>
+              
               <div className="md:col-span-2 flex justify-end mt-4 space-x-4">
                 <button
                   type="submit"
@@ -481,21 +438,10 @@ const Cashdesk = () => {
                 >
                   {isSubmitting ? 'Saving...' : isEditing ? 'Update Configuration' : 'Save Configuration'}
                 </button>
-                
-                {cashdesks.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleClearAll}
-                    className="px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition"
-                  >
-                    Clear All
-                  </button>
-                )}
               </div>
             </form>
           </div>
 
-          {/* Cashdesk List Section */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-800">Cashdesk Configurations</h2>

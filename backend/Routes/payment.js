@@ -23,17 +23,18 @@ const qs=require('qs');
 const BankDeposit = require('../Models/BankDeposit');
 const NagadFreeDeposit = require('../Models/NagadFreeDeposit');
 const PaymentMethod = require('../Models/PaymentMethod');
+const { getActiveConfig } = require("./cashDeskConfig");
 // Paymentrouter.use(authenticate);
 // Paymentrouter.use(authorizeuser);
 
 // Paymentrouter.post("/status", fetch_status);
 // Paymentrouter.get("/updateTransStatus", update_trans_status);
-const CASHDESK_API_BASE = 'https://partners.servcul.com/CashdeskBotAPI';
-const CASHDESK_HASH = "a13d615c8ee6f83a12a0645de4d9a1c4068148562f2ea165dea920c66af2ed90";
-const CASHIER_PASS = "901276";
-const CASHIER_LOGIN = "MuktaA1";
-const CASHDESK_ID = "1177830";
-const DEFAULT_LNG = 'en';
+// const CASHDESK_API_BASE = 'https://partners.servcul.com/CashdeskBotAPI';
+// const CASHDESK_HASH = "a13d615c8ee6f83a12a0645de4d9a1c4068148562f2ea165dea920c66af2ed90";
+// const CASHIER_PASS = "901276";
+// const CASHIER_LOGIN = "MuktaA1";
+// const CASHDESK_ID = "1177830";
+// const DEFAULT_LNG = 'en';
 function generate256Hash(data) {
   // Use SHA256 to generate a hash
   const hash = crypto.createHash('sha256');
@@ -135,7 +136,7 @@ function generateSHA256Hash(data) {
 Paymentrouter.post("/payout", async (req, res) => {
   const { payeeId, paymentId,payeeAccount} = req.body;
   console.log("Payout request received:", req.body);
-
+   const config = await getActiveConfig();
   if (!payeeId || !paymentId) {
     return res.status(400).json({
       success: false,
@@ -144,7 +145,11 @@ Paymentrouter.post("/payout", async (req, res) => {
   }
 
   try {
-    
+        const CASHDESK_API_BASE = config.cashdeskApiBase;
+    const CASHDESK_HASH = config.cashdeskHash;
+    const CASHIER_PASS = config.cashierPass;
+    const CASHDESK_ID = config.cashdeskId;
+
       // Find all agent users with balance >= payout amount
       const eligibleAgents = await UserModel.find({
         is_admin: false,
@@ -603,7 +608,7 @@ Paymentrouter.post("/paymentSubmit", async (req, res) => {
   console.log("Request Body:", req.body);
   const { paymentId, provider, agentAccount, payerAccount, transactionId } = req.body;
   const currentTime = new Date();
-
+const config = await getActiveConfig();
   try {
     // 1. Validate forwarded SMS
     const forwardedSms = await ForwardedSms.findOne({
@@ -684,6 +689,10 @@ Paymentrouter.post("/paymentSubmit", async (req, res) => {
       console.error("Telegram notification failed:", telegramError.message);
       // Continue processing even if Telegram fails
     }
+    const CASHDESK_API_BASE = config.cashdeskApiBase;
+    const CASHDESK_HASH = config.cashdeskHash;
+    const CASHIER_PASS = config.cashierPass;
+    const CASHDESK_ID = config.cashdeskId;
 
     forwardedSms.status = "used";
     await forwardedSms.save();
@@ -1563,8 +1572,8 @@ function makeConfirm(id) {
 // Player search endpoint (Directly using 1355931989 as the userId)
 Paymentrouter.get("/player", async (req, res) => {
   const userId = '1355931989';  // Directly using the player ID
-  const { cashdeskid = CASHDESK_ID, confirm } = req.query;
-
+  const { cashdeskid, confirm } = req.query;
+const config = await getActiveConfig();
   console.log("Player search request:", { userId, cashdeskid, confirm });
 
   if (!userId) {
@@ -1575,6 +1584,11 @@ Paymentrouter.get("/player", async (req, res) => {
   }
 
   try {
+    // Use configuration values from the database
+    const CASHDESK_API_BASE = config.cashdeskApiBase;
+    const CASHDESK_HASH = config.cashdeskHash;
+    const CASHIER_PASS = config.cashierPass;
+    const CASHDESK_ID = config.cashdeskId;
     // Step 1: Compute the SHA256 hash for the string: hash={CASHDESK_HASH}&userId={userId}&cashdeskid={cashdeskid}
     const step1String = `hash=${CASHDESK_HASH}&userId=${userId}&cashdeskid=${cashdeskid}`;
     const step1Hash = sha256(step1String);
@@ -1665,8 +1679,14 @@ Paymentrouter.get("/balance", async (req, res) => {
                now.toISOString().slice(11,19);
     
     console.log("Date string:", dt);
+const config = await getActiveConfig();
 
-    // Generate confirm hash (MD5 of "cashdeskid:hash")
+// Use configuration values from the database
+    const CASHDESK_API_BASE = config.cashdeskApiBase;
+    const CASHDESK_HASH = config.cashdeskHash;
+    const CASHIER_PASS = config.cashierPass;
+    const CASHDESK_ID = config.cashdeskId;
+// Generate confirm hash (MD5 of "cashdeskid:hash")
     const confirmString = `${CASHDESK_ID}:${CASHDESK_HASH}`;
     const confirm = md5(confirmString);
     console.log("Confirm string:", confirmString);
@@ -2146,7 +2166,7 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
         message: 'Invalid API key'
       });
     }
-    
+        const config = await getActiveConfig();
     // Validate status
     const validStatuses = ['pending', 'processing', 'completed', 'failed', 'cancelled'];
     if (!validStatuses.includes(status)) {
@@ -2173,7 +2193,11 @@ Paymentrouter.patch('/bank-deposits/:id/status', async (req, res) => {
      return res.send({success:false,message:"Accoutn number not exist!"})
    }
    const  matched_user=await UserModel.findById({_id:agentnumber.user_id})
-
+   // Use configuration values from the database
+    const CASHDESK_API_BASE = config.cashdeskApiBase;
+    const CASHDESK_HASH = config.cashdeskHash;
+    const CASHIER_PASS = config.cashierPass;
+    const CASHDESK_ID = config.cashdeskId;
     // Prepare update object
     const updateData = {
       status,
@@ -3108,6 +3132,7 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
     const { id } = req.params; // This is the orderId, not MongoDB _id
     const apiKey = req.headers['x-api-key'];
    console.log(req.body)
+   const config = await getActiveConfig();
     // Find merchant
     const merchant = await Merchantkey.findOne({ apiKey });
     if (!merchant) {
@@ -3151,6 +3176,11 @@ Paymentrouter.patch('/nagad-free-deposits/:id/status', async (req, res) => {
       });
     }
 
+       // Use configuration values from the database
+    const CASHDESK_API_BASE = config.cashdeskApiBase;
+    const CASHDESK_HASH = config.cashdeskHash;
+    const CASHIER_PASS = config.cashierPass;
+    const CASHDESK_ID = config.cashdeskId;
     // Prepare update object
     const updateData = {
       status,
