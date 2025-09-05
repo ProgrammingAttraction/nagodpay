@@ -275,6 +275,7 @@ router.post('/', async (req, res) => {
       data: config 
     });
   } catch (error) {
+    console.log(error)
     if (error.message.includes('already exists')) {
       return res.status(400).json({ success: false, message: error.message });
     }
