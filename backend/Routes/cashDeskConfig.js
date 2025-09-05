@@ -11,7 +11,7 @@ const CashDeskConfigSchema = new mongoose.Schema({
   cashierLogin: { type: String, required: true },
   cashdeskApiBase: { type: String, required: true },
   defaultLng: { type: String, default: 'en' },
-  isActive: { type: Boolean, default: false },
+  isActive: { type: Boolean, default: false }
 }, { timestamps: true });
 
 // Ensure only one active configuration exists
@@ -34,11 +34,11 @@ const getActiveConfig = async () => {
   
   try {
     // Get the active configuration
-        const allConfigs = await CashDeskConfig.find();
+    const allConfigs = await CashDeskConfig.find();
     console.log('All configs:', allConfigs);
     
     const config = await CashDeskConfig.findOne({ isActive: true }).lean();
-    console.log("config",config)
+    console.log("config", config)
     if (!config) {
       // Fallback to environment variables
       return {
@@ -95,9 +95,7 @@ const createConfig = async (configData) => {
     }
     
     // Create new configuration
-    const config = new CashDeskConfig({
-      ...configData,
-    });
+    const config = new CashDeskConfig(configData);
     
     await config.save({ session });
     
@@ -140,8 +138,7 @@ const updateConfig = async (id, configData) => {
     // Update configuration
     const config = await CashDeskConfig.findByIdAndUpdate(
       id,
-      {
-        ...configData      },
+      configData,
       { new: true, runValidators: true, session }
     );
     
@@ -194,7 +191,7 @@ const deleteConfig = async (id) => {
   }
 };
 
-const toggleStatus = async (id, userId) => {
+const toggleStatus = async (id) => {
   const session = await CashDeskConfig.startSession();
   session.startTransaction();
   
@@ -216,7 +213,6 @@ const toggleStatus = async (id, userId) => {
     
     // Toggle status
     config.isActive = !config.isActive;
-    config.updatedBy = userId;
     
     await config.save({ session });
     
@@ -290,9 +286,8 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const configData = req.body;
-    const userId = req.user._id;
     
-    const config = await updateConfig(id, configData, userId);
+    const config = await updateConfig(id, configData);
     res.json({ 
       success: true, 
       message: 'CashDesk configuration updated successfully', 
@@ -326,9 +321,8 @@ router.delete('/:id', async (req, res) => {
 router.patch('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
     
-    const config = await toggleStatus(id, userId);
+    const config = await toggleStatus(id);
     res.json({ 
       success: true, 
       message: `CashDesk configuration ${config.isActive ? 'activated' : 'deactivated'} successfully`, 
