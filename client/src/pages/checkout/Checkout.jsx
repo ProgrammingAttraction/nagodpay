@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import axios from "axios";
 import toast, { Toaster } from 'react-hot-toast';
 import logo from '../../assets/logo.png';
-
+import { FaBangladeshiTakaSign } from "react-icons/fa6";
 // Professional Loading Animation Component
 const LoadingAnimation = () => {
   return (
@@ -76,7 +76,7 @@ const Checkout = () => {
             setRandomAgent(res.data.bankAccount.accountNumber)
             setProvider(agentAccount.provider);
             setWalletNumber(res.data.bankAccount.accountNumber);
-            setAmount(res.data.amount);
+            setAmount(res.data.paymentDetails.expectedAmount);
             setCurrency(res.data.currency);
             setWebsiteUrl(res.data.websiteUrl);
           } else {
@@ -187,7 +187,7 @@ const Checkout = () => {
       showConfirmButton: false,
       timer: 2000
     }).then(() => {
-      navigate('/');
+      navigate('/payment-methods');
     });
   };
 
@@ -463,13 +463,11 @@ const Checkout = () => {
                   {/* Payment Summary Card */}
                   <div className="bg-gradient-to-r from-theme/10 to-blue-100 border border-theme/20 rounded-xl p-4 mb-4 md:mb-6 flex items-center">
                     <div className="bg-theme text-white p-2 md:p-3 rounded-lg mr-3 md:mr-4">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+               <FaBangladeshiTakaSign/>
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-700 text-sm md:text-base">পেমেন্টের পরিমাণ</h3>
-                      <p className="text-xl md:text-2xl font-bold text-theme">{amount} {currency}</p>
+                      <p className="text-xl md:text-2xl font-bold text-theme">৳ {amount} <span className="ml-[8px] text-red-500"> ( ক্যাশআউট করুন )</span></p>
                     </div>
                   </div>
 
@@ -479,15 +477,9 @@ const Checkout = () => {
                       <label className="block font-medium text-gray-700 mb-2">
                         পেমেন্ট পাঠান
                       </label>
-                      <div className="space-y-3 md:space-y-4">
+                       <div className="space-y-3 md:space-y-4">
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">ওয়ালেট প্রদানকারী</p>
-                          <div className="flex items-center bg-white p-2 md:p-3 rounded-lg border border-gray-200">
-                            <span className="font-medium text-sm md:text-base">{provider}</span>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">ওয়ালেট নম্বর</p>
+                          <p className="text-xs md:text-sm font-[700] text-green-500 mb-1">এজেন্ট নম্বর</p>
                           <div className="flex items-center bg-white p-2 md:p-3 rounded-lg border border-gray-200">
                             <input
                               type="text"
@@ -514,7 +506,7 @@ const Checkout = () => {
                       </label>
                       <div className="space-y-3 md:space-y-4">
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">আপনার অ্যাকাউন্ট নম্বর*</p>
+                          <p className="text-xs md:text-sm font-[700] text-green-500  mb-1">আপনার অ্যাকাউন্ট নম্বর*</p>
                           <input
                             type="text"
                             value={payerAccount}
@@ -529,7 +521,7 @@ const Checkout = () => {
                           {payerAccountError && <p className="mt-1 text-sm text-red-600">{payerAccountError}</p>}
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">লেনদেন আইডি*</p>
+                          <p className="text-xs md:text-sm font-[700] text-green-500 mb-1">লেনদেন আইডি*</p>
                           <input
                             type="text"
                             value={transactionId}

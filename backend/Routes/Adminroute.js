@@ -2336,7 +2336,334 @@ Adminroute.patch('/withdraw-requests/:id/status', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+const Banner = require('../Models/Banner'); // Add this import at the top with other models
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = './public/uploads/banners';
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'banner-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// File filter for images only
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed!'), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
+// Banner Routes
+
+// GET all banners
+Adminroute.get('/banners', async (req, res) => {
+  try {
+    const banners = await Banner.find().sort({ createdAt: -1 });
+    res.json({
+      success: true,
+      data: banners
+    });
+  } catch (error) {
+    console.error('Error fetching banners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch banners',
+      error: error.message
+    });
+  }
+});
+
+// GET single banner by ID
+Adminroute.get('/banners/:id', async (req, res) => {
+  try {
+    const banner = await Banner.findById(req.params.id);
+    
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: banner
+    });
+  } catch (error) {
+    console.error('Error fetching banner:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid banner ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch banner',
+      error: error.message
+    });
+  }
+});
+
+// POST create new banner
+Adminroute.post('/banners', upload.single('bannerImage'), async (req, res) => {
+  try {
+    const { title, description, position, isActive } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Banner image is required'
+      });
+    }
+    
+    // Create new banner
+    const newBanner = new Banner({
+      title,
+      description,
+      imageUrl: req.file.filename,
+      position: position || 'top',
+      isActive: isActive === 'true' || isActive === true
+    });
+    
+    const savedBanner = await newBanner.save();
+    
+    res.status(201).json({
+      success: true,
+      message: 'Banner created successfully',
+      data: savedBanner
+    });
+  } catch (error) {
+    console.error('Error creating banner:', error);
+    
+    // Delete uploaded file if there was an error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create banner',
+      error: error.message
+    });
+  }
+});
+
+// PUT update banner
+Adminroute.put('/banners/:id', upload.single('bannerImage'), async (req, res) => {
+  try {
+    const { title, description, position, isActive } = req.body;
+    
+    // Find existing banner
+    const existingBanner = await Banner.findById(req.params.id);
+    if (!existingBanner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+    
+    const updateData = {
+      title: title || existingBanner.title,
+      description: description || existingBanner.description,
+      position: position || existingBanner.position,
+      isActive: isActive !== undefined ? (isActive === 'true' || isActive === true) : existingBanner.isActive
+    };
+    
+    // If new image is uploaded, update imageUrl and delete old image
+    if (req.file) {
+      // Delete old image file
+      if (existingBanner.imageUrl && fs.existsSync(existingBanner.imageUrl)) {
+        fs.unlinkSync(existingBanner.imageUrl);
+      }
+      updateData.imageUrl = req.file.path;
+    }
+    
+    const updatedBanner = await Banner.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { 
+        new: true,
+        runValidators: true
+      }
+    );
+    
+    res.json({
+      success: true,
+      message: 'Banner updated successfully',
+      data: updatedBanner
+    });
+  } catch (error) {
+    console.error('Error updating banner:', error);
+    
+    // Delete uploaded file if there was an error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid banner ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update banner',
+      error: error.message
+    });
+  }
+});
+
+// DELETE banner
+Adminroute.delete('/banners/:id', async (req, res) => {
+  try {
+    const banner = await Banner.findById(req.params.id);
+    
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+    
+    // Delete image file
+    if (banner.imageUrl && fs.existsSync(banner.imageUrl)) {
+      fs.unlinkSync(banner.imageUrl);
+    }
+    
+    await Banner.findByIdAndDelete(req.params.id);
+    
+    res.json({
+      success: true,
+      message: 'Banner deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting banner:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid banner ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete banner',
+      error: error.message
+    });
+  }
+});
+
+// PATCH update banner status
+Adminroute.patch('/banners/:id/status', async (req, res) => {
+  try {
+    const { isActive } = req.body;
+    
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isActive must be a boolean value'
+      });
+    }
+    
+    const updatedBanner = await Banner.findByIdAndUpdate(
+      req.params.id,
+      { isActive },
+      { new: true }
+    );
+    
+    if (!updatedBanner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Banner ${isActive ? 'activated' : 'deactivated'} successfully`,
+      data: updatedBanner
+    });
+  } catch (error) {
+    console.error('Error updating banner status:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid banner ID format'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update banner status',
+      error: error.message
+    });
+  }
+});
+
+// GET active banners for frontend
+Adminroute.get('/banners-active', async (req, res) => {
+  try {
+    const banners = await Banner.find({ isActive: true }).sort({ position: 1, createdAt: -1 });
+    res.json({
+      success: true,
+      data: banners
+    });
+  } catch (error) {
+    console.error('Error fetching active banners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch active banners',
+      error: error.message
+    });
+  }
+});
 
 // // GET all cashdesk configurations
 // Adminroute.get('/cashdesk', async (req, res) => {

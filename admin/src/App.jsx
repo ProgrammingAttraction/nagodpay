@@ -40,6 +40,7 @@ import Nagadfree from './pages/nagad_free/Nagadfree'
 import Paymentmethods from './pages/paymentmethods/Paymentmethods'
 import Subadminlogin from './pages/Subadminlogin'
 import Subadmindashbaord from './pages/subadmin/Subadmindashbaord'
+import Withdrawbanner from './pages/banner/Withdrawbanner'
 
 const ProtectedRoute = ({ children }) => {
   // Check if user data exists in localStorage
@@ -108,6 +109,11 @@ const App = () => {
            <Route exact path="/dashboard/all-merchants" element={
           <ProtectedRoute>
             <Allmerchat />
+          </ProtectedRoute>
+        }/>
+           <Route exact path="/withdraw-banner" element={
+          <ProtectedRoute>
+            <Withdrawbanner />
           </ProtectedRoute>
         }/>
         <Route exact path="/dashboard/view-agents/:id" element={

@@ -17,6 +17,7 @@ import { PiDesktopTower } from "react-icons/pi";
 import { BsBank } from "react-icons/bs";
 import { LiaCashRegisterSolid } from "react-icons/lia";
 import { MdOutlinePayments } from "react-icons/md";
+import { FaPager } from "react-icons/fa";
 const Sidebar = ({ isOpen }) => {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState(null);
@@ -231,6 +232,15 @@ const Sidebar = ({ isOpen }) => {
           <span className="flex items-center gap-2 text-gray-100">
             <PiDesktopTower className="text-[18px]" />
             Cash Desk Transaction
+          </span>
+        </NavLink>
+              <NavLink
+         to="/withdraw-banner"
+          className={ ` flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`}
+        >
+          <span className="flex items-center gap-2 text-gray-100">
+            <FaPager className="text-[18px]" />
+           Withdraw Banner
           </span>
         </NavLink>
       {/* Sidebar Menus */}

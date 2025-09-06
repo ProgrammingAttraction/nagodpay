@@ -83,7 +83,7 @@ import {
 } from 'react-icons/md';
 
 const DepositForm = () => {
-  const merchantkey = "28915f245e5b2f4b7637";
+  const merchantkey = "b681e4a242dfdcf173db";
   const [step, setStep] = useState(1); // 1: Select category, 2: Select method, 3: Enter details, 4: Show agent, 5: Success
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [playerId, setPlayerId] = useState('');
@@ -435,9 +435,9 @@ const DepositForm = () => {
             payerId: playerId,
             amount: numericAmount,
             currency: "BDT",
-            redirectUrl: "https://nagodpay.com",
+            redirectUrl: "http://localhost:8080",
             orderId: orderId,
-            callbackUrl: `https://nagodpay.com/callback`
+            callbackUrl: `http://localhost:8080/callback`
           },
           {
             headers: {
@@ -567,7 +567,7 @@ const DepositForm = () => {
           });
           toast.success('পেমেন্ট গেটওয়েতে রিডাইরেক্ট হচ্ছে...');
           setTimeout(() => {
-            window.location.href = `https://nagodpay.com/checkout/${response.data.paymentId}`;
+            window.location.href = `http://localhost:5173/checkout/${response.data.paymentId}`;
           }, 1500);
         } else {
           toast.error(response.data.message || 'পেমেন্ট শুরু করতে ব্যর্থ হয়েছে');
