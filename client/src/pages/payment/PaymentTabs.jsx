@@ -11,6 +11,8 @@ import { FaCopy } from "react-icons/fa";
 import { FaInfoCircle } from "react-icons/fa";
 import { GiWallet } from "react-icons/gi";
 import location_img from "../../assets/withdraw_img.png"
+import { FaChevronLeft } from "react-icons/fa";
+import { FaChevronRight } from "react-icons/fa";
 // -----------all-methods-images----------------------
 import bkash_img from "../../assets/methods/bkash.jpg";
 import bkash_fast from "../../assets/methods/bkash.jpg";
