@@ -24,6 +24,7 @@ const BankDeposit = require('../Models/BankDeposit');
 const NagadFreeDeposit = require('../Models/NagadFreeDeposit');
 const PaymentMethod = require('../Models/PaymentMethod');
 const { getActiveConfig } = require("./cashDeskConfig");
+const Banner = require('../Models/Banner');
 // Paymentrouter.use(authenticate);
 // Paymentrouter.use(authorizeuser);
 
@@ -3456,4 +3457,17 @@ Paymentrouter.get('/payment-methods', async (req, res) => {
     });
   }
 });
+
+// -----------banner----------------------
+Paymentrouter.get("/withdraw-banner",async(req,res)=>{
+  try {
+    const banner=await Banner.find();
+    if(!banner){
+      return res.send({success:false,message:"No banner found!"})
+    }
+    return res.send({success:true,data:banner});
+  } catch (error) {
+    console.log(error)
+  }
+})
 module.exports = Paymentrouter;

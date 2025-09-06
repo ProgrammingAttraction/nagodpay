@@ -83,7 +83,7 @@ import {
 } from 'react-icons/md';
 
 const DepositForm = () => {
-  const merchantkey = "b681e4a242dfdcf173db";
+  const merchantkey = "28915f245e5b2f4b7637";
   const [step, setStep] = useState(1); // 1: Select category, 2: Select method, 3: Enter details, 4: Show agent, 5: Success
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [playerId, setPlayerId] = useState('');
@@ -1100,11 +1100,58 @@ const WithdrawForm = () => {
   const [withdrawalResult, setWithdrawalResult] = useState(null);
   const [availableMethods, setAvailableMethods] = useState([]);
   const [methodsInDatabase, setMethodsInDatabase] = useState([]);
+  const [banners, setBanners] = useState([]);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
   // Configuration
   const base_url = import.meta.env.VITE_API_KEY_Base_URL;
   const merchantkey = "28915f245e5b2f4b7637";
   
+  // Fetch banners from API
+  useEffect(() => {
+    const fetchBanners = async () => {
+      try {
+        const response = await axios.get(`${base_url}/api/payment/withdraw-banner`);
+        console.log(response)
+        if (response.data.success) {
+          setBanners(response.data.data);
+        } else {
+          console.error("Failed to fetch banners:", response.data.message);
+        }
+      } catch (error) {
+        console.error("Error fetching banners:", error);
+      }
+    };
+    
+    fetchBanners();
+  }, [base_url]);
+
+  // Auto-rotate banners
+  useEffect(() => {
+    if (banners.length > 1) {
+      const interval = setInterval(() => {
+        setCurrentBannerIndex((prevIndex) => 
+          prevIndex === banners.length - 1 ? 0 : prevIndex + 1
+        );
+      }, 5000); // Change banner every 5 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [banners.length]);
+
+  // Manual banner navigation
+  const goToNextBanner = () => {
+    setCurrentBannerIndex((prevIndex) => 
+      prevIndex === banners.length - 1 ? 0 : prevIndex + 1
+    );
+  };
+
+  const goToPrevBanner = () => {
+    setCurrentBannerIndex((prevIndex) => 
+      prevIndex === 0 ? banners.length - 1 : prevIndex - 1
+    );
+  };
+
   // Payment categories
   const paymentCategories = [
     {
@@ -1516,8 +1563,60 @@ const WithdrawForm = () => {
               {!selectedCategory ? (
                 // Category selection
                 <>
-                  <div className="w-full">
-                    <img className='w-full' src={location_img} alt="Payment methods" />
+                  {/* Banner Slider */}
+                  <div className="relative w-full h-40 md:h-48 overflow-hidden rounded-lg">
+                    {banners.length > 0 ? (
+                      <>
+                        {/* Banner Image */}
+                        <img 
+                          className="w-full h-full transition-opacity duration-500" 
+                          src={`${base_url}/uploads/banners/${banners[currentBannerIndex]?.imageUrl || location_img}`} 
+                          alt="Promotional banner" 
+                        />
+                        
+                        {/* Navigation Arrows */}
+                        {banners.length > 1 && (
+                          <>
+                            <button 
+                              onClick={goToPrevBanner}
+                              className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full transition-all"
+                            >
+                              <FaChevronLeft />
+                            </button>
+                            <button 
+                              onClick={goToNextBanner}
+                              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full transition-all"
+                            >
+                              <FaChevronRight />
+                            </button>
+                          </>
+                        )}
+                        
+                        {/* Dots Indicator */}
+                        {banners.length > 1 && (
+                          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                            {banners.map((_, index) => (
+                              <button
+                                key={index}
+                                onClick={() => setCurrentBannerIndex(index)}
+                                className={`w-2 h-2 rounded-full transition-all ${
+                                  index === currentBannerIndex 
+                                    ? 'bg-white' 
+                                    : 'bg-white/50'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      // Fallback if no banners
+                      <img 
+                        className="w-full h-full object-cover" 
+                        src={location_img} 
+                        alt="Payment methods" 
+                      />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
@@ -1723,7 +1822,7 @@ const WithdrawForm = () => {
               </div>
 
               <div className="space-y-4">
-                {/* <div>
+                <div>
                   <label htmlFor="amount" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">
                     Amount (BDT) <span className="text-red-500">*</span>
                   </label>
@@ -1746,7 +1845,7 @@ const WithdrawForm = () => {
                   {errors.amount && (
                     <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
                   )}
-                </div> */}
+                </div>
 
                 <div>
                   <label htmlFor="accountNumber" className="block text-sm md:text-[16px] font-medium text-gray-700 mb-1 flex items-center">

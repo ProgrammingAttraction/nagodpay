@@ -361,10 +361,10 @@ const Withdrawbanner = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {banners.map((banner) => (
-                  <div key={banner._id} className={`border rounded-lg overflow-hidden shadow-sm ${banner._id === currentBannerId ? 'ring-2 ring-blue-500' : ''}`}>
+                  <div key={banner._id} className={`border border-gray-200 rounded-lg overflow-hidden shadow-sm ${banner._id === currentBannerId ? 'ring-2 ring-blue-500' : ''}`}>
                     <div className="h-48 bg-gray-200 overflow-hidden">
                       <img 
-                        src={banner.imageUrl} 
+                        src={`${base_url}/uploads/banners/${banner.imageUrl}`} 
                         alt="Banner"
                         className="w-full h-full object-cover"
                       />
