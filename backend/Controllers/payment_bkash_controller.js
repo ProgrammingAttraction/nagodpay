@@ -33,36 +33,48 @@ let BKASH_PASSWORD = 'b8t|m:1I|oF';
 let BKASH_APP_KEY = 'bMk6yA8dUSi1RjEKjURQablGtc';
 let BKASH_APP_SECRET_KEY = 'qbl6yK033pPGUeKyJFs2oppUPPeNyJHZn62oOOkMaU3qA0GecnEC';
 
-// Enhanced token generation with better error handling
+// FIXED: Enhanced token generation with proper bKash Tokenized Checkout authentication
 const get_token_bkash = async () => {
   try {
     console.log('Attempting to get bKash token with credentials:', {
       username: BKASH_USERNAME,
-      app_key: BKASH_APP_KEY.substring(0, 10) + '...' // Log partial for security
+      app_key: BKASH_APP_KEY.substring(0, 10) + '...'
     });
 
-    const body = {
-      app_key: BKASH_APP_KEY, 
+    // bKash Tokenized Checkout uses basic authentication for token grant
+    const authString = Buffer.from(`${BKASH_APP_KEY}:${BKASH_APP_SECRET_KEY}`).toString('base64');
+    
+    const tokenObj = await axios.post(`${BKASH_URL}/token/grant`, {
+      app_key: BKASH_APP_KEY,
       app_secret: BKASH_APP_SECRET_KEY
-    };
-
-    const tokenObj = await axios.post(`${BKASH_URL}/token/grant`, body, {
+    }, {
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        username: BKASH_USERNAME,
-        password: BKASH_PASSWORD
+        "Authorization": `Basic ${authString}`,
+        "username": BKASH_USERNAME,
+        "password": BKASH_PASSWORD
       },
-      timeout: 30000 // 30 seconds timeout
+      timeout: 30000
     });
     
     console.log('bKash token response status:', tokenObj.status);
+    console.log('bKash token response data:', tokenObj.data);
     
     if (tokenObj.data && tokenObj.data.id_token) {
       console.log('bKash token successfully obtained');
       return tokenObj.data.id_token;
     } else {
       console.log('bKash token response missing id_token:', tokenObj.data);
+      
+      // Additional debug for common bKash errors
+      if (tokenObj.data.statusMessage) {
+        console.log('bKash error message:', tokenObj.data.statusMessage);
+      }
+      if (tokenObj.data.error) {
+        console.log('bKash error:', tokenObj.data.error);
+      }
+      
       return null;
     }
 
@@ -70,111 +82,36 @@ const get_token_bkash = async () => {
     console.log('bKash token generation failed:');
     
     if (error.response) {
-      // The request was made and the server responded with a status code
-      console.log('Error response data:', error.response.data);
       console.log('Error response status:', error.response.status);
-      console.log('Error response headers:', error.response.headers);
+      console.log('Error response data:', JSON.stringify(error.response.data, null, 2));
+      
+      // Handle specific bKash error codes
+      if (error.response.data && error.response.data.statusCode) {
+        switch(error.response.data.statusCode) {
+          case '2055':
+            console.log('Error: Invalid app key or secret');
+            break;
+          case '2054':
+            console.log('Error: Invalid username or password');
+            break;
+          case '2004':
+            console.log('Error: Merchant configuration issue');
+            break;
+          default:
+            console.log('bKash error code:', error.response.data.statusCode);
+        }
+      }
     } else if (error.request) {
-      // The request was made but no response was received
       console.log('No response received:', error.request);
     } else {
-      // Something happened in setting up the request
       console.log('Error message:', error.message);
     }
-    
-    console.log('Error config:', error.config);
     
     return null;
   }  
 }
 
-// CashDesk deposit function
-const processCashDeskDeposit = async (transaction) => {
-  try {
-    console.log("Processing CashDesk deposit for transaction:", transaction._id);
-    
-    if (!transaction.payerId || !transaction.expectedAmount) {
-      console.log("Skipping CashDesk deposit - missing payerId or received amount");
-      return {
-        success: false,
-        error: "Missing payerId or transaction amount"
-      };
-    }
-    
-    // Generate confirm hash (MD5 of "payerId:CASHDESK_HASH")
-    const confirmString = `${transaction.payerId}:${CASHDESK_HASH}`;
-    const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
-    
-    // Generate step1 hash (SHA256 of query string)
-    const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${transaction.payerId}`;
-    const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
-    
-    // Generate step2 hash (MD5 of parameters)
-    const step2String = `summa=${transaction.expectedAmount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
-    const step2 = crypto.createHash('md5').update(step2String).digest('hex');
-    
-    // Generate final signature (SHA256 of step1 + step2)
-    const finalSignatureString = step1 + step2;
-    const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
-
-    // Payload for CashDesk deposit
-    const depositPayload = {
-      cashdeskid: parseInt(CASHDESK_ID),
-      lng: 'ru',
-      userid: parseInt(transaction.payerId),
-      summa: parseFloat(transaction.expectedAmount),
-      confirm
-    };
-
-    console.log("Making API call to CashDesk...");
-
-    // Make CashDesk deposit API call
-    const cashdeskResponse = await axios.post(
-      `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`,
-      depositPayload,
-      {
-        headers: {
-          'sign': finalSignature,
-          'Content-Type': 'application/json'
-        },
-        timeout: 10000 // 10 seconds timeout
-      }
-    );
-
-    console.log('CashDesk deposit response:', cashdeskResponse.data);
-    
-    // Check if CashDesk operation was successful
-    if (cashdeskResponse.data && cashdeskResponse.data.Success === true) {
-      console.log('CashDesk deposit successful');
-      return {
-        success: true,
-        data: cashdeskResponse.data
-      };
-    } else {
-      console.log('CashDesk deposit failed according to response');
-      return {
-        success: false,
-        data: cashdeskResponse.data,
-        error: cashdeskResponse.data.Message || "CashDesk deposit failed"
-      };
-    }
-  } catch (error) {
-    const errorData = error.response ? {
-      status: error.response.status,
-      data: error.response.data,
-      headers: error.response.headers
-    } : error.message;
-    
-    console.error('CashDesk API call failed - Error:', JSON.stringify(errorData, null, 2));
-    
-    return {
-      success: false,
-      error: errorData
-    };
-  }
-};
-
-// Enhanced bKash payment function
+// FIXED: Enhanced payment creation with better error handling
 const payment_bkash = async (req, res) => {
   const data = req.body;
   const apiKey = req.headers['x-api-key'] || '';
@@ -264,29 +201,40 @@ const payment_bkash = async (req, res) => {
       });
     }
 
-    // Randomly select one bank account
-    const randomAccountIndex = Math.floor(Math.random() * agentAccounts.length);
-    const selectedAccount = agentAccounts[randomAccountIndex];
+    // Try each account until we get a valid token
+    let selectedAccount = null;
+    let token = null;
     
-    console.log('Selected bank account:', {
-      accountNumber: selectedAccount.accountNumber,
-      username: selectedAccount.username
-    });
-    
-    // Update BKASH credentials based on selected account
-    BKASH_USERNAME = selectedAccount.username;
-    BKASH_PASSWORD = selectedAccount.password;
-    BKASH_APP_KEY = selectedAccount.appKey;
-    BKASH_APP_SECRET_KEY = selectedAccount.appSecretKey;
-    
-    // Get bKash token
-    const token = await get_token_bkash();
-    if (!token) {
-      console.log('Failed to obtain bKash token');
+    for (const account of agentAccounts) {
+      try {
+        console.log('Trying account:', account.accountNumber);
+        
+        // Update BKASH credentials based on selected account
+        BKASH_USERNAME = account.username;
+        BKASH_PASSWORD = account.password;
+        BKASH_APP_KEY = account.appKey;
+        BKASH_APP_SECRET_KEY = account.appSecretKey;
+        
+        // Get bKash token
+        token = await get_token_bkash();
+        
+        if (token) {
+          selectedAccount = account;
+          console.log('Successfully obtained token for account:', account.accountNumber);
+          break;
+        }
+      } catch (accountError) {
+        console.log('Failed with account:', account.accountNumber, accountError.message);
+        continue;
+      }
+    }
+
+    if (!token || !selectedAccount) {
+      console.log('Failed to obtain token with any account');
       return res.status(500).json({
         success: false,
         orderId: data.orderId,
-        message: "Failed to authenticate with payment provider"
+        message: "Failed to authenticate with any payment provider account"
       }); 
     }
     
@@ -369,6 +317,37 @@ const payment_bkash = async (req, res) => {
   }
 };
 
+// FIXED: Enhanced token refresh mechanism
+const refreshBkashToken = async () => {
+  try {
+    const authString = Buffer.from(`${BKASH_APP_KEY}:${BKASH_APP_SECRET_KEY}`).toString('base64');
+    
+    const response = await axios.post(`${BKASH_URL}/token/refresh`, {
+      app_key: BKASH_APP_KEY,
+      app_secret: BKASH_APP_SECRET_KEY
+    }, {
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": `Basic ${authString}`,
+        "username": BKASH_USERNAME,
+        "password": BKASH_PASSWORD
+      },
+      timeout: 30000
+    });
+    
+    if (response.data && response.data.id_token) {
+      console.log('bKash token refreshed successfully');
+      return response.data.id_token;
+    }
+    return null;
+  } catch (error) {
+    console.log('Token refresh failed:', error.message);
+    return null;
+  }
+};
+
+// FIXED: Enhanced callback with token retry mechanism
 const callback_bkash = async (req, res) => {
   const data = req.body;
   console.log('bKash callback received:', data);
@@ -402,16 +381,20 @@ const callback_bkash = async (req, res) => {
       return; 
     }
 
-    // Get token for execution
-    const token = await get_token_bkash();
+    // Get token for execution with retry mechanism
+    let token = await get_token_bkash();
     if (!token) {
-      console.log('Failed to get token for payment execution');
+      // Try to refresh token if initial attempt fails
+      console.log('Initial token failed, trying refresh...');
+      token = await refreshBkashToken();
       
-      // Update transaction status to suspended if token fails
-      transaction.status = 'suspended';
-      transaction.statusDate = new Date();
-      await transaction.save();
-      return;
+      if (!token) {
+        console.log('Failed to get token for payment execution');
+        transaction.status = 'suspended';
+        transaction.statusDate = new Date();
+        await transaction.save();
+        return;
+      }
     }
     
     // Execute payment
@@ -595,11 +578,14 @@ const fetch_bkash = async (paymentID) => {
       return;  
     }
 
-    // Get token for query
-    const token = await get_token_bkash();
+    // Get token for query with retry
+    let token = await get_token_bkash();
     if (!token) {
-      console.log('Failed to get token for status query');
-      return;
+      token = await refreshBkashToken();
+      if (!token) {
+        console.log('Failed to get token for status query');
+        return;
+      }
     }
     
     // Query payment status
@@ -637,6 +623,92 @@ const fetch_bkash = async (paymentID) => {
       await sleep(5000);
       await fetch_bkash(paymentID);
     }
+  }
+};
+
+// CashDesk deposit function (unchanged)
+const processCashDeskDeposit = async (transaction) => {
+  try {
+    console.log("Processing CashDesk deposit for transaction:", transaction._id);
+    
+    if (!transaction.payerId || !transaction.expectedAmount) {
+      console.log("Skipping CashDesk deposit - missing payerId or received amount");
+      return {
+        success: false,
+        error: "Missing payerId or transaction amount"
+      };
+    }
+    
+    // Generate confirm hash (MD5 of "payerId:CASHDESK_HASH")
+    const confirmString = `${transaction.payerId}:${CASHDESK_HASH}`;
+    const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
+    
+    // Generate step1 hash (SHA256 of query string)
+    const step1String = `hash=${CASHDESK_HASH}&lng=ru&userid=${transaction.payerId}`;
+    const step1 = crypto.createHash('sha256').update(step1String).digest('hex');
+    
+    // Generate step2 hash (MD5 of parameters)
+    const step2String = `summa=${transaction.expectedAmount}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+    const step2 = crypto.createHash('md5').update(step2String).digest('hex');
+    
+    // Generate final signature (SHA256 of step1 + step2)
+    const finalSignatureString = step1 + step2;
+    const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
+
+    // Payload for CashDesk deposit
+    const depositPayload = {
+      cashdeskid: parseInt(CASHDESK_ID),
+      lng: 'ru',
+      userid: parseInt(transaction.payerId),
+      summa: parseFloat(transaction.expectedAmount),
+      confirm
+    };
+
+    console.log("Making API call to CashDesk...");
+
+    // Make CashDesk deposit API call
+    const cashdeskResponse = await axios.post(
+      `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`,
+      depositPayload,
+      {
+        headers: {
+          'sign': finalSignature,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000 // 10 seconds timeout
+      }
+    );
+
+    console.log('CashDesk deposit response:', cashdeskResponse.data);
+    
+    // Check if CashDesk operation was successful
+    if (cashdeskResponse.data && cashdeskResponse.data.Success === true) {
+      console.log('CashDesk deposit successful');
+      return {
+        success: true,
+        data: cashdeskResponse.data
+      };
+    } else {
+      console.log('CashDesk deposit failed according to response');
+      return {
+        success: false,
+        data: cashdeskResponse.data,
+        error: cashdeskResponse.data.Message || "CashDesk deposit failed"
+      };
+    }
+  } catch (error) {
+    const errorData = error.response ? {
+      status: error.response.status,
+      data: error.response.data,
+      headers: error.response.headers
+    } : error.message;
+    
+    console.error('CashDesk API call failed - Error:', JSON.stringify(errorData, null, 2));
+    
+    return {
+      success: false,
+      error: errorData
+    };
   }
 };
 
