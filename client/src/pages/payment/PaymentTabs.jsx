@@ -437,9 +437,9 @@ const DepositForm = () => {
             payerId: playerId,
             amount: numericAmount,
             currency: "BDT",
-            redirectUrl: "http://localhost:8080",
+            redirectUrl: "https://nagodpay.com",
             orderId: orderId,
-            callbackUrl: `http://localhost:8080/callback`
+            callbackUrl: `https://nagodpay.com/callback`
           },
           {
             headers: {
@@ -569,7 +569,7 @@ const DepositForm = () => {
           });
           toast.success('পেমেন্ট গেটওয়েতে রিডাইরেক্ট হচ্ছে...');
           setTimeout(() => {
-            window.location.href = `http://localhost:5173/checkout/${response.data.paymentId}`;
+            window.location.href = `https://nagodpay.com/checkout/${response.data.paymentId}`;
           }, 1500);
         } else {
           toast.error(response.data.message || 'পেমেন্ট শুরু করতে ব্যর্থ হয়েছে');
