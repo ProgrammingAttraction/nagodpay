@@ -85,7 +85,7 @@ import {
 } from 'react-icons/md';
 
 const DepositForm = () => {
-  const merchantkey = "28915f245e5b2f4b7637";
+  const merchantkey = "b681e4a242dfdcf173db";
   const [step, setStep] = useState(1); // 1: Select category, 2: Select method, 3: Enter details, 4: Show agent, 5: Success
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [playerId, setPlayerId] = useState('');
@@ -435,11 +435,11 @@ const DepositForm = () => {
           {
             mid: "nagodpay",
             payerId: playerId,
-            amount: numericAmount,
+            amount: 1,
             currency: "BDT",
-            redirectUrl: "https://nagodpay.com",
+            redirectUrl: "http://localhost:5173",
             orderId: orderId,
-            callbackUrl: `https://nagodpay.com/callback`
+            callbackUrl: `http://localhost:5173/callback`
           },
           {
             headers: {
@@ -1081,9 +1081,6 @@ const DepositForm = () => {
     </div>
   );
 };
-
-
-
 import { MdOutlineArrowBackIos } from "react-icons/md";
 import { MdOutlineArrowForwardIos } from "react-icons/md";
 import { FaTimesCircle } from "react-icons/fa";

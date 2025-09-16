@@ -5,7 +5,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import moment from "moment";
 
 function PaymentCallbackPage() {
-  const base_url2 = "https://api.nagodpay.com";
+  const base_url2 = "http://localhost:8080";
   const [paymentparams] = useSearchParams();
   const navigate = useNavigate();
   const [transaction_info, set_transaction_info] = useState(null);

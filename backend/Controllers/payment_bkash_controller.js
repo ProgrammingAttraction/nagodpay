@@ -26,19 +26,20 @@ const sleep = (ms) => {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Default bKash credentials (will be overridden by agent accounts)
+// Default bKash credentials (will be overridden by agent account credentials)
 let BKASH_URL = 'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/checkout';
 let BKASH_USERNAME = '01711799891';
 let BKASH_PASSWORD = 'b8t|m:1I|oF';
 let BKASH_APP_KEY = 'bMk6yA8dUSi1RjEKjURQablGtc';
 let BKASH_APP_SECRET_KEY = 'qbl6yK033pPGUeKyJFs2oppUPPeNyJHZn62oOOkMaU3qA0GecnEC';
 
-// FIXED: Enhanced token generation with proper bKash Tokenized Checkout authentication
-const get_token_bkash = async () => {
+// FIXED: Enhanced token generation with proper bKash authentication
+const get_token_bkash = async (retryCount = 0) => {
   try {
     console.log('Attempting to get bKash token with credentials:', {
       username: BKASH_USERNAME,
-      app_key: BKASH_APP_KEY.substring(0, 10) + '...'
+      appKey: BKASH_APP_KEY,
+      url: BKASH_URL
     });
 
     // bKash Tokenized Checkout uses basic authentication for token grant
@@ -58,579 +59,49 @@ const get_token_bkash = async () => {
       timeout: 30000
     });
     
-    console.log('bKash token response status:', tokenObj.status);
-    console.log('bKash token response data:', tokenObj.data);
+    console.log('bKash token response:', tokenObj.data);
     
     if (tokenObj.data && tokenObj.data.id_token) {
-      console.log('bKash token successfully obtained');
       return tokenObj.data.id_token;
     } else {
-      console.log('bKash token response missing id_token:', tokenObj.data);
+      console.log('Token response missing id_token:', tokenObj.data);
       
-      // Additional debug for common bKash errors
-      if (tokenObj.data.statusMessage) {
-        console.log('bKash error message:', tokenObj.data.statusMessage);
-      }
-      if (tokenObj.data.error) {
-        console.log('bKash error:', tokenObj.data.error);
+      // Retry with different agent if available
+      if (retryCount < 3) {
+        console.log(`Retrying token generation (attempt ${retryCount + 1})`);
+        await sleep(2000);
+        return get_token_bkash(retryCount + 1);
       }
       
       return null;
     }
 
   } catch (error) {
-    console.log('bKash token generation failed:');
+    console.log('bKash get token error:', error.response ? error.response.data : error.message);
     
     if (error.response) {
-      console.log('Error response status:', error.response.status);
-      console.log('Error response data:', JSON.stringify(error.response.data, null, 2));
-      
-      // Handle specific bKash error codes
-      if (error.response.data && error.response.data.statusCode) {
-        switch(error.response.data.statusCode) {
-          case '2055':
-            console.log('Error: Invalid app key or secret');
-            break;
-          case '2054':
-            console.log('Error: Invalid username or password');
-            break;
-          case '2004':
-            console.log('Error: Merchant configuration issue');
-            break;
-          default:
-            console.log('bKash error code:', error.response.data.statusCode);
-        }
-      }
-    } else if (error.request) {
-      console.log('No response received:', error.request);
-    } else {
-      console.log('Error message:', error.message);
+      console.log('Error details:', {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+    }
+    
+    // Retry with different agent if available
+    if (retryCount < 3) {
+      console.log(`Retrying token generation (attempt ${retryCount + 1})`);
+      await sleep(2000);
+      return get_token_bkash(retryCount + 1);
     }
     
     return null;
   }  
 }
 
-// FIXED: Enhanced payment creation with better error handling
-const payment_bkash = async (req, res) => {
-  const data = req.body;
-  const apiKey = req.headers['x-api-key'] || '';
-  
-  console.log('bKash payment request received:', {
-    orderId: data.orderId,
-    payerId: data.payerId,
-    amount: data.amount
-  });
-
-  // Validation
-  if (!data.orderId || !data.payerId || !data.amount || !data.currency || !data.redirectUrl || !data.callbackUrl) {
-    return res.status(400).json({
-      success: false,
-      orderId: data.orderId,
-      message: "Required fields are not filled out."
-    });
-  }
-
-  try {
-    // Check for duplicate order ID
-    const payinTransaction = await PayinTransaction.findOne({
-      orderId: data.orderId,
-    });
-    
-    if (payinTransaction) {
-      console.log('Duplicate order ID:', data.orderId);
-      return res.status(400).json({
-        success: false,
-        orderId: data.orderId,
-        message: "Transaction with duplicated order id, " + data.orderId + "."
-      });  
-    }
-    
-    // Merchant validation
-    const matched_merchant = await Merchantkey.findOne({ apiKey: apiKey });
-    if (!matched_merchant) {
-      return res.status(401).json({
-        success: false,
-        message: "Wrong merchant api key!"
-      });
-    }
-    
-    // Account selection logic
-    const provoder_name = 'Bkash P2C';
-    
-    // Find eligible users with sufficient balance
-    const eligibleUsers = await UserModel.find({
-      balance: { $gte: 50000 + data.amount },
-      'agentAccounts.0': { $exists: true },
-      status: 'active',
-      paymentMethod: provoder_name
-    });
-
-    if (eligibleUsers.length === 0) {
-      console.log('No eligible agents found');
-      return res.status(400).json({
-        success: false,
-        orderId: data.orderId,
-        message: "No eligible agents found."
-      });
-    }
-
-    // Randomly select one user from the eligible users
-    const randomIndex = Math.floor(Math.random() * eligibleUsers.length);
-    const selectedAgent = eligibleUsers[randomIndex];
-
-    console.log("Selected Agent:", {
-      _id: selectedAgent._id,
-      username: selectedAgent.username,
-      balance: selectedAgent.balance,
-      agentAccountsCount: selectedAgent.agentAccounts.length
-    });
-
-    // Get all active bank accounts for the selected agent
-    const agentAccounts = await BankAccount.find({
-      user_id: selectedAgent._id,
-      status: 'active'
-    });
-
-    if (agentAccounts.length === 0) {
-      console.log('No active bank accounts found for agent:', selectedAgent._id);
-      return res.status(400).json({
-        success: false,
-        orderId: data.orderId,
-        message: "No active bank accounts found for the selected agent"
-      });
-    }
-
-    // Try each account until we get a valid token
-    let selectedAccount = null;
-    let token = null;
-    
-    for (const account of agentAccounts) {
-      try {
-        console.log('Trying account:', account.accountNumber);
-        
-        // Update BKASH credentials based on selected account
-        BKASH_USERNAME = account.username;
-        BKASH_PASSWORD = account.password;
-        BKASH_APP_KEY = account.appKey;
-        BKASH_APP_SECRET_KEY = account.appSecretKey;
-        
-        // Get bKash token
-        token = await get_token_bkash();
-        
-        if (token) {
-          selectedAccount = account;
-          console.log('Successfully obtained token for account:', account.accountNumber);
-          break;
-        }
-      } catch (accountError) {
-        console.log('Failed with account:', account.accountNumber, accountError.message);
-        continue;
-      }
-    }
-
-    if (!token || !selectedAccount) {
-      console.log('Failed to obtain token with any account');
-      return res.status(500).json({
-        success: false,
-        orderId: data.orderId,
-        message: "Failed to authenticate with any payment provider account"
-      }); 
-    }
-    
-    // Create payment request
-    const referenceId = nanoid(16);
-    const body = {
-      mode: '0011', 
-      payerReference: data.payerId,
-      callbackURL: data.callbackUrl,
-      amount: data.amount,
-      currency: data.currency,
-      intent: 'sale',
-      merchantInvoiceNumber: referenceId,
-    };
-
-    const createObj = await axios.post(`${BKASH_URL}/create`, body, {
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'x-app-key': BKASH_APP_KEY,
-        Authorization: token
-      },
-      timeout: 30000
-    });
-
-    console.log('bKash payment creation response:', createObj.data);
-    
-    if (createObj.data.statusCode && createObj.data.statusCode === '0000') {
-      // Create transaction record
-      const newTransaction = await PayinTransaction.create({
-        paymentId: createObj.data.paymentID,
-        agentAccount: selectedAccount.accountNumber,
-        provider: 'bkash',
-        orderId: data.orderId,
-        payerId: data.payerId,
-        expectedAmount: data.amount,
-        currency: data.currency,
-        redirectUrl: data.redirectUrl,
-        callbackUrl: data.callbackUrl,
-        referenceId,
-        submitDate: new Date(),
-        paymentType: 'p2c',
-        merchantid: matched_merchant._id,
-        agentDetails: {
-          userId: selectedAgent._id,
-          username: selectedAgent.username,
-          accountNumber: selectedAccount.accountNumber
-        }
-      }); 
-
-      return res.status(200).json({
-        success: true,
-        message: "Payment link created.",
-        orderId: data.orderId,
-        paymentId: createObj.data.paymentID,
-        link: createObj.data.bkashURL
-      });
-    } else {
-      console.log('bKash payment creation failed:', createObj.data);
-      return res.status(500).json({
-        success: false,
-        orderId: data.orderId,
-        message: "Payment creation failed: " + (createObj.data.statusMessage || "Unknown error")
-      }); 
-    }
-
-  } catch (error) {
-    console.log('bKash payment error:', error.message);
-    
-    let errorMessage = "Internal server error";
-    if (error.response) {
-      errorMessage = `Payment provider error: ${error.response.status} - ${JSON.stringify(error.response.data)}`;
-    }
-    
-    res.status(500).json({ 
-      success: false,
-      orderId: data.orderId,
-      message: errorMessage 
-    });
-  }
-};
-
-// FIXED: Enhanced token refresh mechanism
-const refreshBkashToken = async () => {
-  try {
-    const authString = Buffer.from(`${BKASH_APP_KEY}:${BKASH_APP_SECRET_KEY}`).toString('base64');
-    
-    const response = await axios.post(`${BKASH_URL}/token/refresh`, {
-      app_key: BKASH_APP_KEY,
-      app_secret: BKASH_APP_SECRET_KEY
-    }, {
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": `Basic ${authString}`,
-        "username": BKASH_USERNAME,
-        "password": BKASH_PASSWORD
-      },
-      timeout: 30000
-    });
-    
-    if (response.data && response.data.id_token) {
-      console.log('bKash token refreshed successfully');
-      return response.data.id_token;
-    }
-    return null;
-  } catch (error) {
-    console.log('Token refresh failed:', error.message);
-    return null;
-  }
-};
-
-// FIXED: Enhanced callback with token retry mechanism
-const callback_bkash = async (req, res) => {
-  const data = req.body;
-  console.log('bKash callback received:', data);
-  
-  try {
-    const transaction = await PayinTransaction.findOne({
-      paymentId: data.paymentID
-    });
-    
-    if (!transaction) {
-      console.log('No transaction found for paymentID:', data.paymentID);
-      return res.status(404).json({
-        success: false,
-        message: "There is no transaction with provided payment ID, " + data.paymentID + "."
-      });  
-    }
-    
-    // Immediately respond to bKash to prevent timeout
-    res.status(200).json({
-      success: true,
-      redirectUrl: transaction.redirectUrl
-    }); 
-
-    if (data.status !== 'success') {
-      console.log('Callback status is not success:', data.status);
-      return;
-    }
-
-    if (transaction.status !== 'pending') {
-      console.log('Transaction already processed:', transaction.status);
-      return; 
-    }
-
-    // Get token for execution with retry mechanism
-    let token = await get_token_bkash();
-    if (!token) {
-      // Try to refresh token if initial attempt fails
-      console.log('Initial token failed, trying refresh...');
-      token = await refreshBkashToken();
-      
-      if (!token) {
-        console.log('Failed to get token for payment execution');
-        transaction.status = 'suspended';
-        transaction.statusDate = new Date();
-        await transaction.save();
-        return;
-      }
-    }
-    
-    // Execute payment
-    const executeObj = await axios.post(`${BKASH_URL}/execute`, {
-      paymentID: data.paymentID,
-    }, {
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        'x-app-key': BKASH_APP_KEY,
-        Authorization: token
-      },
-      timeout: 30000
-    });
-
-    console.log('bKash execute response:', executeObj.data);
-
-    await processBkashTransactionResponse(transaction, executeObj.data);
-
-  } catch (error) {
-    console.log('bKash callback error:', error.message);
-    
-    // Handle specific transaction if available in error context
-    if (error.transaction) {
-      error.transaction.status = 'suspended';
-      error.transaction.statusDate = new Date();
-      await error.transaction.save();
-    }
-  }
-};
-
-// Helper function to process bKash transaction response
-async function processBkashTransactionResponse(transaction, responseData) {
-  try {
-    if (responseData.statusCode && responseData.statusCode === '0000') {
-      if (responseData.transactionStatus === "Completed") {
-        // Update transaction status
-        transaction.status = "completed";
-        transaction.transactionId = responseData.trxID;
-        transaction.receivedAmount = responseData.amount;
-        transaction.payerAccount = responseData.customerMsisdn;
-        transaction.statusDate = new Date();
-        transaction.transactionDate = new Date();
-        
-        await transaction.save();
-        
-        console.log("Transaction completed successfully");
-
-        // Process agent and merchant balances
-        const find_account = await BankAccount.findOne({ accountNumber: transaction.agentAccount });
-        if (!find_account) {
-          console.log('Bank account not found:', transaction.agentAccount);
-          return;
-        }
-        
-        const matched_user = await UserModel.findById(find_account.user_id);
-        if (!matched_user) {
-          console.log('User not found for account:', find_account.user_id);
-          return;
-        }
-        
-        // Calculate commissions
-        const usercomissionmoney = (transaction.expectedAmount / 100) * matched_user.depositcommission;
-        const matchedmerchant = await Merchantkey.findById(transaction.merchantid);
-        
-        if (!matchedmerchant) {
-          console.log('Merchant not found:', transaction.merchantid);
-          return;
-        }
-        
-        const comissionmoney = (transaction.expectedAmount / 100) * matchedmerchant.depositCommission;
-        
-        // Update agent account
-        find_account.total_order += 1;
-        find_account.total_recieved += transaction.expectedAmount;
-        await find_account.save();
-        
-        // Update user balance
-        matched_user.balance -= transaction.expectedAmount;
-        matched_user.balance += usercomissionmoney;
-        matched_user.providercost += usercomissionmoney;
-        matched_user.totalpayment += transaction.expectedAmount;
-        await matched_user.save();
-        
-        // Update merchant balance
-        matchedmerchant.balance += transaction.expectedAmount;
-        matchedmerchant.balance -= comissionmoney;
-        matchedmerchant.total_payin += transaction.expectedAmount;
-        matchedmerchant.providercost += comissionmoney;
-        await matchedmerchant.save();
-        
-        // Process CashDesk deposit
-        const cashdeskResult = await processCashDeskDeposit(transaction);
-        transaction.cashdeskResult = cashdeskResult;
-        await transaction.save();
-        
-      } else if (responseData.transactionStatus === 'Initiated') {
-        // Poll for status if initiated
-        await sleep(2000);
-        await fetch_bkash(data.paymentID);
-        return;
-      }
-      
-      // Send callback to merchant
-      await sendMerchantCallback(transaction);
-      
-    } else {
-      console.log('bKash execution failed:', responseData);
-      transaction.status = 'suspended';
-      transaction.statusDate = new Date();
-      await transaction.save();
-      
-      // Still send callback to merchant for failed transactions
-      await sendMerchantCallback(transaction);
-    }
-    
-  } catch (error) {
-    console.log('Error processing transaction response:', error.message);
-    throw error;
-  }
-}
-
-// Helper function to send callback to merchant
-async function sendMerchantCallback(transaction) {
-  if (!transaction.callbackUrl) return;
-  
-  try {
-    const hash = generate256Hash(
-      transaction.paymentId + 
-      transaction.orderId + 
-      (transaction.receivedAmount || 0).toString() + 
-      transaction.currency
-    );
-
-    const payload = {
-      paymentId: transaction.paymentId,
-      orderId: transaction.orderId,
-      amount: transaction.receivedAmount || 0,
-      currency: transaction.currency,
-      transactionId: transaction.transactionId,
-      status: transaction.status,
-      hash,
-    };
-
-    const callbackResponse = await axios.post(
-      transaction.callbackUrl,
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        timeout: 10000
-      }
-    );
-
-    console.log('Merchant callback response:', callbackResponse.status);
-    
-    if (callbackResponse.status === 200) {
-      transaction.sentCallbackDate = new Date();
-      await transaction.save();
-    }
-    
-  } catch (error) {
-    console.log('Failed to send merchant callback:', error.message);
-  }
-}
-
-const fetch_bkash = async (paymentID) => {
-  console.log('Fetching bKash payment status for:', paymentID);
-  
-  try {
-    await sleep(2000); // Wait before checking status
-    
-    const transaction = await PayinTransaction.findOne({
-      paymentId: paymentID
-    });
-    
-    if (!transaction) {
-      console.log('No transaction found for paymentID:', paymentID);
-      return;  
-    }
-
-    // Get token for query with retry
-    let token = await get_token_bkash();
-    if (!token) {
-      token = await refreshBkashToken();
-      if (!token) {
-        console.log('Failed to get token for status query');
-        return;
-      }
-    }
-    
-    // Query payment status
-    const queryObj = await axios.post(
-      `${BKASH_URL}/payment/status`,
-      { paymentID },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          'x-app-key': BKASH_APP_KEY,
-          Authorization: token
-        },
-        timeout: 30000
-      }
-    );
-
-    console.log('bKash status query response:', queryObj.data);
-    
-    if (queryObj.data.statusCode && queryObj.data.statusCode === '0000') {
-      await processBkashTransactionResponse(transaction, queryObj.data);
-    } else {
-      console.log('bKash status query failed');
-      transaction.status = 'suspended';
-      transaction.statusDate = new Date();
-      await transaction.save();
-    }
-    
-  } catch (error) {
-    console.log('bKash fetch error:', error.message);
-    
-    // Retry after delay if it's a network error
-    if (error.code === 'ECONNABORTED' || error.code === 'ENOTFOUND') {
-      console.log('Retrying fetch after delay...');
-      await sleep(5000);
-      await fetch_bkash(paymentID);
-    }
-  }
-};
-
-// CashDesk deposit function (unchanged)
+// CashDesk deposit function
 const processCashDeskDeposit = async (transaction) => {
   try {
-    console.log("Processing CashDesk deposit for transaction:", transaction._id);
-    
+    console.log("transaction", transaction)
     if (!transaction.payerId || !transaction.expectedAmount) {
       console.log("Skipping CashDesk deposit - missing payerId or received amount");
       return {
@@ -638,6 +109,10 @@ const processCashDeskDeposit = async (transaction) => {
         error: "Missing payerId or transaction amount"
       };
     }
+    
+    console.log("Initiating CashDesk deposit process...");
+    console.log("Payer ID:", transaction.payerId);
+    console.log("Amount:", transaction.expectedAmount);
     
     // Generate confirm hash (MD5 of "payerId:CASHDESK_HASH")
     const confirmString = `${transaction.payerId}:${CASHDESK_HASH}`;
@@ -664,8 +139,8 @@ const processCashDeskDeposit = async (transaction) => {
       confirm
     };
 
-    console.log("Making API call to CashDesk...");
-
+    console.log("CashDesk deposit payload:", JSON.stringify(depositPayload, null, 2));
+    
     // Make CashDesk deposit API call
     const cashdeskResponse = await axios.post(
       `${CASHDESK_API_BASE}/Deposit/${transaction.payerId}/Add`,
@@ -675,13 +150,12 @@ const processCashDeskDeposit = async (transaction) => {
           'sign': finalSignature,
           'Content-Type': 'application/json'
         },
-        timeout: 10000 // 10 seconds timeout
+        timeout: 10000
       }
     );
 
     console.log('CashDesk deposit response:', cashdeskResponse.data);
     
-    // Check if CashDesk operation was successful
     if (cashdeskResponse.data && cashdeskResponse.data.Success === true) {
       console.log('CashDesk deposit successful');
       return {
@@ -709,6 +183,490 @@ const processCashDeskDeposit = async (transaction) => {
       success: false,
       error: errorData
     };
+  }
+};
+
+// bKash payment function
+const payment_bkash = async (req, res) => {
+  const data = req.body;
+  const apiKey = req.headers['x-api-key'] || '';
+  
+  console.log('bKash payment request data:', data);
+  console.log('API Key:', apiKey);
+
+  if (!data.orderId || !data.payerId || !data.amount || !data.currency || !data.redirectUrl || !data.callbackUrl) {
+    return res.status(200).json({
+      success: false,
+      orderId: data.orderId,
+      message: "Required fields are not filled out."
+    });
+  }
+
+  try {
+    // Check for duplicate order ID
+    const payinTransaction = await PayinTransaction.findOne({
+      orderId: data.orderId,
+    });
+    
+    if (payinTransaction) {
+      console.log('Duplicate order ID:', data.orderId);
+      return res.status(200).json({
+        success: false,
+        orderId: data.orderId,
+        message: "Transaction with duplicated order id, " + data.orderId + "."
+      });  
+    }
+
+    // Validate merchant API key
+    const matched_merchant = await Merchantkey.findOne({ apiKey: apiKey });
+    if (!matched_merchant) {
+      return res.status(200).json({
+        success: false,
+        message: "Wrong merchant api key!"
+      });
+    }
+
+    // Account selection logic
+    const provoder_name = 'Bkash P2C';
+    
+    // Find eligible users with sufficient balance
+    const eligibleUsers = await UserModel.find({
+      balance: { $gte: 50000 + data.amount },
+      'agentAccounts.0': { $exists: true },
+      status: 'active',
+      paymentMethod: provoder_name
+    });
+
+    if (eligibleUsers.length === 0) {
+      console.log('No eligible agents found');
+      return res.status(200).json({
+        success: false,
+        orderId: data.orderId,
+        message: "No eligible agents found."
+      });
+    }
+
+    // Try each eligible agent until we find one that works
+    let token = null;
+    let selectedAgent = null;
+    let selectedAccount = null;
+    
+    // Shuffle agents to distribute load
+    const shuffledAgents = [...eligibleUsers].sort(() => 0.5 - Math.random());
+    
+    for (const agent of shuffledAgents) {
+      selectedAgent = agent;
+      
+      console.log("Trying Agent:", {
+        _id: selectedAgent._id,
+        username: selectedAgent.username,
+        balance: selectedAgent.balance,
+        agentAccountsCount: selectedAgent.agentAccounts.length
+      });
+
+      // Get all active bank accounts for the selected agent
+      const agentAccounts = await BankAccount.find({
+        user_id: selectedAgent._id,
+        status: 'active'
+      });
+
+      if (agentAccounts.length === 0) {
+        console.log('No active bank accounts found for agent');
+        continue;
+      }
+
+      // Try each account until we find one that works
+      const shuffledAccounts = [...agentAccounts].sort(() => 0.5 - Math.random());
+      
+      for (const account of shuffledAccounts) {
+        selectedAccount = account;
+        
+        console.log("Trying Account:", {
+          accountNumber: selectedAccount.accountNumber,
+          username: selectedAccount.username,
+          appKey: selectedAccount.appKey
+        });
+
+        // Update BKASH credentials based on selected account
+        BKASH_URL = selectedAccount.url || 'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/checkout';
+        BKASH_USERNAME = selectedAccount.username;
+        BKASH_PASSWORD = selectedAccount.password;
+        BKASH_APP_KEY = selectedAccount.appKey;
+        BKASH_APP_SECRET_KEY = selectedAccount.appSecretKey;
+        
+        console.log('Updated bKash credentials for account:', selectedAccount.accountNumber);
+
+        // Get bKash token
+        token = await get_token_bkash();
+        if (token) {
+          console.log('Successfully obtained token with account:', selectedAccount.accountNumber);
+          break; // Break out of account loop if token is obtained
+        } else {
+          console.log('Failed to get token with account:', selectedAccount.accountNumber);
+        }
+      }
+      
+      if (token) {
+        break; // Break out of agent loop if token is obtained
+      }
+    }
+
+    // If no token after trying all agents and accounts
+    if (!token) {
+      console.log('Failed to get token with any agent account');
+      return res.status(200).json({
+        success: false,
+        orderId: data.orderId,
+        message: "Payment provider authentication failed. Please try again later."
+      }); 
+    }
+    
+    const referenceId = nanoid(16);
+    const body = {
+      mode: '0011', 
+      payerReference: data.payerId,
+      callbackURL: data.callbackUrl,
+      amount: data.amount,
+      currency: data.currency,
+      intent: 'sale',
+      merchantInvoiceNumber: referenceId,
+    };
+
+    console.log('Creating bKash payment with body:', body);
+
+    const createObj = await axios.post(`${BKASH_URL}/create`, body, {
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'x-app-key': BKASH_APP_KEY,
+        Authorization: token
+      },
+      timeout: 30000
+    });
+
+    console.log('bKash payment create response:', createObj.data);
+    
+    if (createObj.data.statusCode && createObj.data.statusCode === '0000') {
+      const newTransaction = await PayinTransaction.create({
+        paymentId: createObj.data.paymentID,
+        agentAccount: selectedAccount.accountNumber,
+        provider: 'bkash',
+        orderId: data.orderId,
+        payerId: data.payerId,
+        expectedAmount: data.amount,
+        currency: data.currency,
+        redirectUrl: data.redirectUrl,
+        callbackUrl: data.callbackUrl,
+        referenceId,
+        submitDate: new Date(),
+        paymentType: 'p2c',
+        merchantid: matched_merchant._id
+      }); 
+
+      return res.status(200).json({
+        success: true,
+        message: "Payment link created.",
+        orderId: data.orderId,
+        paymentId: createObj.data.paymentID,
+        link: createObj.data.bkashURL
+      });
+    } else {
+      console.log('bKash payment creation failed:', createObj.data);
+      return res.status(200).json({
+        success: false,
+        orderId: data.orderId,
+        message: createObj.data.statusMessage || "Payment creation failed"
+      }); 
+    }
+
+  } catch (error) {
+    console.log('bKash payment error:', error.response ? error.response.data : error.message);
+    
+    res.status(200).json({ 
+      success: false,
+      orderId: data.orderId,
+      message: error.response?.data?.errorMessage || "Internal server error"
+    });
+  }
+};
+
+const callback_bkash = async (req, res) => {
+  const data = req.body;
+  console.log('bKash callback data:', data);
+  
+  try {
+    const transaction = await PayinTransaction.findOne({
+      paymentId: data.paymentID
+    });
+    
+    if (!transaction) {
+      console.log('No transaction found with paymentID:', data.paymentID);
+      return res.status(200).json({
+        success: false,
+        message: "There is no transaction with provided payment ID, " + data.paymentID + "."
+      });  
+    }
+    
+    res.status(200).json({
+      success: true,
+      redirectUrl: transaction.redirectUrl
+    }); 
+
+    if (data.status !== 'success') {
+      console.log('Callback status is not success:', data.status);
+      return;
+    }
+
+    if (transaction.status !== 'pending') {
+      console.log('Transaction already processed:', transaction.status);
+      return; 
+    }
+
+    // Get the agent account used for this transaction
+    const account = await BankAccount.findOne({ accountNumber: transaction.agentAccount });
+    if (account) {
+      // Update BKASH credentials based on the account used in the transaction
+      BKASH_URL = account.url || 'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/checkout';
+      BKASH_USERNAME = account.username;
+      BKASH_PASSWORD = account.password;
+      BKASH_APP_KEY = account.appKey;
+      BKASH_APP_SECRET_KEY = account.appSecretKey;
+    }
+
+    const token = await get_token_bkash();
+    if (!token) {
+      console.log('bKash token is null in callback');
+      
+      // Update transaction status to suspended if token fails
+      transaction.status = 'suspended';
+      transaction.statusDate = new Date();
+      await transaction.save();
+      return;
+    }
+    
+    const body = {
+      paymentID: data.paymentID,
+    };
+
+    const executeObj = await axios.post(`${BKASH_URL}/execute`, body, {
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'x-app-key': BKASH_APP_KEY,
+        Authorization: token
+      },
+      timeout: 30000
+    });
+
+    console.log('bKash payment execute response:', executeObj.data);
+
+    if (executeObj.data.statusCode && executeObj.data.statusCode === '0000') {
+      if (executeObj.data.transactionStatus === "Completed") {
+        transaction.status = "completed";
+        await transaction.save();
+        
+        // Process commission and update balances
+        const find_account = await BankAccount.findOne({ accountNumber: transaction.agentAccount });
+        const matched_user = await UserModel.findById(find_account.user_id);
+        
+        if (find_account && matched_user) {
+          const usercomissionmoney = (transaction.expectedAmount / 100) * matched_user.depositcommission;
+          find_account.total_order += 1;
+          find_account.total_recieved += transaction.expectedAmount;
+          await find_account.save();
+          
+          matched_user.balance -= transaction.expectedAmount;
+          matched_user.balance += usercomissionmoney;
+          matched_user.providercost += usercomissionmoney;
+          matched_user.totalpayment += transaction.expectedAmount;
+          await matched_user.save();
+
+          const matchedmerchant = await Merchantkey.findById(transaction.merchantid);
+          if (matchedmerchant) {
+            const comissionmoney = (transaction.expectedAmount / 100) * matchedmerchant.depositCommission;
+            matchedmerchant.balance += transaction.expectedAmount;
+            matchedmerchant.balance -= comissionmoney;
+            matchedmerchant.total_payin += transaction.expectedAmount;
+            matchedmerchant.providercost += comissionmoney;
+            await matchedmerchant.save();
+          }
+        }
+
+        // Process CashDesk deposit
+        const cashdeskResult = await processCashDeskDeposit(transaction);
+        transaction.cashdeskResult = cashdeskResult;
+        await transaction.save();
+        
+      } else if (executeObj.data.transactionStatus === 'Initiated') {
+        // If initiated, fetch status later
+        setTimeout(() => fetch_bkash(data.paymentID), 5000);
+        return;
+      }
+      
+      let transaction_status = 'processing';
+      if (executeObj.data.transactionStatus === 'Completed') {
+        transaction_status = 'completed';
+      } else if (executeObj.data.transactionStatus === 'Pending Authorized') {
+        transaction_status = 'pending';
+      } else if (executeObj.data.transactionStatus === 'Expired') {
+        transaction_status = 'expired';
+      } else if (executeObj.data.transactionStatus === 'Declined') {
+        transaction_status = 'rejected';
+      }
+
+      const currentTime = new Date();
+      transaction.status = transaction_status;
+      transaction.statusDate = currentTime;
+      transaction.transactionDate = currentTime;
+      transaction.transactionId = executeObj.data.trxID;
+      transaction.receivedAmount = executeObj.data.amount;
+      transaction.payerAccount = executeObj.data.customerMsisdn;
+      await transaction.save();
+      
+      // Send callback to merchant
+      if (transaction.callbackUrl && (transaction.status === 'completed' || transaction.status === 'expired' || transaction.status === 'suspended')) {
+        await sendCallbackToMerchant(transaction);
+      }
+
+    } else if (executeObj.data.statusCode) {
+      console.log('bKash execute failed:', executeObj.data.statusCode, executeObj.data.statusMessage);
+      
+      transaction.status = 'suspended';
+      transaction.statusDate = new Date();
+      await transaction.save();
+      
+      if (transaction.callbackUrl) {
+        await sendCallbackToMerchant(transaction);
+      }
+    }
+
+  } catch (error) {
+    console.log('bKash callback error:', error.response ? error.response.data : error.message);
+  }
+};
+
+const fetch_bkash = async (paymentID) => {
+  console.log('Fetching bKash payment status for:', paymentID);
+  
+  try {
+    const transaction = await PayinTransaction.findOne({
+      paymentId: paymentID
+    });
+    
+    if (!transaction) {
+      console.log('No transaction found for paymentID:', paymentID);
+      return;  
+    }
+
+    // Get the agent account used for this transaction
+    const account = await BankAccount.findOne({ accountNumber: transaction.agentAccount });
+    if (account) {
+      // Update BKASH credentials based on the account used in the transaction
+      BKASH_URL = account.url || 'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/checkout';
+      BKASH_USERNAME = account.username;
+      BKASH_PASSWORD = account.password;
+      BKASH_APP_KEY = account.appKey;
+      BKASH_APP_SECRET_KEY = account.appSecretKey;
+    }
+
+    const token = await get_token_bkash();
+    if (!token) {
+      console.log('bKash token is null in fetch');
+      return;
+    }
+    
+    const body = { paymentID };
+
+    const queryObj = await axios.post(`${BKASH_URL}/payment/status`, body, {
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        'x-app-key': BKASH_APP_KEY,
+        Authorization: token
+      },
+      timeout: 30000
+    });
+
+    console.log('bKash payment status response:', queryObj.data);
+
+    if (queryObj.data.statusCode && queryObj.data.statusCode === '0000') {
+      if (queryObj.data.transactionStatus === 'Initiated') {
+        // If still initiated, fetch again later
+        setTimeout(() => fetch_bkash(paymentID), 5000);
+        return;
+      }
+      
+      let transaction_status = 'processing';
+      if (queryObj.data.transactionStatus === 'Completed') {
+        transaction_status = 'completed';
+      } else if (queryObj.data.transactionStatus === 'Pending Authorized') {
+        transaction_status = 'pending';
+      } else if (queryObj.data.transactionStatus === 'Expired') {
+        transaction_status = 'expired';
+      } else if (queryObj.data.transactionStatus === 'Declined') {
+        transaction_status = 'rejected';
+      }
+
+      const currentTime = new Date();
+      transaction.status = transaction_status;
+      transaction.statusDate = currentTime;
+      transaction.transactionDate = currentTime;
+      transaction.transactionId = queryObj.data.trxID;
+      transaction.receivedAmount = queryObj.data.amount;
+      transaction.payerAccount = queryObj.data.customerMsisdn;
+      await transaction.save();
+      
+      // Send callback to merchant if needed
+      if (transaction.callbackUrl && (transaction.status === 'completed' || transaction.status === 'expired' || transaction.status === 'suspended') && !transaction.sentCallbackDate) {
+        await sendCallbackToMerchant(transaction);
+      }
+
+    } else {
+      console.log('bKash payment status query failed:', queryObj.data);
+      transaction.status = 'suspended';
+      transaction.statusDate = new Date();
+      await transaction.save();
+    }
+
+  } catch (error) {
+    console.log('bKash fetch error:', error.response ? error.response.data : error.message);
+    // Retry after delay if still pending
+    setTimeout(() => fetch_bkash(paymentID), 5000);
+  }
+};
+
+// Helper function to send callback to merchant
+const sendCallbackToMerchant = async (transaction) => {
+  try {
+    const hash = generate256Hash(transaction.paymentId + transaction.orderId + transaction.receivedAmount.toString() + transaction.currency);
+
+    const payload = {
+      paymentId: transaction.paymentId,
+      orderId: transaction.orderId,
+      amount: transaction.receivedAmount,
+      currency: transaction.currency,
+      transactionId: transaction.transactionId,
+      status: transaction.status,
+      hash,
+    };
+
+    const resp = await axios.post(transaction.callbackUrl, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      timeout: 10000
+    });
+
+    console.log('Callback sent to merchant successfully:', resp.data);
+    
+    if (resp.status === 200) {
+      transaction.sentCallbackDate = new Date();
+      await transaction.save();
+    }
+    
+  } catch (error) {
+    console.log('Callback to merchant failed:', error.response ? error.response.data : error.message);
   }
 };
 

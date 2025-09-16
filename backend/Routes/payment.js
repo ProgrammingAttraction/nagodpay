@@ -1672,98 +1672,115 @@ const config = await getActiveConfig();
     });
   }
 });
+// Check cashpoint balance
+// Add this route to your Paymentrouter
+
 Paymentrouter.get("/balance", async (req, res) => {
   try {
-    // Current date in required format: "yyyy.MM.dd HH:mm:ss" UTC
-    const now = new Date();
-    const dt = now.toISOString().slice(0,10).replace(/-/g,'.') + ' ' +
-               now.toISOString().slice(11,19);
+    // Use the hardcoded values directly
+    const CASHDESK_API_BASE = 'https://partners.servcul.com/CashdeskBotAPI';
+    const CASHDESK_HASH = "a13d615c8ee6f83a12a0645de4d9a1c4068148562f2ea165dea920c66af2ed90";
+    const CASHIER_PASS = "901276";
+    const CASHDESK_ID = "1177830";
     
-    console.log("Date string:", dt);
-const config = await getActiveConfig();
+    // Get current UTC time (critical fix)
+    const now = new Date();
+    const utcDate = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+    const fmt = utcDate.toISOString().slice(0, 10).replace(/-/g, '.') + ' ' +
+                utcDate.toISOString().slice(11, 19);
 
-// Use configuration values from the database
-    const CASHDESK_API_BASE = config.cashdeskApiBase;
-    const CASHDESK_HASH = config.cashdeskHash;
-    const CASHIER_PASS = config.cashierPass;
-    const CASHDESK_ID = config.cashdeskId;
-// Generate confirm hash (MD5 of "cashdeskid:hash")
+    console.log("=== DEBUG INFORMATION ===");
+    console.log("Formatted UTC date:", fmt);
+    console.log("Cashdesk ID:", CASHDESK_ID);
+    console.log("Hash:", CASHDESK_HASH);
+    console.log("Cashier pass:", CASHIER_PASS);
+
+    // Generate confirm hash (MD5 of "cashdeskId:hash")
     const confirmString = `${CASHDESK_ID}:${CASHDESK_HASH}`;
-    const confirm = md5(confirmString);
+    const confirm = crypto.createHash('md5').update(confirmString).digest('hex');
     console.log("Confirm string:", confirmString);
     console.log("Confirm hash:", confirm);
 
-    // CORRECT SIGNATURE GENERATION FOR BALANCE ENDPOINT:
-    
-    // 1. SHA256 of "hash={hash}&cashdeskid={cashdeskid}&dt={dt}"
-    const step1String = `hash=${CASHDESK_HASH}&cashdeskid=${CASHDESK_ID}&dt=${dt}`;
-    const step1 = sha256(step1String);
-    console.log("Step1 string:", step1String);
-    console.log("Step1 hash:", step1);
+    // Step 1: Compute SHA256 - Use exact parameter names and order
+    const step1String = `hash=${CASHDESK_HASH}&cashdeskid=${CASHDESK_ID}&dt=${fmt}`;
+    const step1Hash = crypto.createHash('sha256').update(step1String).digest('hex');
+    console.log("Step 1 string:", step1String);
+    console.log("Step 1 hash:", step1Hash);
 
-    // 2. MD5 of "dt={dt}&cashierpass={cashierpass}&cashdeskid={cashdeskid}"
-    const step2String = `dt=${dt}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
-    const step2 = md5(step2String);
-    console.log("Step2 string:", step2String);
-    console.log("Step2 hash:", step2);
+    // Step 2: Compute MD5 - Use exact parameter names and order
+    const step2String = `dt=${fmt}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`;
+    const step2Hash = crypto.createHash('md5').update(step2String).digest('hex');
+    console.log("Step 2 string:", step2String);
+    console.log("Step 2 hash:", step2Hash);
 
-    // 3. Final signature (SHA256 of step1 + step2)
-    const finalSignatureString = step1 + step2;
-    const finalSignature = sha256(finalSignatureString);
+    // Step 3: Final signature
+    const finalSignatureString = step1Hash + step2Hash;
+    const finalSignature = crypto.createHash('sha256').update(finalSignatureString).digest('hex');
     console.log("Final signature string:", finalSignatureString);
     console.log("Final signature:", finalSignature);
 
-    // Prepare query parameters
-    const queryParams = new URLSearchParams({
-      confirm: confirm,
-      dt: dt
-    }).toString();
-    
-    const url = `${CASHDESK_API_BASE}/Cashdesk/${CASHDESK_ID}/Balance?${queryParams}`;
-    console.log("Request URL:", url);
+    // Prepare query string
+    const qs = `confirm=${confirm}&dt=${encodeURIComponent(fmt)}`;
+    const url = `${CASHDESK_API_BASE}/Cashdesk/${CASHDESK_ID}/Balance?${qs}`;
+    console.log("Final URL:", url);
 
-    // Make API request
-    const response = await axios.get(url, {
-      headers: { 
-        'sign': finalSignature,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      timeout: 10000
-    });
+    // Make API request with detailed error handling
+    try {
+      const response = await axios.get(url, {
+        headers: { 
+          'Sign': finalSignature, // Critical: Use 'Sign' with capital S
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 10000
+      });
 
-    return res.json({
-      success: true,
-      data: response.data
-    });
+      // Return the balance data
+      return res.json({
+        success: true,
+        data: response.data
+      });
+
+    } catch (axiosError) {
+      console.error("Axios error details:");
+      console.error("Status:", axiosError.response?.status);
+      console.error("Headers sent:", {
+        'Sign': finalSignature,
+        'Content-Type': 'application/json'
+      });
+      console.error("Response data:", axiosError.response?.data);
+      
+      throw axiosError;
+    }
 
   } catch (error) {
     console.error("Balance check error:", error.response?.data || error.message);
     
-    // Additional troubleshooting
+    // More detailed error analysis
     if (error.response?.status === 401) {
-      console.error("Authentication failed. Please verify:");
-      console.error("1. CASHDESK_HASH:", CASHDESK_HASH);
-      console.error("2. CASHIER_PASS:", CASHIER_PASS);
-      console.error("3. CASHDESK_ID:", CASHDESK_ID);
+      console.error("=== 401 UNAUTHORIZED ANALYSIS ===");
+      console.error("Possible causes:");
+      console.error("1. Time synchronization issues (check server time)");
+      console.error("2. IP whitelisting requirements");
+      console.error("3. Invalid credentials (hash, cashierpass, cashdeskid)");
+      console.error("4. Header name casing (must be 'Sign' not 'sign')");
       
-      // Debug info
-      console.log("=== DEBUG INFO ===");
-      const now = new Date();
-      const dt = now.toISOString().slice(0,10).replace(/-/g,'.') + ' ' + now.toISOString().slice(11,19);
-      console.log("DT:", dt);
-      console.log("Step 1 string:", `hash=${CASHDESK_HASH}&cashdeskid=${CASHDESK_ID}&dt=${dt}`);
-      console.log("Step 2 string:", `dt=${dt}&cashierpass=${CASHIER_PASS}&cashdeskid=${CASHDESK_ID}`);
-      console.log("Confirm string:", `${CASHDESK_ID}:${CASHDESK_HASH}`);
+      // Suggest contacting API provider
+      console.error("Please contact your API manager to verify:");
+      console.error("- Your server IP is whitelisted");
+      console.error("- Your credentials are still valid");
+      console.error("- The exact signature generation format");
     }
 
     return res.status(error.response?.status || 500).json({
       success: false,
       message: "Error checking balance",
-      error: error.response?.data || error.message
+      error: error.response?.data || error.message,
+      details: "Please verify your API credentials and server IP whitelisting"
     });
   }
 });
+
 // Bank deposit route
 Paymentrouter.post('/bank-deposit', async (req, res) => {
   try {
