@@ -494,7 +494,30 @@ const UserSchema = new Schema({
   },
   lastLogin: {
     type: Date
+  },
+  // Add to your UserSchema
+otp: {
+  code: {
+    type: String,
+    default: null
+  },
+  expiresAt: {
+    type: Date,
+    default: null
+  },
+  attempts: {
+    type: Number,
+    default: 0
   }
+},
+isOtpVerified: {
+  type: Boolean,
+  default: false
+},
+otpRequestedAt: {
+  type: Date,
+  default: null
+}
 }, {
   timestamps: true,
   toJSON: {

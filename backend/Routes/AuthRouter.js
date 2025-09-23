@@ -1,7 +1,16 @@
-const { signup, login, checkUsername, adminLogin } = require('../Controllers/AuthController');
+const { 
+  signup, 
+  login, 
+  checkUsername, 
+  adminLogin, 
+  verifyAdminOTP, 
+  resendAdminOTP,
+  verifyAdminOTPMiddleware 
+} = require('../Controllers/AuthController');
 const { signupValidation, loginValidation } = require('../Middlewares/AuthValidation');
-const multer= require('multer');
+const multer = require('multer');
 const router = require('express').Router();
+
 // Multer setup for file upload
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -12,9 +21,15 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage });
+
+// Public routes
 router.post('/login', loginValidation, login);
-router.post('/signup',upload.single("identity"),signup);
-// New username availability check route
+router.post('/signup', upload.single("identity"), signup);
 router.get('/check-username/:username', checkUsername);
+
+// Admin OTP routes
 router.post('/admin/login', adminLogin);
+router.post('/admin/verify-otp', verifyAdminOTP);
+router.post('/admin/resend-otp', resendAdminOTP);
+
 module.exports = router;
