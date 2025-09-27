@@ -85,7 +85,7 @@ import {
 } from 'react-icons/md';
 
 const DepositForm = () => {
-  const merchantkey = "b681e4a242dfdcf173db";
+  const merchantkey = "28915f245e5b2f4b7637";
   const [step, setStep] = useState(1); // 1: Select category, 2: Select method, 3: Enter details, 4: Show agent, 5: Success
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [playerId, setPlayerId] = useState('');
@@ -228,7 +228,7 @@ const DepositForm = () => {
       // For now, I'll simulate it with a mock response
       const response = await axios.get(`${base_url}/api/admin/payment-methods`, {
         headers: {
-          'x-api-key': 'your-admin-api-key-here'
+          'x-api-key': '28915f245e5b2f4b7637'
         }
       });
       
