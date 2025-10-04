@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaHome, FaCog } from 'react-icons/fa'; // Added FaCog for settings icon
+import { FaHome, FaCog, FaDownload } from 'react-icons/fa'; // Added FaDownload for APK download icon
 import { FiChevronRight } from 'react-icons/fi';
 import { HiOutlineCalendar } from 'react-icons/hi';
 import { PiStudent } from 'react-icons/pi';
@@ -18,6 +18,7 @@ import { BsBank } from "react-icons/bs";
 import { LiaCashRegisterSolid } from "react-icons/lia";
 import { MdOutlinePayments } from "react-icons/md";
 import { FaPager } from "react-icons/fa";
+
 const Sidebar = ({ isOpen }) => {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState(null);
@@ -44,6 +45,21 @@ const Sidebar = ({ isOpen }) => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
+  // Function to handle APK download
+  const handleApkDownload = () => {
+    // Using the correct path based on your file structure
+    const apkUrl = '/assets/apps_file/app-release.apk';
+    
+    // Create a temporary anchor element to trigger download
+    const link = document.createElement('a');
+    link.href = apkUrl;
+    link.download = 'app-release.apk'; // The filename for download
+    link.target = '_blank'; // Open in new tab for better user experience
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <aside
       className={`transition-all duration-300 fixed w-[50%] md:w-[30%] lg:w-[20%] xl:w-[17%] h-full z-[999] border-r border-indigo-900 text-sm shadow-lg pt-[12vh] overflow-y-auto p-4 ${
@@ -55,7 +71,9 @@ const Sidebar = ({ isOpen }) => {
         <NavLink
           to="/dashboard"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 `
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
           <span className="flex items-center gap-2">
@@ -64,185 +82,260 @@ const Sidebar = ({ isOpen }) => {
           </span>
         </NavLink>
       </div>
+     
+      {/* APK Download Menu */}
+      <div className="mb-3">
+        <div
+          onClick={handleApkDownload}
+          className={`flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 text-indigo-200 hover:bg-indigo-800 hover:text-white`}
+        >
+          <span className="flex items-center gap-2">
+            <FaDownload className="text-[18px]" />
+            Download APK
+          </span>
+        </div>
+      </div>
+
      <div className="mb-3">
         <NavLink
           to="/dashboard/agents"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <LuClipboardList className="text-[18px]" />
             Agent
           </span>
         </NavLink>
       </div>
+       
        <div className="mb-3">
         <NavLink
           to="/dashboard/prepayment-requests"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <LuClipboardList className="text-[18px]" />
             Payment
           </span>
         </NavLink>
       </div>
+         
          <div className="mb-3">
         <NavLink
           to="/dashboard/merchant-payment"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <MdOutlinePayment className="text-[18px]" />
            Merchant Payment
           </span>
         </NavLink>
       </div>
+               
                <div className="mb-3">
         <NavLink
           to="/dashboard/all-merchants"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <MdOutlineSupervisorAccount className="text-[18px]" />
            All Merchant
           </span>
         </NavLink>
       </div>
+        
         <div className="mb-3">
         <NavLink
           to="/dashboard/all-payin"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <LiaChalkboardTeacherSolid className="text-[18px]" />
             Pay In
           </span>
         </NavLink>
       </div>
+             
              <div className="mb-3">
         <NavLink
           to="/dashboard/all-bank-payin"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <BsBank className="text-[18px]" />
           Bank Pay In
           </span>
         </NavLink>
       </div>
+                  
                   <div className="mb-3">
         <NavLink
           to="/dashboard/nagad-free"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <LiaCashRegisterSolid className="text-[18px]" />
           Nagad Free
           </span>
         </NavLink>
       </div>
+             
              <div className="mb-3">
         <NavLink
           to="/dashboard/all-payout"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <LiaChalkboardTeacherSolid className="text-[18px]" />
             Pay Out
           </span>
         </NavLink>
       </div>
+            
             <div className="mb-3">
         <NavLink
           to="/dashboard/merchant-withdrawal"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <LiaChalkboardTeacherSolid className="text-[18px]" />
             Merchant Withdraw
           </span>
         </NavLink>
       </div>
+           
            <div className="mb-3">
         <NavLink
           to="/dashboard/payment-methods"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <MdOutlinePayments className="text-[18px]" />
             Payment Methods
           </span>
         </NavLink>
       </div>
+             
              <div className="mb-3">
         <NavLink
           to="/dashboard/generate-key"
           className={({ isActive }) =>
-            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
           }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <LuKeySquare className="text-[18px]" />
             Api Key
           </span>
         </NavLink>
       </div>
-       <NavLink
-         to="/dashboard/forward-sms"
-          className={ ` flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`}
+       
+       <div className="mb-3">
+        <NavLink
+          to="/dashboard/forward-sms"
+          className={({ isActive }) =>
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
+          }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <LiaChalkboardTeacherSolid className="text-[18px]" />
             Forward SMS
           </span>
         </NavLink>
-  <NavLink
-         to="/dashboard/cash-desk"
-          className={ ` flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`}
+      </div>
+  
+  <div className="mb-3">
+        <NavLink
+          to="/dashboard/cash-desk"
+          className={({ isActive }) =>
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
+          }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <PiDesktopTower className="text-[18px]" />
             Cash Desk
           </span>
         </NavLink>
-          <NavLink
-         to="/subadmin-dashboard"
-          className={ ` flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`}
+      </div>
+          
+          <div className="mb-3">
+        <NavLink
+          to="/subadmin-dashboard"
+          className={({ isActive }) =>
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
+          }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <PiDesktopTower className="text-[18px]" />
             Cash Desk Transaction
           </span>
         </NavLink>
-              <NavLink
-         to="/withdraw-banner"
-          className={ ` flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200`}
+      </div>
+              
+              <div className="mb-3">
+        <NavLink
+          to="/withdraw-banner"
+          className={({ isActive }) =>
+            `flex items-center justify-between w-full px-3 py-2 text-[15px] lg:text-[16px] cursor-pointer rounded-[5px] transition duration-200 ${
+              isActive ? 'bg-indigo-700 text-white font-semibold shadow' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+            }`
+          }
         >
-          <span className="flex items-center gap-2 text-gray-100">
+          <span className="flex items-center gap-2">
             <FaPager className="text-[18px]" />
            Withdraw Banner
           </span>
         </NavLink>
+      </div>
+
       {/* Sidebar Menus */}
       {[
        
